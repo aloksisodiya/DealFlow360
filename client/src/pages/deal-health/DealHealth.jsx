@@ -20,7 +20,7 @@ import {
   Info,
   ChevronRight
 } from 'lucide-react';
-import Navbar from './Navbar';
+import Navbar from '../../components/layout/Navbar';
 import './DealHealth.css';
 
 export default function DealHealth({ user, onNavigate, onLogout }) {

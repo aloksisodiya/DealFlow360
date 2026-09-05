@@ -17,7 +17,7 @@ import {
   AlertTriangle,
   Download
 } from 'lucide-react';
-import Navbar from './Navbar';
+import Navbar from '../../components/layout/Navbar';
 import './Fulfillment.css';
 
 export default function Fulfillment({ user, onNavigate, onLogout }) {

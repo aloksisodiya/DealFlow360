@@ -1,12 +1,17 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import db from "../config/db.js";
+import { sendPasswordResetEmail } from "./email.service.js";
+
+// In-memory OTP code store with 15-minute expiration
+const resetCodesStore = new Map();
+
 
 const JWT_SECRET = process.env.JWT_SECRET || "development-only-secret";
 
 function hasRoleEmailFormat(workEmail, role) {
-  if (role === "admin") return true;
-  return new RegExp(`^[^\\s@]+@${role}\\.com$`, "i").test(workEmail);
+  // Allow all standard valid emails including @gmail.com
+  return true;
 }
 
 function toAdminResponse(admin) {
@@ -175,3 +180,82 @@ export async function updateManagedAccount(accountId, changes) {
   if (!account) throw new Error("Managed account not found");
   return toAdminResponse(account);
 }
+
+export async function requestPasswordReset(workEmail) {
+  const normalizedEmail = workEmail.trim().toLowerCase();
+  const admin = await db("admins").where({ work_email: normalizedEmail }).first();
+
+  if (!admin) {
+    throw new Error("No account found with this work email address");
+  }
+
+  if (!admin.is_active) {
+    throw new Error("Account is currently inactive. Contact your administrator.");
+  }
+
+  // Generate 6-digit verification code
+  const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
+
+  resetCodesStore.set(normalizedEmail, {
+    code: resetCode,
+    expiresAt,
+    adminId: admin.id,
+  });
+
+  const profile = admin.profile || {};
+  const userName = profile.name || admin.work_email.split("@")[0];
+
+  // Send email via Nodemailer
+  const emailResult = await sendPasswordResetEmail({
+    toEmail: normalizedEmail,
+    resetCode,
+    userName,
+  });
+
+  return {
+    email: normalizedEmail,
+    messageId: emailResult.messageId,
+  };
+}
+
+export async function verifyAndResetPassword({ workEmail, code, newPassword }) {
+  const normalizedEmail = workEmail.trim().toLowerCase();
+  const entry = resetCodesStore.get(normalizedEmail);
+
+  if (!entry) {
+    throw new Error("No active password reset request found. Please request a new code.");
+  }
+
+  if (Date.now() > entry.expiresAt) {
+    resetCodesStore.delete(normalizedEmail);
+    throw new Error("Verification code has expired. Please request a new one.");
+  }
+
+  if (entry.code !== code.trim()) {
+    throw new Error("Invalid verification code. Please check your email.");
+  }
+
+  if (!newPassword || newPassword.length < 6) {
+    throw new Error("New password must be at least 6 characters long.");
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+
+  await db("admins")
+    .where({ work_email: normalizedEmail })
+    .update({
+      password_hash: passwordHash,
+      must_change_password: false,
+    });
+
+  // Invalidate code after successful reset
+  resetCodesStore.delete(normalizedEmail);
+
+  return {
+    success: true,
+    email: normalizedEmail,
+    message: "Password has been successfully updated! You can now log in.",
+  };
+}
+

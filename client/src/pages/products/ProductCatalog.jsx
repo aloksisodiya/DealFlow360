@@ -17,7 +17,7 @@ import {
   ShieldCheck,
   Check
 } from 'lucide-react';
-import Navbar from './Navbar';
+import Navbar from '../../components/layout/Navbar';
 import './ProductCatalog.css';
 
 export default function ProductCatalog({ user, onNavigate, onLogout }) {

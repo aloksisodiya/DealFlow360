@@ -19,7 +19,7 @@ import {
   Sliders,
   Download
 } from 'lucide-react';
-import Navbar from './Navbar';
+import Navbar from '../../components/layout/Navbar';
 import './Reports.css';
 
 export default function Reports({ user, onNavigate, onLogout }) {

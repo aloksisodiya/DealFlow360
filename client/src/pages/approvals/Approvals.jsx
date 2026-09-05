@@ -10,9 +10,15 @@ import {
   Download, 
   RotateCcw 
 } from 'lucide-react';
-import Navbar from './Navbar';
+import Navbar from '../../components/layout/Navbar';
+import { downloadCSV } from '../../utils/formatters';
 import './Approvals.css';
 
+/**
+ * DealFlow360 - Approvals Matrix
+ * 
+ * Multi-tier approval queue for discounts, risk analysis, and audit tracking.
+ */
 export default function Approvals({ user, onNavigate, onLogout }) {
   const [activeStatusFilter, setActiveStatusFilter] = useState('all'); // 'all' | 'pending' | 'returned' | 'approved'
   const [riskFilter, setRiskFilter] = useState('all'); // 'all' | 'HIGH' | 'MEDIUM' | 'LOW'
@@ -34,7 +40,7 @@ export default function Approvals({ user, onNavigate, onLogout }) {
   const [newDiscount, setNewDiscount] = useState('');
   const [newStage, setNewStage] = useState('Sales Manager');
 
-  // Approval Records matching mockup
+  // Approval Records
   const [records, setRecords] = useState([
     {
       id: 'Q-1042',
@@ -126,19 +132,18 @@ export default function Approvals({ user, onNavigate, onLogout }) {
 
   // CSV Export Handler
   const handleExportCSV = () => {
-    const headers = ['Quotation ID,Customer,Amount,Discount,Risk Level,Stage,Assigned To,Status\n'];
-    const rows = records.map(r => 
-      `"${r.id}","${r.customer}","$${r.amount}","${r.discount}","${r.risk}","${r.stage}","${r.assignedTo}","${r.status}"`
-    ).join('\n');
-    
-    const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `DealFlow360_Approvals_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const headers = ['Quotation ID', 'Customer', 'Amount', 'Discount', 'Risk Level', 'Stage', 'Assigned To', 'Status'];
+    const rows = records.map(r => [
+      `"${r.id}"`,
+      `"${r.customer}"`,
+      `"$${r.amount}"`,
+      `"${r.discount}"`,
+      `"${r.risk}"`,
+      `"${r.stage}"`,
+      `"${r.assignedTo}"`,
+      `"${r.status}"`
+    ]);
+    downloadCSV('DealFlow360_Approvals', headers, rows);
     showToast('Exported approvals dataset to CSV.');
   };
 
@@ -229,7 +234,7 @@ export default function Approvals({ user, onNavigate, onLogout }) {
         </div>
       )}
 
-      {/* Universal Constant Header */}
+      {/* Unified Navigation Header */}
       <Navbar 
         activePage="approvals" 
         user={user} 

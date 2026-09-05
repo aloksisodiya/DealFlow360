@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { 
-  Home, 
   Clock, 
   FileText, 
   AlertTriangle, 
@@ -13,9 +12,14 @@ import {
   ArrowRight, 
   X 
 } from 'lucide-react';
-import Navbar from './Navbar';
+import Navbar from '../../components/layout/Navbar';
 import './Dashboard.css';
 
+/**
+ * DealFlow360 - Executive Dashboard
+ * 
+ * Pipeline summary, approval alerts, open quotation metrics, and recent activity logs.
+ */
 export default function Dashboard({ user, onNavigate, onLogout }) {
   const [activeModal, setActiveModal] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
@@ -57,7 +61,7 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
         </div>
       )}
 
-      {/* Universal Constant Header */}
+      {/* Unified Navigation Header */}
       <Navbar 
         activePage="dashboard" 
         user={user} 
@@ -72,7 +76,7 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
         <div className="dash-title-row">
           <div>
             <h1 className="dash-title">Sales Dashboard / Home</h1>
-            <p className="dash-subtitle">Central hub, links out to every module below</p>
+            <p className="dash-subtitle">Central deal flow hub, links out to every module below</p>
           </div>
 
           <div className="sync-status-pill">
@@ -153,7 +157,7 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
               <span>Needs immediate check-in</span>
               <button 
                 className="kpi-action-link"
-                onClick={() => setActiveModal('atRisk')}
+                onClick={() => onNavigate ? onNavigate('dealhealth') : setActiveModal('atRisk')}
               >
                 <span>Investigate</span>
                 <ArrowRight size={14} />

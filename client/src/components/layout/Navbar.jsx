@@ -8,10 +8,20 @@ import {
   LayoutGrid, 
   FileText, 
   CheckSquare, 
-  X 
+  X,
+  RefreshCw,
+  DollarSign,
+  AlertTriangle,
+  BarChart3,
+  Package
 } from 'lucide-react';
 import './Navbar.css';
 
+/**
+ * DealFlow360 - Unified Top Navigation Header
+ * 
+ * Provides unified routing tabs, active state highlighting, role preview, and user profile controls.
+ */
 export default function Navbar({ activePage, user, onNavigate, onLogout, onToast }) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [activeModal, setActiveModal] = useState(null); // 'contact' | 'support'
@@ -29,6 +39,7 @@ export default function Navbar({ activePage, user, onNavigate, onLogout, onToast
             <div 
               className="app-nav-brand" 
               onClick={() => onNavigate && onNavigate('dashboard')}
+              title="Go to DealFlow360 Dashboard"
             >
               <img src="/logo.png" alt="DealFlow360 Logo" className="app-nav-logo" />
               <span className="app-nav-brand-name">
@@ -149,6 +160,11 @@ export default function Navbar({ activePage, user, onNavigate, onLogout, onToast
                   <div className="nav-dropdown-header">
                     <div className="nav-dropdown-name">{user?.name || 'Alex Morgan'}</div>
                     <div className="nav-dropdown-email">{user?.email || 'alex.morgan@firm-capital.com'}</div>
+                    {user?.role && (
+                      <div className="nav-dropdown-role-badge">
+                        {user.role}
+                      </div>
+                    )}
                   </div>
                   <button 
                     className="nav-dropdown-item" 
@@ -263,7 +279,7 @@ export default function Navbar({ activePage, user, onNavigate, onLogout, onToast
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
-                {activeModal === 'contact' ? 'Contact Enterprise Sales' : 'DealFlow360 Priority Support'}
+                {activeModal === 'contact' ? 'Contact Enterprise Sales Desk' : 'DealFlow360 Priority Support'}
               </h3>
               <button className="modal-close-btn" onClick={() => setActiveModal(null)}>
                 <X size={18} />
@@ -273,11 +289,11 @@ export default function Navbar({ activePage, user, onNavigate, onLogout, onToast
             {activeModal === 'contact' ? (
               <div>
                 <p style={{ fontSize: '13.5px', color: '#64748b', marginBottom: '14px' }}>
-                  Speak directly with our enterprise solutions team: sales@dealflow360.io or +1 (800) 555-DEAL.
+                  Speak directly with our enterprise deal flow desk: sales@dealflow360.io or +1 (800) 555-DEAL.
                 </p>
                 <button 
                   type="button" 
-                  className="btn-new-quote"
+                  className="btn-dash-primary"
                   style={{ width: '100%', justifyContent: 'center' }}
                   onClick={() => {
                     notify('Sales demo requested. An advisor will contact you.');

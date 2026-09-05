@@ -21,7 +21,7 @@ import {
   Sliders,
   ChevronDown
 } from 'lucide-react';
-import Navbar from './Navbar';
+import Navbar from '../../components/layout/Navbar';
 import './Subscriptions.css';
 
 export default function Subscriptions({ user, onNavigate, onLogout }) {
