@@ -15,9 +15,10 @@ import './App.css';
 import Dashboard from './Dashboard';
 import Quotations from './Quotations';
 import Approvals from './Approvals';
+import Fulfillment from './Fulfillment';
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState('auth'); // 'auth' | 'dashboard' | 'quotations' | 'approvals'
+  const [currentScreen, setCurrentScreen] = useState('auth'); // 'auth' | 'dashboard' | 'quotations' | 'approvals' | 'fulfillment'
   const [currentUser, setCurrentUser] = useState({
     name: 'Alex Morgan',
     email: 'alex.morgan@firm-capital.com',
@@ -164,6 +165,16 @@ export default function App() {
   if (currentScreen === 'approvals') {
     return (
       <Approvals 
+        user={currentUser} 
+        onNavigate={(screen) => setCurrentScreen(screen)}
+        onLogout={handleLogout} 
+      />
+    );
+  }
+
+  if (currentScreen === 'fulfillment') {
+    return (
+      <Fulfillment 
         user={currentUser} 
         onNavigate={(screen) => setCurrentScreen(screen)}
         onLogout={handleLogout} 

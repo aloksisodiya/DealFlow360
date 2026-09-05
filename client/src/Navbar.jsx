@@ -63,7 +63,7 @@ export default function Navbar({ activePage, user, onNavigate, onLogout, onToast
 
               <button
                 className={`nav-tab-button ${activePage === 'fulfillment' ? 'active' : ''}`}
-                onClick={() => notify('Opening Fulfillment module')}
+                onClick={() => onNavigate && onNavigate('fulfillment')}
               >
                 <span>Fulfillment</span>
               </button>
@@ -179,6 +179,16 @@ export default function Navbar({ activePage, user, onNavigate, onLogout, onToast
                   >
                     <CheckSquare size={14} />
                     <span>Approvals</span>
+                  </button>
+                  <button 
+                    className="nav-dropdown-item" 
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      if (onNavigate) onNavigate('fulfillment');
+                    }}
+                  >
+                    <LayoutGrid size={14} />
+                    <span>Fulfillment</span>
                   </button>
                   <button 
                     className="nav-dropdown-item logout" 
