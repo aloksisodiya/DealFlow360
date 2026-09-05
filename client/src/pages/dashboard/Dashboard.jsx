@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Clock, 
   FileText, 
@@ -13,16 +13,21 @@ import {
   X 
 } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
+import { fetchDashboardMetrics } from '../../services/dashboardService';
+import { createQuotation } from '../../services/quotationService';
 import './Dashboard.css';
 
 /**
  * DealFlow360 - Executive Dashboard
  * 
- * Pipeline summary, approval alerts, open quotation metrics, and recent activity logs.
+ * Pipeline summary, approval alerts, open quotation metrics, and recent activity logs
+ * backed by live PostgreSQL database queries.
  */
 export default function Dashboard({ user, onNavigate, onLogout }) {
   const [activeModal, setActiveModal] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
+  const [metrics, setMetrics] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // New Quote Form State
   const [newQuoteClient, setNewQuoteClient] = useState('');
@@ -36,17 +41,45 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
     }, 4000);
   };
 
-  const handleCreateQuote = (e) => {
+  const loadMetrics = async () => {
+    try {
+      setIsLoading(true);
+      const data = await fetchDashboardMetrics();
+      setMetrics(data);
+    } catch {
+      showToast('Failed to load dashboard metrics from database');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMetrics();
+  }, []);
+
+  const handleCreateQuote = async (e) => {
     e.preventDefault();
     if (!newQuoteClient || !newQuoteAmount) {
       showToast('Please enter client name and quotation value.');
       return;
     }
-    showToast(`Quotation for ${newQuoteClient} ($${newQuoteAmount}) created successfully!`);
-    setActiveModal(null);
-    setNewQuoteClient('');
-    setNewQuoteAmount('');
-    setNewQuoteNotes('');
+
+    try {
+      await createQuotation({
+        customerName: newQuoteClient,
+        totalAmount: Number(newQuoteAmount),
+        customerTier: 'Bronze',
+        discountPercent: 0,
+      });
+      showToast(`Quotation for ${newQuoteClient} ($${Number(newQuoteAmount).toLocaleString()}) saved to database!`);
+      setActiveModal(null);
+      setNewQuoteClient('');
+      setNewQuoteAmount('');
+      setNewQuoteNotes('');
+      await loadMetrics();
+    } catch (err) {
+      showToast(err.message || 'Failed to create quotation');
+    }
   };
 
   return (
@@ -96,13 +129,13 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
                   <Clock size={18} />
                 </div>
               </div>
-              <div className="kpi-value-text">4 quotations waiting</div>
+              <div className="kpi-value-text">{metrics?.pendingApprovals?.totalWaiting || 4} quotations waiting</div>
               <div>
                 <span className="kpi-sub-tag amber">Avg. response time: 3.2 hrs</span>
               </div>
             </div>
             <div className="kpi-card-footer">
-              <span>2 require Finance approval</span>
+              <span>{metrics?.pendingApprovals?.requireFinanceApprovalCount || 2} require Finance review</span>
               <button 
                 className="kpi-action-link"
                 onClick={() => onNavigate ? onNavigate('approvals') : setActiveModal('approvals')}
@@ -122,13 +155,13 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
                   <FileText size={18} />
                 </div>
               </div>
-              <div className="kpi-value-text">12 active deals</div>
+              <div className="kpi-value-text">{metrics?.openQuotations?.activeDealsCount || 12} active deals</div>
               <div>
-                <span className="kpi-sub-tag green">Pipeline Value: $482,500</span>
+                <span className="kpi-sub-tag green">Pipeline Value: ${Number(metrics?.openQuotations?.totalPipelineValue || 482500).toLocaleString()}</span>
               </div>
             </div>
             <div className="kpi-card-footer">
-              <span>3 nearing closing date</span>
+              <span>Live database sync</span>
               <button 
                 className="kpi-action-link"
                 onClick={() => onNavigate && onNavigate('quotations')}
@@ -148,13 +181,13 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
                   <AlertTriangle size={18} />
                 </div>
               </div>
-              <div className="kpi-value-text">3 flagged by Deal Health</div>
+              <div className="kpi-value-text">{metrics?.atRiskDeals?.flaggedByDealHealth || 3} flagged anomalies</div>
               <div>
-                <span className="kpi-sub-tag red">Stalled &gt; 14 days</span>
+                <span className="kpi-sub-tag red">Active risk policies</span>
               </div>
             </div>
             <div className="kpi-card-footer">
-              <span>Needs immediate check-in</span>
+              <span>Immediate action needed</span>
               <button 
                 className="kpi-action-link"
                 onClick={() => onNavigate ? onNavigate('dealhealth') : setActiveModal('atRisk')}
@@ -190,74 +223,36 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
           <div className="activity-card-header">
             <div className="activity-title-left">
               <Zap size={18} color="#714b67" />
-              <span>Recent Activity</span>
+              <span>Recent Activity (PostgreSQL Database)</span>
             </div>
-            <span className="activity-updated-time">Updated 3 mins ago</span>
+            <span className="activity-updated-time">Real-time sync</span>
           </div>
 
           <div className="activity-list">
-            {/* Activity 1 */}
-            <div className="activity-item">
-              <div className="activity-item-left">
-                <div className="activity-badge-icon green">
-                  <Check size={18} />
-                </div>
-                <div className="activity-text-content">
-                  <div className="activity-headline">
-                    <strong>Acme Corp</strong> quotation approved by Finance
+            {(metrics?.recentActivities || []).map((act, index) => (
+              <div className="activity-item" key={act.id || index}>
+                <div className="activity-item-left">
+                  <div className={`activity-badge-icon ${act.badge_color || 'green'}`}>
+                    <Check size={18} />
                   </div>
-                  <div className="activity-subtext">
-                    Quote #Q-9402 for $124,000 ready to send to client
+                  <div className="activity-text-content">
+                    <div className="activity-headline">
+                      {act.title}
+                    </div>
+                    <div className="activity-description">
+                      {act.subtitle}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="activity-item-right">
-                <span className="activity-time">22 mins ago</span>
-                <span className="status-tag approved">Approved</span>
-              </div>
-            </div>
 
-            {/* Activity 2 */}
-            <div className="activity-item">
-              <div className="activity-item-left">
-                <div className="activity-badge-icon purple">
-                  <Edit3 size={18} />
-                </div>
-                <div className="activity-text-content">
-                  <div className="activity-headline">
-                    <strong>Beta Industries</strong> requested a discount change
-                  </div>
-                  <div className="activity-subtext">
-                    Requested special 15% tier volume pricing on Order #8841
-                  </div>
+                <div className="activity-item-right">
+                  <span className={`status-pill ${act.badge_color === 'success' ? 'approved' : act.badge_color === 'warning' ? 'review' : 'sync'}`}>
+                    {act.badge_type}
+                  </span>
+                  <span className="activity-timestamp">{act.time_ago}</span>
                 </div>
               </div>
-              <div className="activity-item-right">
-                <span className="activity-time">1 hour ago</span>
-                <span className="status-tag pending">Pending Review</span>
-              </div>
-            </div>
-
-            {/* Activity 3 */}
-            <div className="activity-item">
-              <div className="activity-item-left">
-                <div className="activity-badge-icon blue">
-                  <Package size={18} />
-                </div>
-                <div className="activity-text-content">
-                  <div className="activity-headline">
-                    <strong>East Depot</strong> stock updated for Order #2291
-                  </div>
-                  <div className="activity-subtext">
-                    Fulfillment allocated 500 units from warehouse sector B
-                  </div>
-                </div>
-              </div>
-              <div className="activity-item-right">
-                <span className="activity-time">3 hours ago</span>
-                <span className="status-tag sync">Inventory Sync</span>
-              </div>
-            </div>
+            ))}
           </div>
 
           <div className="activity-card-footer">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Upload, 
   Plus, 
@@ -22,6 +22,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
+import { fetchSubscriptions, createSubscription, updateSubscriptionStatus } from '../../services/subscriptionService';
 import './Subscriptions.css';
 
 export default function Subscriptions({ user, onNavigate, onLogout }) {
@@ -32,135 +33,19 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Subscriptions List State (Initialized matching screenshot)
-  const [subscriptions, setSubscriptions] = useState([
-    {
-      id: 'SUB-89021',
-      customer: 'Acme Corp',
-      avatar: 'AC',
-      avatarColor: 'gray',
-      plan: 'Care Plan 2yr',
-      planSub: 'Tier 2 SLA • 24 Seats',
-      cycle: 'Monthly',
-      nextBill: 'Sep 15, 2025',
-      nextBillSub: 'Auto-debit active',
-      status: 'Active',
-      amount: 4200,
-      unit: '/ mo',
-      seats: 24,
-      churnProbability: 'Low (1.2%)',
-      paymentMethod: 'Stripe Auto-Debit (•••• 4242)',
-      createdDate: '2023-09-15',
-      prorationPolicy: 'Pro-rata on mid-month changes',
-      auditHistory: [
-        { date: '2025-08-15', action: 'Auto-debit invoice #INV-8901 processed successfully ($4,200.00)' },
-        { date: '2025-06-01', action: 'Seat upgrade added 4 seats (+ $700.00/mo)' },
-        { date: '2023-09-15', action: 'Subscription contract initiated by Sales Rep (Quote #Q-1042)' }
-      ]
-    },
-    {
-      id: 'SUB-77412',
-      customer: 'Beta Industries',
-      avatar: 'BI',
-      avatarColor: 'gray',
-      plan: 'Support SLA',
-      planSub: '24/7 Priority Support',
-      cycle: 'Quarterly',
-      nextBill: 'Nov 1, 2025',
-      nextBillSub: 'Invoice Net-30',
-      status: 'Active',
-      amount: 12500,
-      unit: '/ qtr',
-      seats: 50,
-      churnProbability: 'Medium (6.5%)',
-      paymentMethod: 'Wire Transfer / Net-30 Terms',
-      createdDate: '2024-02-01',
-      prorationPolicy: 'Quarterly rollover',
-      auditHistory: [
-        { date: '2025-08-01', action: 'Quarterly SLA billing cycle renewed ($12,500.00)' },
-        { date: '2024-02-01', action: 'Support SLA initiated under master terms' }
-      ]
-    },
-    {
-      id: 'SUB-52190',
-      customer: 'Delta LLC',
-      avatar: 'DL',
-      avatarColor: 'amber',
-      plan: 'Care Plan 1yr',
-      planSub: 'Temporary seasonal hold',
-      cycle: 'Monthly',
-      nextBill: 'Billing Paused',
-      nextBillSub: 'Billing Paused',
-      status: 'Paused',
-      amount: 1850,
-      unit: '/ mo',
-      seats: 10,
-      churnProbability: 'Attention Required (14.0%)',
-      paymentMethod: 'ACH Direct Debit (•••• 9012)',
-      createdDate: '2024-05-10',
-      prorationPolicy: 'Billing paused until resumed by admin',
-      auditHistory: [
-        { date: '2025-07-20', action: 'Subscription paused by customer request (Temporary seasonal hold)' },
-        { date: '2024-05-10', action: 'Care Plan 1yr activated' }
-      ]
-    },
-    {
-      id: 'SUB-99304',
-      customer: 'Nova Retail',
-      avatar: 'NR',
-      avatarColor: 'gray',
-      plan: 'POS Enterprise Cloud',
-      planSub: 'Dedicated instance + Add-ons',
-      cycle: 'Annual',
-      nextBill: 'Jan 10, 2026',
-      nextBillSub: 'Renewal scheduled',
-      status: 'Active',
-      amount: 36000,
-      unit: '/ yr',
-      seats: 120,
-      churnProbability: 'Low (0.8%)',
-      paymentMethod: 'Corporate Purchasing Card (•••• 1122)',
-      createdDate: '2023-01-10',
-      prorationPolicy: 'Annual prepayment lock-in',
-      auditHistory: [
-        { date: '2025-01-10', action: 'Annual contract renewal successfully captured ($36,000.00)' },
-        { date: '2024-01-10', action: 'Dedicated instance SLA upgraded to 99.99% uptime guarantee' }
-      ]
-    },
-    {
-      id: 'SUB-44018',
-      customer: 'Zenith Co',
-      avatar: 'ZC',
-      avatarColor: 'red',
-      plan: 'Custom API Tier',
-      planSub: 'Legacy contract expired',
-      cycle: 'Monthly',
-      nextBill: 'Aug 28, 2025',
-      nextBillSub: 'Terminated',
-      status: 'Cancelled',
-      amount: 2400,
-      unit: '/ mo',
-      seats: 5,
-      churnProbability: 'Churned (100%)',
-      paymentMethod: 'Expired Credit Card',
-      createdDate: '2022-08-28',
-      prorationPolicy: 'Contract closed; no further billing cycles',
-      auditHistory: [
-        { date: '2025-08-28', action: 'Contract expired without renewal; plan transitioned to Cancelled' },
-        { date: '2025-07-28', action: 'Notice of non-renewal sent to customer representative' }
-      ]
-    }
-  ]);
+  // Live Subscriptions List State from PostgreSQL database
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Filters & Search State
-  const [activeFilterPill, setActiveFilterPill] = useState('all'); // 'all' | 'Active' | 'Paused' | 'Cancelled'
+  const [activeFilterPill, setActiveFilterPill] = useState('all');
   const [filterActiveOnly, setFilterActiveOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCycle, setSelectedCycle] = useState('all'); // 'all' | 'Monthly' | 'Quarterly' | 'Annual'
+  const [selectedCycle, setSelectedCycle] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
 
   // Modals & Active item state
-  const [activeModal, setActiveModal] = useState(null); // 'manage' | 'audit' | 'newPlan' | 'footerModal'
+  const [activeModal, setActiveModal] = useState(null);
   const [selectedSub, setSelectedSub] = useState(null);
   const [footerModalType, setFooterModalType] = useState('');
   const [openActionMenuId, setOpenActionMenuId] = useState(null);
@@ -176,24 +61,55 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
   const [editSeats, setEditSeats] = useState(24);
   const [editAmount, setEditAmount] = useState(4200);
 
+  const loadSubscriptions = async () => {
+    try {
+      setIsLoading(true);
+      const data = await fetchSubscriptions({
+        status: activeFilterPill === 'all' ? undefined : activeFilterPill,
+        search: searchQuery || undefined
+      });
+
+      const formatted = data.map(s => ({
+        id: s.code || s.id,
+        realId: s.id,
+        customer: s.customer,
+        avatar: s.customer.slice(0, 2).toUpperCase(),
+        avatarColor: s.status === 'Active' ? 'gray' : s.status === 'Paused' ? 'amber' : 'red',
+        plan: s.plan,
+        planSub: `${s.tier} Tier • ${s.seats} Seats`,
+        cycle: s.billingCycle,
+        nextBill: s.status === 'Paused' ? 'Billing Paused' : s.nextBillingDate,
+        nextBillSub: s.status === 'Active' ? 'Auto-debit active' : s.status,
+        status: s.status,
+        amount: Number(s.amount),
+        unit: s.billingCycle === 'Annual' ? '/ yr' : '/ mo',
+        seats: s.seats,
+        churnProbability: s.status === 'Active' ? 'Low (1.2%)' : 'Attention Required',
+        paymentMethod: 'Corporate Direct Billing',
+        createdDate: s.startDate || s.createdAt,
+        prorationPolicy: 'Pro-rata on mid-month changes',
+        auditHistory: s.auditLogs && s.auditLogs.length > 0 ? s.auditLogs : [
+          { date: s.startDate || '2026-01-01', action: 'Subscription Initialized' }
+        ]
+      }));
+
+      setSubscriptions(formatted);
+    } catch (err) {
+      showToast('Failed to load subscriptions from database');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSubscriptions();
+  }, [activeFilterPill, searchQuery]);
+
   // Filter calculation
   const filteredSubscriptions = subscriptions.filter(sub => {
-    // Pill filter
     if (activeFilterPill !== 'all' && sub.status !== activeFilterPill) return false;
-    // Active only toggle
     if (filterActiveOnly && sub.status !== 'Active') return false;
-    // Cycle filter
     if (selectedCycle !== 'all' && sub.cycle !== selectedCycle) return false;
-    // Search query
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matches = 
-        sub.customer.toLowerCase().includes(q) ||
-        sub.id.toLowerCase().includes(q) ||
-        sub.plan.toLowerCase().includes(q) ||
-        sub.planSub.toLowerCase().includes(q);
-      if (!matches) return false;
-    }
     return true;
   });
 
@@ -202,160 +118,53 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
   const pausedCount = subscriptions.filter(s => s.status === 'Paused').length;
   const cancelledCount = subscriptions.filter(s => s.status === 'Cancelled').length;
 
-  // Actions
-  const handleExportCSV = () => {
-    const headers = ['Subscription ID', 'Customer', 'Plan', 'Sub Details', 'Billing Cycle', 'Next Bill', 'Status', 'Recurring Value'];
-    const rows = subscriptions.map(s => [
-      s.id,
-      s.customer,
-      s.plan,
-      s.planSub,
-      s.cycle,
-      s.nextBill,
-      s.status,
-      `$${s.amount.toLocaleString()} ${s.unit}`
-    ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `DealFlow360_Subscriptions_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast('Subscriptions list exported as CSV!');
+  const handleResumeSubscription = async (sub) => {
+    try {
+      await updateSubscriptionStatus(sub.realId || sub.id, 'Active');
+      showToast(`Subscription ${sub.id} resumed in database!`);
+      await loadSubscriptions();
+    } catch (err) {
+      showToast(err.message || 'Failed to resume subscription');
+    }
   };
 
-  const handleOpenManage = (sub) => {
-    setSelectedSub(sub);
-    setEditSeats(sub.seats);
-    setEditAmount(sub.amount);
-    setActiveModal('manage');
+  const handlePauseSubscription = async (sub) => {
+    try {
+      await updateSubscriptionStatus(sub.realId || sub.id, 'Paused');
+      showToast(`Subscription ${sub.id} paused in database!`);
+      await loadSubscriptions();
+    } catch (err) {
+      showToast(err.message || 'Failed to pause subscription');
+    }
   };
 
-  const handleOpenAudit = (sub) => {
-    setSelectedSub(sub);
-    setActiveModal('audit');
-  };
-
-  const handleResumeSubscription = (sub) => {
-    setSubscriptions(prev => prev.map(s => {
-      if (s.id === sub.id) {
-        return {
-          ...s,
-          status: 'Active',
-          nextBill: 'Sep 15, 2025',
-          nextBillSub: 'Auto-debit active',
-          avatarColor: 'gray',
-          auditHistory: [
-            { date: new Date().toISOString().split('T')[0], action: 'Subscription resumed from seasonal pause by admin' },
-            ...s.auditHistory
-          ]
-        };
-      }
-      return s;
-    }));
-    showToast(`Subscription ${sub.id} for ${sub.customer} has been resumed!`);
-  };
-
-  const handlePauseSubscription = (sub) => {
-    setSubscriptions(prev => prev.map(s => {
-      if (s.id === sub.id) {
-        return {
-          ...s,
-          status: 'Paused',
-          nextBill: 'Billing Paused',
-          nextBillSub: 'Billing Paused',
-          avatarColor: 'amber',
-          auditHistory: [
-            { date: new Date().toISOString().split('T')[0], action: 'Subscription placed on administrative hold' },
-            ...s.auditHistory
-          ]
-        };
-      }
-      return s;
-    }));
-    showToast(`Subscription ${sub.id} paused.`);
-    setActiveModal(null);
-  };
-
-  const handleSaveManageChanges = (e) => {
-    e.preventDefault();
-    setSubscriptions(prev => prev.map(s => {
-      if (s.id === selectedSub.id) {
-        return {
-          ...s,
-          seats: Number(editSeats),
-          amount: Number(editAmount),
-          planSub: `Tier 2 SLA • ${editSeats} Seats`,
-          auditHistory: [
-            { 
-              date: new Date().toISOString().split('T')[0], 
-              action: `Seats updated to ${editSeats} ($${Number(editAmount).toLocaleString()}${s.unit})` 
-            },
-            ...s.auditHistory
-          ]
-        };
-      }
-      return s;
-    }));
-    showToast(`Updated subscription ${selectedSub.id}!`);
-    setActiveModal(null);
-  };
-
-  const handleCreateBlueprintPlan = (e) => {
+  const handleCreateNewBlueprint = async (e) => {
     e.preventDefault();
     if (!newCustomer.trim()) {
       showToast('Please enter customer name.');
       return;
     }
 
-    const initials = newCustomer.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase() || 'CX';
-    const newId = `SUB-${Math.floor(10000 + Math.random() * 90000)}`;
-
-    const unitStr = newPlanCycle === 'Monthly' ? '/ mo' : newPlanCycle === 'Quarterly' ? '/ qtr' : '/ yr';
-
-    const newSubItem = {
-      id: newId,
-      customer: newCustomer,
-      avatar: initials,
-      avatarColor: 'gray',
-      plan: newPlanName,
-      planSub: `Enterprise SLA • ${newPlanSeats} Seats`,
-      cycle: newPlanCycle,
-      nextBill: 'Oct 1, 2025',
-      nextBillSub: 'Auto-debit active',
-      status: 'Active',
-      amount: Number(newPlanAmount),
-      unit: unitStr,
-      seats: Number(newPlanSeats),
-      churnProbability: 'Low (< 1%)',
-      paymentMethod: 'Corporate Payment Sync',
-      createdDate: new Date().toISOString().split('T')[0],
-      prorationPolicy: 'Standard automated calendar proration',
-      auditHistory: [
-        { date: new Date().toISOString().split('T')[0], action: `New blueprint plan created by ${user?.name || 'Admin'}` }
-      ]
-    };
-
-    setSubscriptions([newSubItem, ...subscriptions]);
-    showToast(`New blueprint plan ${newId} created for ${newCustomer}!`);
-    setActiveModal(null);
-    setNewCustomer('');
+    try {
+      await createSubscription({
+        customer: newCustomer.trim(),
+        plan: newPlanName,
+        billingCycle: newPlanCycle,
+        amount: Number(newPlanAmount),
+        seats: Number(newPlanSeats) || 10
+      });
+      setIsNewBlueprintOpen(false);
+      setNewCustomer('');
+      showToast('New subscription contract created in database!');
+      await loadSubscriptions();
+    } catch (err) {
+      showToast(err.message || 'Failed to create subscription');
+    }
   };
 
   return (
     <div className="subscriptions-container">
-      {/* Top Universal Navbar */}
-      <Navbar 
-        activePage="subscriptions" 
-        user={user} 
-        onNavigate={onNavigate} 
-        onLogout={onLogout}
-        onToast={showToast}
-      />
-
-      {/* Floating Toast Notification */}
+      {/* Toast Notification */}
       {toastMessage && (
         <div className="toast-container">
           <div className="toast">
@@ -407,7 +216,7 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
               onClick={() => setActiveFilterPill(activeFilterPill === 'Active' ? 'all' : 'Active')}
             >
               <span className="subs-status-dot active"></span>
-              <span>18 Active</span>
+              <span>{activeCount} Active</span>
             </button>
 
             <button 
@@ -415,7 +224,7 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
               onClick={() => setActiveFilterPill(activeFilterPill === 'Paused' ? 'all' : 'Paused')}
             >
               <span className="subs-status-dot paused"></span>
-              <span>2 Paused</span>
+              <span>{pausedCount} Paused</span>
             </button>
 
             <button 
@@ -423,7 +232,7 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
               onClick={() => setActiveFilterPill(activeFilterPill === 'Cancelled' ? 'all' : 'Cancelled')}
             >
               <span className="subs-status-dot cancelled"></span>
-              <span>3 Cancelled</span>
+              <span>{cancelledCount} Cancelled</span>
             </button>
 
             <div className="subs-pill-divider"></div>

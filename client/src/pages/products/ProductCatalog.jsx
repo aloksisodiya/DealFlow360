@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Box, 
   Tag, 
@@ -18,6 +18,7 @@ import {
   Check
 } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
+import { fetchProducts, createProduct, updateProduct, deleteProduct } from '../../services/productService';
 import './ProductCatalog.css';
 
 export default function ProductCatalog({ user, onNavigate, onLogout }) {
@@ -34,83 +35,34 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
   const [selectedTier, setSelectedTier] = useState('All');
   const [selectedCurrency, setSelectedCurrency] = useState('USD');
   const [currentPage, setCurrentPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Products Data
-  const [products, setProducts] = useState([
-    {
-      id: 'prod-1',
-      name: 'Laptop Pro 14',
-      sku: 'HW-LP14-M3',
-      category: 'Hardware',
-      avatar: 'LP',
-      avatarColor: 'purple',
-      variants: '3(size)',
-      price: 1200,
-      priceFormatted: '$1,200',
-      unit: 'Each',
-      unitClass: '',
-      tax: '15%',
-      status: 'Active',
-      description: 'High-performance developer laptop with 14-inch retina display and M3 chip.',
-      stockAvailable: 22
-    },
-    {
-      id: 'prod-2',
-      name: 'Onsite Setup Service',
-      sku: 'SV-INST-ONST',
-      category: 'Services',
-      avatar: 'OS',
-      avatarColor: 'green',
-      variants: '—',
-      price: 450,
-      priceFormatted: '$450',
-      unit: 'Each',
-      unitClass: '',
-      tax: '18%',
-      status: 'Active',
-      description: 'Dedicated technician deployment for workstation setup, cable routing, and network configuration.',
-      stockAvailable: 999
-    },
-    {
-      id: 'prod-3',
-      name: 'Docking Station',
-      sku: 'HW-ACC-DS04',
-      category: 'Hardware',
-      avatar: 'DS',
-      avatarColor: 'purple',
-      variants: '3(color)',
-      price: 180,
-      priceFormatted: '$180',
-      unit: 'Each',
-      unitClass: '',
-      tax: '15%',
-      status: 'Active',
-      description: 'Dual 4K display output with 100W USB-C Power Delivery and gigabit ethernet.',
-      stockAvailable: 53
-    },
-    {
-      id: 'prod-4',
-      name: 'Care Plan 3 years',
-      sku: 'SB-WAR-3YR',
-      category: 'Subscription',
-      avatar: 'CP',
-      avatarColor: 'purple',
-      variants: '—',
-      price: 40,
-      priceFormatted: '$40/month',
-      unit: 'Recurring',
-      unitClass: 'purple',
-      tax: '18%',
-      status: 'Active',
-      description: 'Extended accidental damage protection, 24/7 priority SLA replacement, and remote diagnostics.',
-      stockAvailable: 999
+  // Products Data loaded from live PostgreSQL database
+  const [products, setProducts] = useState([]);
+
+  const loadProducts = async () => {
+    try {
+      setIsLoading(true);
+      const data = await fetchProducts({
+        category: activeCategory === 'All' ? undefined : activeCategory,
+        search: searchQuery || undefined,
+        tier: selectedTier === 'All' ? undefined : selectedTier
+      });
+      setProducts(data);
+    } catch (err) {
+      showToast('Failed to load products from database');
+    } finally {
+      setIsLoading(false);
     }
-  ]);
+  };
+
+  useEffect(() => {
+    loadProducts();
+  }, [activeCategory, searchQuery, selectedTier]);
 
   // Modals state
-  const [activeModal, setActiveModal] = useState(null); // 'newProduct' | 'priceFields' | 'editProduct' | 'footerModal'
+  const [activeModal, setActiveModal] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [footerModalType, setFooterModalType] = useState('');
   const [openActionMenuId, setOpenActionMenuId] = useState(null);
 
   // New Product Form State
@@ -120,7 +72,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
   const [newProdPrice, setNewProdPrice] = useState(500);
   const [newProdUnit, setNewProdUnit] = useState('Each');
   const [newProdTax, setNewProdTax] = useState('15%');
-  const [newProdVariants, setNewProdVariants] = useState('—');
+  const [newProdVariants, setNewProdVariants] = useState('Standard');
 
   // Edit Product Form State
   const [editName, setEditName] = useState('');
@@ -128,42 +80,23 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
   const [editTax, setEditTax] = useState('15%');
 
   // Filter calculation
-  const filteredProducts = products.filter(p => {
-    if (activeCategory !== 'All' && p.category !== activeCategory) {
-      if (activeCategory === 'Subscriptions' && p.category !== 'Subscription') return false;
-      if (activeCategory !== 'Subscriptions' && p.category !== activeCategory) return false;
-    }
+  const filteredProducts = products;
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const match = 
-        p.name.toLowerCase().includes(q) ||
-        p.sku.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q);
-      if (!match) return false;
-    }
-
-    return true;
-  });
-
-  // Actions
   const handleExportCatalog = () => {
-    const headers = ['Product Name', 'SKU', 'Category', 'Variants', 'Price', 'Unit', 'Tax', 'Status'];
+    const headers = ['Product Name', 'SKU', 'Category', 'Price', 'Unit', 'Stock Status'];
     const rows = products.map(p => [
       p.name,
       p.sku,
       p.category,
-      p.variants,
       p.priceFormatted,
       p.unit,
-      p.tax,
-      p.status
+      p.stockStatus
     ]);
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `DealFlow360_Product_Catalog_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `DealFlow360_Products_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -174,62 +107,49 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
     setSelectedProduct(p);
     setEditName(p.name);
     setEditPrice(p.price);
-    setEditTax(p.tax);
+    setEditTax('15%');
     setActiveModal('editProduct');
   };
 
-  const handleSaveEditProduct = (e) => {
+  const handleSaveEditProduct = async (e) => {
     e.preventDefault();
-    setProducts(prev => prev.map(prod => {
-      if (prod.id === selectedProduct.id) {
-        return {
-          ...prod,
-          name: editName,
-          price: Number(editPrice),
-          priceFormatted: prod.category === 'Subscription' ? `$${editPrice}/month` : `$${Number(editPrice).toLocaleString()}`,
-          tax: editTax
-        };
-      }
-      return prod;
-    }));
-    showToast(`Product ${editName} updated successfully!`);
-    setActiveModal(null);
+    try {
+      await updateProduct(selectedProduct.id, {
+        name: editName,
+        price: Number(editPrice),
+      });
+      showToast(`Product ${editName} updated successfully in database!`);
+      setActiveModal(null);
+      await loadProducts();
+    } catch (err) {
+      showToast(err.message || 'Failed to update product');
+    }
   };
 
-  const handleCreateProduct = (e) => {
+  const handleCreateProduct = async (e) => {
     e.preventDefault();
     if (!newProdName.trim() || !newProdSku.trim()) {
       showToast('Please enter product name and SKU.');
       return;
     }
 
-    const initials = newProdName.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase() || 'PD';
-    const color = newProdCat === 'Hardware' ? 'purple' : newProdCat === 'Services' ? 'green' : 'plum';
-    const priceStr = newProdCat === 'Subscription' ? `$${newProdPrice}/month` : `$${Number(newProdPrice).toLocaleString()}`;
-
-    const newItem = {
-      id: `prod-${Date.now()}`,
-      name: newProdName,
-      sku: newProdSku.toUpperCase(),
-      category: newProdCat,
-      avatar: initials,
-      avatarColor: color,
-      variants: newProdVariants,
-      price: Number(newProdPrice),
-      priceFormatted: priceStr,
-      unit: newProdUnit,
-      unitClass: newProdCat === 'Subscription' ? 'purple' : '',
-      tax: newProdTax,
-      status: 'Active',
-      description: 'Newly added catalog asset ready for CPQ quoting.',
-      stockAvailable: 100
-    };
-
-    setProducts([newItem, ...products]);
-    showToast(`Added "${newProdName}" to product catalog!`);
-    setActiveModal(null);
-    setNewProdName('');
-    setNewProdSku('');
+    try {
+      await createProduct({
+        name: newProdName,
+        sku: newProdSku.toUpperCase(),
+        category: newProdCat,
+        price: Number(newProdPrice),
+        unit: newProdUnit,
+        variants: [newProdVariants],
+      });
+      showToast(`Product "${newProdName}" added to database catalog!`);
+      setActiveModal(null);
+      setNewProdName('');
+      setNewProdSku('');
+      await loadProducts();
+    } catch (err) {
+      showToast(err.message || 'Failed to create product in database');
+    }
   };
 
   return (

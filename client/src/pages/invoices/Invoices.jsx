@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   CheckCircle2, 
   X, 
@@ -17,6 +17,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
+import { fetchInvoices, updateInvoiceStatus, createInvoice } from '../../services/invoiceService';
 import './Invoices.css';
 
 export default function Invoices({ user, onNavigate, onLogout }) {
@@ -28,39 +29,43 @@ export default function Invoices({ user, onNavigate, onLogout }) {
   };
 
   // Active Modals
-  const [activeModal, setActiveModal] = useState(null); // 'recordPayment' | 'viewSlip' | 'sendReminder' | 'adjustItems' | 'receiptLog' | 'footerModal'
+  const [activeModal, setActiveModal] = useState(null);
   const [footerModalType, setFooterModalType] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Invoice Items State
-  const [invoiceBatches, setInvoiceBatches] = useState([
-    {
-      id: 'INV-1042',
-      badge: 'Primary',
-      dotColor: 'amber',
-      title: 'Hardware Batch Dispatch (Partial Delivery 1/2)',
-      subtitle: 'Edge Gateway x 10, Mounting Hardware kits',
-      amount: 2730.00,
-      status: 'Unpaid',
-      dueDate: 'Sep 10, 2025',
-      items: [
-        { name: 'Edge Gateway IoT Router v3', qty: 10, unitPrice: 240.00, total: 2400.00 },
-        { name: 'Mounting Hardware Rack Kits', qty: 10, unitPrice: 33.00, total: 330.00 }
-      ]
-    },
-    {
-      id: 'INV-1043',
-      badge: 'Recurring',
-      dotColor: 'green',
-      title: 'Cloud Diagnostics SaaS Tier (Monthly recurring)',
-      subtitle: 'Seat billing for 5 active engineers',
-      amount: 46.00,
-      status: 'Paid',
-      dueDate: 'Sep 15, 2025',
-      items: [
-        { name: 'Cloud Diagnostics License (Engineer Tier)', qty: 5, unitPrice: 9.20, total: 46.00 }
-      ]
+  // Live Invoice Items State from PostgreSQL database
+  const [invoices, setInvoices] = useState([]);
+
+  const loadInvoices = async () => {
+    try {
+      setIsLoading(true);
+      const data = await fetchInvoices();
+      setInvoices(data);
+    } catch (err) {
+      showToast('Failed to load invoices from database');
+    } finally {
+      setIsLoading(false);
     }
-  ]);
+  };
+
+  useEffect(() => {
+    loadInvoices();
+  }, []);
+
+  const invoiceBatches = invoices.map(inv => ({
+    id: inv.invoiceNumber || inv.id,
+    realId: inv.id,
+    badge: inv.status === 'Paid' ? 'Settled' : 'Primary',
+    dotColor: inv.status === 'Paid' ? 'green' : inv.status === 'Overdue' ? 'red' : 'amber',
+    title: `${inv.customerName} - Invoice (${inv.invoiceNumber})`,
+    subtitle: inv.notes || `Due on ${inv.dueDate}`,
+    amount: Number(inv.amount || 0),
+    status: inv.status,
+    dueDate: inv.dueDate,
+    items: inv.items && inv.items.length > 0 ? inv.items : [
+      { name: 'Enterprise Platform & CPQ Services', qty: 1, unitPrice: Number(inv.amount), total: Number(inv.amount) }
+    ]
+  }));
 
   // Stepper state
   const [stepperState, setStepperState] = useState({
@@ -72,17 +77,16 @@ export default function Invoices({ user, onNavigate, onLogout }) {
 
   // Payment Modal State
   const [paymentAmount, setPaymentAmount] = useState(2730.00);
-  const [paymentMethod, setPaymentMethod] = useState('ach'); // 'ach' | 'card' | 'wire' | 'check'
+  const [paymentMethod, setPaymentMethod] = useState('ach');
   const [paymentReference, setPaymentReference] = useState('TXN-ACM-98421');
 
   // Reminder Modal State
   const [reminderEmail, setReminderEmail] = useState('ap@acme-corp.com');
-  const [reminderNote, setReminderNote] = useState('Friendly reminder: Invoice #INV-1042 for $2,730.00 is due on Sep 10, 2025.');
+  const [reminderNote, setReminderNote] = useState('Friendly reminder: Invoice is due.');
 
   // Adjust Items Modal State
   const [adjustLines, setAdjustLines] = useState([
-    { name: 'Edge Gateway IoT Router v3', qty: 10, price: 240.00 },
-    { name: 'Mounting Hardware Rack Kits', qty: 10, price: 33.00 }
+    { name: 'Enterprise CPQ Platform', qty: 1, price: 12400.00 }
   ]);
 
   // Computed totals
@@ -91,63 +95,30 @@ export default function Invoices({ user, onNavigate, onLogout }) {
     .filter(item => item.status === 'Paid')
     .reduce((acc, item) => acc + item.amount, 0);
   const totalOutstanding = invoiceBatches
-    .filter(item => item.status === 'Unpaid')
+    .filter(item => item.status !== 'Paid')
     .reduce((acc, item) => acc + item.amount, 0);
 
-  const outstandingCount = invoiceBatches.filter(i => i.status === 'Unpaid').length;
+  const outstandingCount = invoiceBatches.filter(i => i.status !== 'Paid').length;
   const settledCount = invoiceBatches.filter(i => i.status === 'Paid').length;
 
-  // Actions
-  const handleDownloadSummary = () => {
-    const content = `DealFlow360 Invoice Summary\n` +
-      `Customer: Acme Corp (Billing ID: #ACM-9901)\n` +
-      `Order: #ORD-8942\n` +
-      `Date: Sep 03, 2025\n` +
-      `----------------------------------------\n` +
-      `INV-1042 (Hardware Dispatch): $2,730.00 (Unpaid, Due: Sep 10, 2025)\n` +
-      `INV-1043 (Cloud Diagnostics): $46.00 (Paid, Due: Sep 15, 2025)\n` +
-      `----------------------------------------\n` +
-      `Subtotal: $2,776.00\n` +
-      `Settled Credit: -$46.00\n` +
-      `Total Outstanding: $2,730.00\n`;
-
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Invoice_Summary_INV-1042_AcmeCorp.txt`;
-    link.click();
-    URL.revokeObjectURL(url);
-    showToast('Invoice summary downloaded successfully!');
-  };
-
-  const handleRecordPaymentSubmit = (e) => {
+  const handleRecordPaymentSubmit = async (e) => {
     e.preventDefault();
     if (paymentAmount <= 0) {
       showToast('Please enter a valid payment amount.');
       return;
     }
 
-    setInvoiceBatches(prev => prev.map(inv => {
-      if (inv.id === 'INV-1042') {
-        return {
-          ...inv,
-          status: 'Paid',
-          dotColor: 'green'
-        };
+    try {
+      const target = invoices[0];
+      if (target) {
+        await updateInvoiceStatus(target.id, 'Paid', `Payment settled via ${paymentMethod.toUpperCase()} ref: ${paymentReference}`);
       }
-      return inv;
-    }));
-
-    setStepperState({
-      orderConfirmed: true,
-      shipped: true,
-      invoiced: true,
-      paid: true
-    });
-
-    showToast(`Payment of $${Number(paymentAmount).toLocaleString()} recorded for INV-1042!`);
-    setActiveModal(null);
+      showToast(`Payment of $${Number(paymentAmount).toLocaleString()} recorded in database!`);
+      setActiveModal(null);
+      await loadInvoices();
+    } catch (err) {
+      showToast(err.message || 'Failed to record payment');
+    }
   };
 
   const handleSendReminderSubmit = (e) => {

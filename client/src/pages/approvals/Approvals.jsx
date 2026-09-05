@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, 
   Plus, 
@@ -8,10 +8,12 @@ import {
   Check, 
   X, 
   Download, 
-  RotateCcw 
+  RotateCcw,
+  Loader2
 } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
 import { downloadCSV } from '../../utils/formatters';
+import { fetchPendingApprovals, decideApproval, createApproval } from '../../services/approvalService';
 import './Approvals.css';
 
 /**
@@ -25,6 +27,7 @@ export default function Approvals({ user, onNavigate, onLogout }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [toastMessage, setToastMessage] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   // Modals state
   const [reviewingItem, setReviewingItem] = useState(null);
@@ -40,88 +43,28 @@ export default function Approvals({ user, onNavigate, onLogout }) {
   const [newDiscount, setNewDiscount] = useState('');
   const [newStage, setNewStage] = useState('Sales Manager');
 
-  // Approval Records
-  const [records, setRecords] = useState([
-    {
-      id: 'Q-1042',
-      customer: 'Acme Corp',
-      avatar: 'AC',
-      status: 'pending',
-      amount: 124000,
-      discount: '22% requested discount',
-      discountNum: 22,
-      risk: 'HIGH',
-      stage: 'Sales Manager',
-      stageClass: 'sales-mgr',
-      assignedTo: 'M. Shah',
-      assignedAvatar: 'MS',
-      assignedClass: 'ms',
-      notes: 'Customer requested 22% discount for a 3-year upfront multi-tier commitment. Exceeds standard 15% manager authorization.'
-    },
-    {
-      id: 'Q-1039',
-      customer: 'Beta Industries',
-      avatar: 'BI',
-      status: 'pending',
-      amount: 88500,
-      discount: '15% requested discount',
-      discountNum: 15,
-      risk: 'MEDIUM',
-      stage: 'Finance',
-      stageClass: 'finance',
-      assignedTo: 'R. Iyer',
-      assignedAvatar: 'RI',
-      assignedClass: 'ri',
-      notes: 'Annual upfront prepayment requested with custom SLA waiver.'
-    },
-    {
-      id: 'Q-1035',
-      customer: 'Nova Retail',
-      avatar: 'NR',
-      status: 'approved',
-      amount: 32000,
-      discount: '5% tier discount',
-      discountNum: 5,
-      risk: 'LOW',
-      stage: 'Auto-Approved',
-      stageClass: 'auto-appr',
-      assignedTo: '- (Rule #4 Engine)',
-      assignedAvatar: null,
-      notes: 'Standard Tier-1 volume discount within automated policy bounds.'
-    },
-    {
-      id: 'Q-1029',
-      customer: 'Zenith Co',
-      avatar: 'ZC',
-      status: 'returned',
-      amount: 215000,
-      discount: '28% requested discount',
-      discountNum: 28,
-      risk: 'HIGH',
-      stage: 'VP Sales Review',
-      stageClass: 'vp-review',
-      assignedTo: 'S. Jenkins',
-      assignedAvatar: 'SJ',
-      assignedClass: 'sj',
-      remarks: 'Returned by VP Sales: 28% discount cuts gross margin below allowable 42% hurdle rate. Counter-offer with max 18% + extended support credits.'
-    },
-    {
-      id: 'Q-1024',
-      customer: 'Delta LLC',
-      avatar: 'DL',
-      status: 'pending',
-      amount: 64200,
-      discount: '12% requested discount',
-      discountNum: 12,
-      risk: 'MEDIUM',
-      stage: 'Finance',
-      stageClass: 'finance',
-      assignedTo: 'R. Iyer',
-      assignedAvatar: 'RI',
-      assignedClass: 'ri',
-      notes: 'Mid-market package discount awaiting quarterly finance ledger confirmation.'
+  // Approval Records from real database
+  const [records, setRecords] = useState([]);
+
+  const loadApprovals = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchPendingApprovals();
+      if (Array.isArray(data) && data.length > 0) {
+        setRecords(data);
+      } else {
+        setRecords([]);
+      }
+    } catch (err) {
+      console.error('Failed to load approvals:', err);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
+
+  useEffect(() => {
+    loadApprovals();
+  }, []);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -147,32 +90,44 @@ export default function Approvals({ user, onNavigate, onLogout }) {
     showToast('Exported approvals dataset to CSV.');
   };
 
-  // Handle Approval Decisions
-  const handleApprove = (recordId) => {
-    setRecords(records.map(r => r.id === recordId ? { ...r, status: 'approved', stage: 'Approved', stageClass: 'auto-appr' } : r));
-    setReviewingItem(null);
-    setReviewComment('');
-    showToast(`Quotation ${recordId} approved!`);
+  // Handle Approval Decisions with Database Persistence
+  const handleApprove = async (recordId) => {
+    try {
+      await decideApproval(recordId, 'approve', reviewComment || 'Approved by Manager');
+      setRecords(records.map(r => r.id === recordId ? { ...r, status: 'approved', stage: 'Approved', stageClass: 'auto-appr' } : r));
+      setReviewingItem(null);
+      setReviewComment('');
+      showToast(`Quotation ${recordId} approved in database!`);
+      loadApprovals();
+    } catch (err) {
+      showToast(`Approval failed: ${err.message}`);
+    }
   };
 
-  const handleReturn = (recordId) => {
+  const handleReturn = async (recordId) => {
     if (!reviewComment) {
       showToast('Please provide return remarks for the sales team.');
       return;
     }
-    setRecords(records.map(r => r.id === recordId ? { 
-      ...r, 
-      status: 'returned', 
-      stage: 'Returned with Feedback', 
-      stageClass: 'vp-review',
-      remarks: reviewComment 
-    } : r));
-    setReviewingItem(null);
-    setReviewComment('');
-    showToast(`Quotation ${recordId} returned with remarks.`);
+    try {
+      await decideApproval(recordId, 'reject', reviewComment);
+      setRecords(records.map(r => r.id === recordId ? { 
+        ...r, 
+        status: 'returned', 
+        stage: 'Returned with Feedback', 
+        stageClass: 'vp-review',
+        remarks: reviewComment 
+      } : r));
+      setReviewingItem(null);
+      setReviewComment('');
+      showToast(`Quotation ${recordId} returned with remarks.`);
+      loadApprovals();
+    } catch (err) {
+      showToast(`Return failed: ${err.message}`);
+    }
   };
 
-  const handleCreateNewApproval = (e) => {
+  const handleCreateNewApproval = async (e) => {
     e.preventDefault();
     if (!newCustomer || !newAmount) {
       showToast('Please enter customer name and contract value.');
@@ -183,29 +138,28 @@ export default function Approvals({ user, onNavigate, onLogout }) {
     const discVal = parseFloat(newDiscount) || 10;
     const riskLevel = discVal > 20 ? 'HIGH' : discVal > 10 ? 'MEDIUM' : 'LOW';
 
-    const newRecord = {
+    const payload = {
       id: nextId,
       customer: newCustomer,
-      avatar: newCustomer.split(' ').map(p => p[0]).join('').slice(0,2).toUpperCase(),
-      status: 'pending',
       amount: parseFloat(newAmount) || 50000,
-      discount: `${discVal}% requested discount`,
       discountNum: discVal,
       risk: riskLevel,
       stage: newStage,
-      stageClass: newStage === 'Finance' ? 'finance' : 'sales-mgr',
       assignedTo: user?.name || 'M. Shah',
-      assignedAvatar: user?.initials || 'MS',
-      assignedClass: 'ms',
       notes: 'New discount approval request submitted via DealFlow360.'
     };
 
-    setRecords([newRecord, ...records]);
-    setIsNewApprovalOpen(false);
-    setNewCustomer('');
-    setNewAmount('');
-    setNewDiscount('');
-    showToast(`Approval request ${nextId} created for ${newCustomer}!`);
+    try {
+      await createApproval(payload);
+      setIsNewApprovalOpen(false);
+      setNewCustomer('');
+      setNewAmount('');
+      setNewDiscount('');
+      showToast(`Approval request ${nextId} created in database!`);
+      await loadApprovals();
+    } catch (err) {
+      showToast(`Creation failed: ${err.message}`);
+    }
   };
 
   // Filter records

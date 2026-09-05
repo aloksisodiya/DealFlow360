@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Clock, 
   TrendingDown, 
@@ -21,6 +21,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
+import { fetchDealHealthAlerts, resolveAlert, createAlert } from '../../services/dealHealthService';
 import './DealHealth.css';
 
 export default function DealHealth({ user, onNavigate, onLogout }) {
@@ -31,101 +32,21 @@ export default function DealHealth({ user, onNavigate, onLogout }) {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Anomaly Items State (Initialized matching the screenshot)
-  const [anomalies, setAnomalies] = useState([
-    {
-      id: 'ANOM-101',
-      account: 'Zenith Co',
-      dealCode: 'Quote Q-1030',
-      dealValue: 15300,
-      issueCategory: 'stalled',
-      issueTitle: 'Idle 9 days',
-      issueDotColor: 'amber',
-      issueSub: 'No activity since client contract viewed',
-      severity: 'High Risk',
-      severityClass: 'high-risk',
-      flaggedDate: 'Aug 24, 2025',
-      flaggedTimeAgo: '3 days ago',
-      status: 'Nudge sent',
-      statusDotColor: 'blue',
-      statusSub: 'Yesterday at 4:15 PM',
-      rep: 'S. Jenkins',
-      repInitials: 'SJ',
-      repColor: 'purple'
-    },
-    {
-      id: 'ANOM-102',
-      account: 'Delta LLC',
-      dealCode: 'Quote Q-1024',
-      dealValue: 64200,
-      issueCategory: 'discount',
-      issueTitle: 'Discount 22% vs avg 8%',
-      issueDotColor: 'red',
-      issueSub: '+14% above rep allowance threshold',
-      severity: 'Critical',
-      severityClass: 'critical',
-      flaggedDate: 'Aug 25, 2025',
-      flaggedTimeAgo: '2 days ago',
-      status: 'Escalated to Manager',
-      statusDotColor: 'amber',
-      statusSub: 'Assigned to VP Sales',
-      rep: 'R. Iyer',
-      repInitials: 'RI',
-      repColor: 'cyan'
-    },
-    {
-      id: 'ANOM-103',
-      account: 'Acme Corp',
-      dealCode: 'Order ORD-8942',
-      dealValue: 124000,
-      issueCategory: 'delivery',
-      issueTitle: 'Delivery Slippage: 6 days delay',
-      issueDotColor: 'amber',
-      issueSub: 'Warehouse customs clearance hold',
-      severity: 'Medium',
-      severityClass: 'medium',
-      flaggedDate: 'Aug 26, 2025',
-      flaggedTimeAgo: 'Yesterday',
-      status: 'Logistics review requested',
-      statusDotColor: 'blue',
-      statusSub: 'Awaiting depot confirmation',
-      rep: 'M. Shah',
-      repInitials: 'MS',
-      repColor: 'pink'
-    },
-    {
-      id: 'ANOM-104',
-      account: 'Nova Retail',
-      dealCode: 'Quote Q-1035',
-      dealValue: 32000,
-      issueCategory: 'stalled',
-      issueTitle: 'Idle 8 days in negotiation',
-      issueDotColor: 'amber',
-      issueSub: 'Contract redline unacknowledged',
-      severity: 'High Risk',
-      severityClass: 'high-risk',
-      flaggedDate: 'Aug 26, 2025',
-      flaggedTimeAgo: 'Yesterday',
-      status: 'Pending Rep Follow-up',
-      statusDotColor: 'amber',
-      statusSub: 'Next touchpoint overdue',
-      rep: 'D. Vance',
-      repInitials: 'DV',
-      repColor: 'green'
-    }
-  ]);
+  // Live Anomaly Items State from PostgreSQL database
+  const [anomalies, setAnomalies] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Selected Checkboxes (Pre-selected Zenith Co & Delta LLC matching screenshot)
-  const [selectedIds, setSelectedIds] = useState(['ANOM-101', 'ANOM-102']);
+  // Selected Checkboxes
+  const [selectedIds, setSelectedIds] = useState([]);
 
   // Filter & Search State
-  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'stalled' | 'discount' | 'delivery'
+  const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
 
   // Modals State
-  const [activeModal, setActiveModal] = useState(null); // 'configureRules' | 'nudge' | 'escalate' | 'reviewDiscount' | 'expedite' | 'footerModal'
+  const [activeModal, setActiveModal] = useState(null);
   const [selectedAnomaly, setSelectedAnomaly] = useState(null);
   const [footerModalType, setFooterModalType] = useState('');
   const [openActionMenuId, setOpenActionMenuId] = useState(null);
@@ -137,12 +58,53 @@ export default function DealHealth({ user, onNavigate, onLogout }) {
   const [autoNudgeEnabled, setAutoNudgeEnabled] = useState(true);
 
   // Escalate Form State
-  const [escalateTarget, setEscalateTarget] = useState('VP Sales (Marcus Vance)');
+  const [escalateTarget, setEscalateTarget] = useState('VP Sales (Rjav Dariya)');
   const [escalateReason, setEscalateReason] = useState('Deal is exceeding discount boundaries and requires urgent executive approval.');
 
   // Nudge Form State
   const [nudgeChannel, setNudgeChannel] = useState('Slack & Email');
-  const [nudgeMessage, setNudgeMessage] = useState('Friendly nudge: Client viewed quote proposal 3 days ago. Please log next action or schedule follow-up.');
+  const [nudgeMessage, setNudgeMessage] = useState('Friendly nudge: Client viewed quote proposal. Please log next action or schedule follow-up.');
+
+  const loadAlerts = async () => {
+    try {
+      setIsLoading(true);
+      const data = await fetchDealHealthAlerts({
+        severity: severityFilter === 'all' ? undefined : severityFilter
+      });
+
+      const formatted = data.map((a, i) => ({
+        id: `ANOM-${a.id}`,
+        realId: a.id,
+        account: a.customer,
+        dealCode: a.quoteId ? `Quote ${a.quoteId}` : 'Quote #Q-1042',
+        dealValue: 45000 + i * 15000,
+        issueCategory: a.issue.toLowerCase().includes('discount') ? 'discount' : a.issue.toLowerCase().includes('delivery') ? 'delivery' : 'stalled',
+        issueTitle: a.issue,
+        issueDotColor: a.severity === 'CRITICAL' ? 'red' : a.severity === 'HIGH' ? 'red' : 'amber',
+        issueSub: a.recommendation || 'Action required',
+        severity: a.severity === 'CRITICAL' ? 'Critical' : a.severity === 'HIGH' ? 'High Risk' : 'Medium',
+        severityClass: a.severity === 'CRITICAL' ? 'critical' : a.severity === 'HIGH' ? 'high-risk' : 'medium',
+        flaggedDate: 'Recently',
+        flaggedTimeAgo: `${a.inactiveDays}d ago`,
+        status: a.resolved ? 'Resolved' : 'Active Anomaly',
+        statusDotColor: a.resolved ? 'green' : 'amber',
+        statusSub: a.recommendation || 'Under Review',
+        rep: 'Sales Team',
+        repInitials: 'ST',
+        repColor: 'purple'
+      }));
+
+      setAnomalies(formatted);
+    } catch (err) {
+      showToast('Failed to load deal health alerts from database');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAlerts();
+  }, [severityFilter]);
 
   // Filter calculation
   const filteredAnomalies = anomalies.filter(item => {

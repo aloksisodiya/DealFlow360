@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Upload, 
   Plus, 
@@ -13,95 +13,39 @@ import {
   Box, 
   Warehouse, 
   Truck, 
-  Check,
-  AlertTriangle,
-  Download
+  Check, 
+  AlertTriangle, 
+  Download,
+  Loader2
 } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
+import { 
+  fetchInventory, 
+  fetchFulfillmentOrders, 
+  allocateStock, 
+  transferStock, 
+  overrideFulfillmentSplit 
+} from '../../services/fulfillmentService';
 import './Fulfillment.css';
 
 export default function Fulfillment({ user, onNavigate, onLogout }) {
   // Toast notifications
   const [toastMessage, setToastMessage] = useState(null);
+  const [loading, setLoading] = useState(true);
+
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Warehouse Inventory State
+  // Warehouse Inventory State from database
   const [warehouseFilter, setWarehouseFilter] = useState('all'); // 'all' | 'Main Warehouse' | 'East Depot'
-  const [inventoryList, setInventoryList] = useState([
-    {
-      id: 'inv-1',
-      warehouse: 'Main Warehouse',
-      dotColor: 'blue',
-      product: 'Laptop Pro 14',
-      inStock: 40,
-      reserved: 18,
-      available: 22,
-      status: 'Optimal',
-      sku: 'SKU-LP14-PRO'
-    },
-    {
-      id: 'inv-2',
-      warehouse: 'East Depot',
-      dotColor: 'amber',
-      product: 'Laptop Pro 14',
-      inStock: 10,
-      reserved: 6,
-      available: 4,
-      status: 'Low Stock',
-      sku: 'SKU-LP14-PRO'
-    },
-    {
-      id: 'inv-3',
-      warehouse: 'Main Warehouse',
-      dotColor: 'blue',
-      product: 'Docking Station',
-      inStock: 65,
-      reserved: 12,
-      available: 53,
-      status: 'Healthy',
-      sku: 'SKU-DS-THUNDER'
-    }
-  ]);
+  const [inventoryList, setInventoryList] = useState([]);
 
-  // Orders Awaiting Fulfillment State
+  // Orders Awaiting Fulfillment State from database
   const [orderFilter, setOrderFilter] = useState('all'); // 'all' | 'split-pending' | 'backorder'
   const [searchQuery, setSearchQuery] = useState('');
-  const [ordersList, setOrdersList] = useState([
-    {
-      id: 'ord-1042',
-      code: 'Q-1042',
-      type: 'Standard',
-      customer: 'Acme Corp',
-      initials: 'AC',
-      status: 'Split Pending',
-      warehouses: ['Main', 'East Depot'],
-      items: [
-        { product: 'Laptop Pro 14', qty: 15, mainAlloc: 10, eastAlloc: 5, pending: 0 },
-        { product: 'Docking Station', qty: 10, mainAlloc: 10, eastAlloc: 0, pending: 0 }
-      ],
-      totalUnits: 25,
-      routingRule: 'Nearest Depot Preferred (Distance Optimized)',
-      dispatchDate: '2026-09-08'
-    },
-    {
-      id: 'ord-1030',
-      code: 'Q-1030',
-      type: 'Priority',
-      customer: 'Zenith Co',
-      initials: 'ZC',
-      status: 'Backorder',
-      warehouses: ['East Depot'],
-      items: [
-        { product: 'Laptop Pro 14', qty: 12, mainAlloc: 0, eastAlloc: 4, pending: 8 }
-      ],
-      totalUnits: 12,
-      routingRule: 'Expedited Air Freight on Inbound Receipt',
-      dispatchDate: '2026-09-12'
-    }
-  ]);
+  const [ordersList, setOrdersList] = useState([]);
 
   // Modals state
   const [activeModal, setActiveModal] = useState(null); // 'newAllocation' | 'transfer' | 'restock' | 'manageSplit' | 'reviewStock' | 'footerModal'
@@ -112,7 +56,7 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
 
   // Form states for modals
   const [newAllocWarehouse, setNewAllocWarehouse] = useState('Main Warehouse');
-  const [newAllocProduct, setNewAllocProduct] = useState('Laptop Pro 14');
+  const [newAllocProduct, setNewAllocProduct] = useState('Enterprise Server Rack X1');
   const [newAllocQty, setNewAllocQty] = useState(25);
 
   const [transferOrigin, setTransferOrigin] = useState('Main Warehouse');
@@ -124,10 +68,34 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
   // Split management state
   const [splitDraft, setSplitDraft] = useState(null);
 
+  const loadFulfillmentData = async () => {
+    try {
+      setLoading(true);
+      const [invData, ordData] = await Promise.all([
+        fetchInventory().catch(() => []),
+        fetchFulfillmentOrders().catch(() => [])
+      ]);
+      if (Array.isArray(invData) && invData.length > 0) {
+        setInventoryList(invData);
+      }
+      if (Array.isArray(ordData) && ordData.length > 0) {
+        setOrdersList(ordData);
+      }
+    } catch (err) {
+      console.error('Failed to load fulfillment data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadFulfillmentData();
+  }, []);
+
   // Filter handlers
   const filteredInventory = inventoryList.filter(item => {
     if (warehouseFilter === 'all') return true;
-    return item.warehouse.toLowerCase().includes(warehouseFilter.toLowerCase());
+    return (item.warehouse || '').toLowerCase().includes(warehouseFilter.toLowerCase());
   });
 
   const filteredOrders = ordersList.filter(order => {
@@ -137,9 +105,9 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
       orderFilter === 'backorder' ? order.status === 'Backorder' : true;
 
     const matchesSearch = 
-      order.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.warehouses.some(w => w.toLowerCase().includes(searchQuery.toLowerCase()));
+      (order.code || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (order.customer || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (order.warehouses || []).some(w => w.toLowerCase().includes(searchQuery.toLowerCase()));
 
     return matchesFilter && matchesSearch;
   });
@@ -172,7 +140,7 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
     setSelectedInventory(item);
     setTransferOrigin(item.warehouse);
     setTransferDest(item.warehouse === 'Main Warehouse' ? 'East Depot' : 'Main Warehouse');
-    setTransferQty(Math.min(5, item.available));
+    setTransferQty(Math.min(5, item.available || 5));
     setActiveModal('transfer');
   };
 
@@ -184,115 +152,81 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
   };
 
   // Submit Transfer
-  const handleSubmitTransfer = (e) => {
+  const handleSubmitTransfer = async (e) => {
     e.preventDefault();
     if (transferQty <= 0) {
       showToast('Please enter a valid transfer quantity.');
       return;
     }
-    if (transferQty > selectedInventory.available) {
-      showToast(`Cannot transfer more than available quantity (${selectedInventory.available}).`);
-      return;
-    }
 
-    setInventoryList(prev => {
-      return prev.map(inv => {
-        if (inv.id === selectedInventory.id) {
-          const newInStock = inv.inStock - transferQty;
-          const newAvail = inv.available - transferQty;
-          return {
-            ...inv,
-            inStock: newInStock,
-            available: newAvail,
-            status: newAvail <= 5 ? 'Low Stock' : 'Optimal'
-          };
-        }
-        if (inv.warehouse === transferDest && inv.product === selectedInventory.product) {
-          const newInStock = inv.inStock + transferQty;
-          const newAvail = inv.available + transferQty;
-          return {
-            ...inv,
-            inStock: newInStock,
-            available: newAvail,
-            status: newAvail <= 5 ? 'Low Stock' : 'Optimal'
-          };
-        }
-        return inv;
+    const fromWhId = transferOrigin.includes('East') ? 'wh-east' : 'wh-main';
+    const toWhId = transferDest.includes('East') ? 'wh-east' : 'wh-main';
+    const prodId = selectedInventory?.productId || 'prod-1';
+
+    try {
+      await transferStock({
+        fromWarehouseId: fromWhId,
+        toWarehouseId: toWhId,
+        productId: prodId,
+        qty: Number(transferQty)
       });
-    });
-
-    showToast(`Transferred ${transferQty} units of ${selectedInventory.product} to ${transferDest}!`);
-    setActiveModal(null);
+      showToast(`Transferred ${transferQty} units of ${selectedInventory.product} to ${transferDest}!`);
+      setActiveModal(null);
+      await loadFulfillmentData();
+    } catch (err) {
+      showToast(`Transfer failed: ${err.message}`);
+    }
   };
 
   // Submit Restock
-  const handleSubmitRestock = (e) => {
+  const handleSubmitRestock = async (e) => {
     e.preventDefault();
     if (restockQty <= 0) {
       showToast('Please enter a valid restock quantity.');
       return;
     }
 
-    setInventoryList(prev => prev.map(inv => {
-      if (inv.id === selectedInventory.id) {
-        const newInStock = inv.inStock + Number(restockQty);
-        const newAvail = inv.available + Number(restockQty);
-        return {
-          ...inv,
-          inStock: newInStock,
-          available: newAvail,
-          status: newAvail <= 5 ? 'Low Stock' : 'Optimal'
-        };
-      }
-      return inv;
-    }));
+    const whId = (selectedInventory?.warehouse || '').includes('East') ? 'wh-east' : 'wh-main';
+    const prodId = selectedInventory?.productId || 'prod-1';
 
-    showToast(`Restocked ${restockQty} units at ${selectedInventory.warehouse}!`);
-    setActiveModal(null);
+    try {
+      await allocateStock({
+        warehouseId: whId,
+        productId: prodId,
+        productName: selectedInventory?.product,
+        stockDelta: Number(restockQty)
+      });
+      showToast(`Restocked ${restockQty} units at ${selectedInventory.warehouse}!`);
+      setActiveModal(null);
+      await loadFulfillmentData();
+    } catch (err) {
+      showToast(`Restock failed: ${err.message}`);
+    }
   };
 
   // Submit New Allocation
-  const handleSubmitNewAllocation = (e) => {
+  const handleSubmitNewAllocation = async (e) => {
     e.preventDefault();
     if (newAllocQty <= 0) {
       showToast('Quantity must be greater than zero.');
       return;
     }
 
-    setInventoryList(prev => {
-      const existing = prev.find(i => i.warehouse === newAllocWarehouse && i.product === newAllocProduct);
-      if (existing) {
-        return prev.map(i => {
-          if (i.id === existing.id) {
-            const inStock = i.inStock + Number(newAllocQty);
-            const available = i.available + Number(newAllocQty);
-            return {
-              ...i,
-              inStock,
-              available,
-              status: available <= 5 ? 'Low Stock' : 'Optimal'
-            };
-          }
-          return i;
-        });
-      } else {
-        const newItem = {
-          id: `inv-${Date.now()}`,
-          warehouse: newAllocWarehouse,
-          dotColor: newAllocWarehouse === 'East Depot' ? 'amber' : 'blue',
-          product: newAllocProduct,
-          inStock: Number(newAllocQty),
-          reserved: 0,
-          available: Number(newAllocQty),
-          status: 'Optimal',
-          sku: newAllocProduct.includes('Laptop') ? 'SKU-LP14-PRO' : 'SKU-DS-THUNDER'
-        };
-        return [...prev, newItem];
-      }
-    });
+    const whId = newAllocWarehouse.includes('East') ? 'wh-east' : 'wh-main';
 
-    showToast(`Allocated ${newAllocQty} units of ${newAllocProduct} to ${newAllocWarehouse}!`);
-    setActiveModal(null);
+    try {
+      await allocateStock({
+        warehouseId: whId,
+        productId: newAllocProduct.includes('Server') ? 'prod-1' : 'prod-2',
+        productName: newAllocProduct,
+        stockDelta: Number(newAllocQty)
+      });
+      showToast(`Allocated ${newAllocQty} units of ${newAllocProduct} to ${newAllocWarehouse}!`);
+      setActiveModal(null);
+      await loadFulfillmentData();
+    } catch (err) {
+      showToast(`Allocation failed: ${err.message}`);
+    }
   };
 
   // Open Manage Split Modal
@@ -309,20 +243,15 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
   };
 
   // Save Split changes
-  const handleSaveSplit = () => {
-    setOrdersList(prev => prev.map(ord => {
-      if (ord.id === selectedOrder.id) {
-        return {
-          ...ord,
-          items: splitDraft,
-          status: 'Authorized (Ready to Dispatch)'
-        };
-      }
-      return ord;
-    }));
-
-    showToast(`Warehouse split allocation saved for ${selectedOrder.code}! Dispatch scheduled.`);
-    setActiveModal(null);
+  const handleSaveSplit = async () => {
+    try {
+      await overrideFulfillmentSplit(selectedOrder.code, splitDraft);
+      showToast(`Warehouse split allocation saved for ${selectedOrder.code}! Dispatch scheduled.`);
+      setActiveModal(null);
+      await loadFulfillmentData();
+    } catch (err) {
+      showToast(`Split update failed: ${err.message}`);
+    }
   };
 
   return (

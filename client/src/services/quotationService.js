@@ -1,0 +1,16 @@
+import { api } from './apiClient';
+
+export async function fetchQuotations() {
+  const res = await api.get('/sales/rep/quotations');
+  return res.data || [];
+}
+
+export async function createQuotation(data) {
+  const res = await api.post('/sales/rep/quotations', data);
+  return res.data;
+}
+
+export async function requestNegotiation(id, requestNotes) {
+  const res = await api.post(`/sales/rep/quotations/${id}/negotiation`, { request: requestNotes });
+  return res.data;
+}

@@ -110,11 +110,12 @@ export async function updateAccount(req, res) {
 }
 
 export async function login(req, res) {
-  const { workEmail, password } = req.body || {};
+  const emailVal = req.body?.workEmail || req.body?.email;
+  const { password } = req.body || {};
   const isDummyLogin =
-    workEmail === "admin@dealflow360.local" && password === "admin";
+    emailVal === "admin@dealflow360.local" && password === "admin";
   const validationError = validateCredentials(
-    workEmail,
+    emailVal,
     password,
     isDummyLogin,
   );
@@ -123,13 +124,10 @@ export async function login(req, res) {
   }
 
   try {
-    const result = await loginAdmin(workEmail.trim().toLowerCase(), password);
-    return res
-      .status(200)
-      .json({ success: true, message: "Login successful", data: result });
+    const data = await loginAdmin(emailVal.trim().toLowerCase(), password);
+    return res.json({ success: true, message: "Login successful", ...data });
   } catch (error) {
-    console.error("Admin login error:", error);
-    return sendError(res, error, 401);
+    return sendError(res, error);
   }
 }
 

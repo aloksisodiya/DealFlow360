@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, 
   LayoutGrid, 
@@ -10,143 +10,102 @@ import {
   Send 
 } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
+import { fetchQuotations, createQuotation, requestNegotiation } from '../../services/quotationService';
 import './Quotations.css';
 
 /**
  * DealFlow360 - Quotations Management & CPQ
  * 
- * Multi-stage quotation tracker with Kanban Board, Table View, and New Quote generation.
+ * Multi-stage quotation tracker with Kanban Board, Table View, and New Quote generation
+ * synced in real-time with PostgreSQL database.
  */
 export default function Quotations({ user, onNavigate, onLogout }) {
-  const [viewMode, setViewMode] = useState('board'); // 'board' | 'table'
+  const [viewMode, setViewMode] = useState('board');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedQuote, setSelectedQuote] = useState(null);
   const [isNewQuoteOpen, setIsNewQuoteOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Initial Quotations Data
-  const [quotes, setQuotes] = useState([
-    {
-      id: 'Q-9402',
-      client: 'Acme Corp',
-      amount: 12400,
-      stage: 'draft',
-      desc: 'Enterprise Plan + 20 Add-on Seats with priority SLAs.',
-      created: 'Created 2d ago',
-      owner: 'Alex M.',
-      ownerInitials: 'AM',
-      ownerClass: 'am',
-      badge: null,
-      alert: null
-    },
-    {
-      id: 'Q-9415',
-      client: 'Delta LLC',
-      amount: 3200,
-      stage: 'draft',
-      desc: 'Quarterly Tier-1 Growth Package with API Connectors.',
-      created: 'Yesterday',
-      owner: 'Kevin C.',
-      ownerInitials: 'KC',
-      ownerClass: 'kc',
-      badge: null,
-      alert: null
-    },
-    {
-      id: 'Q-9388',
-      client: 'Beta Industries',
-      amount: 28900,
-      stage: 'pending',
-      desc: 'Annual enterprise multi-seat expansion agreement.',
-      created: 'Submitted 4h ago',
-      owner: 'Dana L.',
-      ownerInitials: 'DL',
-      ownerClass: 'dl',
-      badge: 'Needs VP Signoff',
-      alert: 'Includes 15% custom discounting for annual prepayment.'
-    },
-    {
-      id: 'Q-9372',
-      client: 'Nova Retail',
-      amount: 9750,
-      stage: 'approved',
-      desc: 'Direct POS sync & catalog expansion module.',
-      created: 'Ready to Send',
-      owner: 'Ray H.',
-      ownerInitials: 'RH',
-      ownerClass: 'rh',
-      badge: null,
-      alert: 'Approved by Sarah J.'
-    },
-    {
-      id: 'Q-9350',
-      client: 'Zenith Co',
-      amount: 15300,
-      stage: 'negotiation',
-      desc: 'Redlining Section 8 (Indemnity & retention).',
-      created: 'Closing Target: End of Week',
-      owner: 'Alex M.',
-      ownerInitials: 'AM',
-      ownerClass: 'am',
-      badge: null,
-      alert: 'Client viewed 2h ago'
-    },
-    {
-      id: 'Q-9310',
-      client: 'Apex Global Logistics',
-      amount: 41000,
-      stage: 'confirmed',
-      desc: 'Full suite deployment with dedicated VPC connector.',
-      created: 'Signed today',
-      owner: 'Sarah J.',
-      ownerInitials: 'SJ',
-      ownerClass: 'rh',
-      badge: null,
-      alert: 'Contract executed & locked'
-    }
-  ]);
+  // Live Quotations Data from PostgreSQL database
+  const [quotes, setQuotes] = useState([]);
 
   // Form State for New Quotation
   const [newClient, setNewClient] = useState('');
   const [newAmount, setNewAmount] = useState('');
   const [newDesc, setNewDesc] = useState('');
-  const [newStage, setNewStage] = useState('draft');
+  const [newTier, setNewTier] = useState('Bronze');
+  const [newDiscount, setNewDiscount] = useState(0);
 
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => {
-      setToastMessage(null);
-    }, 4000);
+      setToastMessage(null), 4000;
+    });
   };
 
-  const handleCreateNewQuote = (e) => {
+  const loadQuotations = async () => {
+    try {
+      setIsLoading(true);
+      const data = await fetchQuotations();
+      const mapped = data.map(q => {
+        let stageName = 'draft';
+        const st = (q.stage || '').toLowerCase();
+        if (st.includes('pending')) stageName = 'pending';
+        else if (st.includes('approved')) stageName = 'approved';
+        else if (st.includes('negotiation')) stageName = 'negotiation';
+        else if (st.includes('confirmed') || st.includes('closed')) stageName = 'confirmed';
+
+        return {
+          id: q.id,
+          client: q.customer_name || 'Enterprise Client',
+          amount: Number(q.total_amount || 0),
+          stage: stageName,
+          desc: q.negotiation_request || `${q.customer_tier || 'Bronze'} Tier deal with ${q.discount_percent || 0}% discount.`,
+          created: 'Active in DB',
+          owner: q.owner_email ? q.owner_email.split('@')[0] : (user?.name || 'Sales Rep'),
+          ownerInitials: q.owner_email ? q.owner_email.slice(0, 2).toUpperCase() : 'SR',
+          ownerClass: 'am',
+          badge: q.approval_required ? 'Approval Required' : null,
+          alert: q.approval_status ? `Status: ${q.approval_status}` : null
+        };
+      });
+      setQuotes(mapped);
+    } catch {
+      showToast('Failed to load quotations from database');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadQuotations();
+  }, []);
+
+  const handleCreateNewQuote = async (e) => {
     e.preventDefault();
     if (!newClient || !newAmount) {
       showToast('Please fill in client name and estimated amount.');
       return;
     }
 
-    const nextNumber = 9420 + quotes.length;
-    const newQuoteItem = {
-      id: `Q-${nextNumber}`,
-      client: newClient,
-      amount: parseFloat(newAmount) || 10000,
-      stage: newStage,
-      desc: newDesc || 'Standard Enterprise Solution License.',
-      created: 'Just now',
-      owner: user?.name || 'Alex M.',
-      ownerInitials: user?.initials || 'AM',
-      ownerClass: 'am',
-      badge: null,
-      alert: null
-    };
+    try {
+      await createQuotation({
+        customerName: newClient.trim(),
+        customerTier: newTier,
+        totalAmount: parseFloat(newAmount) || 10000,
+        discountPercent: Number(newDiscount) || 0,
+      });
 
-    setQuotes([newQuoteItem, ...quotes]);
-    setIsNewQuoteOpen(false);
-    setNewClient('');
-    setNewAmount('');
-    setNewDesc('');
-    showToast(`Quotation ${newQuoteItem.id} created for ${newClient}!`);
+      showToast(`Quotation created for ${newClient} in PostgreSQL!`);
+      setIsNewQuoteOpen(false);
+      setNewClient('');
+      setNewAmount('');
+      setNewDesc('');
+      await loadQuotations();
+    } catch (err) {
+      showToast(err.message || 'Failed to create quotation');
+    }
   };
 
   // Filter quotes based on search query

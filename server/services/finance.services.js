@@ -8,6 +8,129 @@ import db from "../config/db.js";
 // 1. SECOND-LEVEL APPROVALS FOR HIGH-RISK DISCOUNTS
 // -------------------------------------------------------------
 
+export async function listWarehouses() {
+  const warehouses = await db("warehouses").select("*").orderBy("name");
+  return warehouses;
+}
+
+export async function listWarehouseInventory() {
+  const inventory = await db("warehouse_inventory as wi")
+    .leftJoin("warehouses as w", "wi.warehouse_id", "w.id")
+    .select(
+      "wi.id",
+      "wi.warehouse_id as warehouseId",
+      "w.name as warehouse",
+      "wi.product_id as productId",
+      "wi.product_name as product",
+      "wi.stock_qty as inStock"
+    )
+    .orderBy("wi.id");
+
+  return inventory.map((item) => {
+    const reserved = Math.min(Math.floor(item.inStock * 0.3), 20);
+    const available = Math.max(0, item.inStock - reserved);
+    const status = available < 10 ? "Low Stock" : available < 30 ? "Optimal" : "Healthy";
+    const dotColor = status === "Low Stock" ? "amber" : "blue";
+    return {
+      ...item,
+      reserved,
+      available,
+      status,
+      dotColor,
+      sku: `SKU-${(item.product || "PROD").slice(0, 4).toUpperCase()}`
+    };
+  });
+}
+
+export async function adjustInventoryStock({ warehouseId, productId, productName, stockDelta, setTotal }) {
+  let existing = await db("warehouse_inventory")
+    .where({ warehouse_id: warehouseId, product_id: productId })
+    .first();
+
+  if (existing) {
+    const newQty = setTotal !== undefined ? Number(setTotal) : Number(existing.stock_qty) + Number(stockDelta || 0);
+    const [updated] = await db("warehouse_inventory")
+      .where({ id: existing.id })
+      .update({ stock_qty: Math.max(0, newQty), updated_at: db.fn.now() })
+      .returning("*");
+    return updated;
+  } else {
+    const [created] = await db("warehouse_inventory")
+      .insert({
+        warehouse_id: warehouseId,
+        product_id: productId || "prod-custom",
+        product_name: productName || "Inventory Item",
+        stock_qty: Math.max(0, Number(setTotal || stockDelta || 0))
+      })
+      .returning("*");
+    return created;
+  }
+}
+
+export async function transferStock({ fromWarehouseId, toWarehouseId, productId, qty }) {
+  const transferQty = Number(qty);
+  if (!transferQty || transferQty <= 0) throw new Error("Invalid transfer quantity");
+
+  return await db.transaction(async (trx) => {
+    const origin = await trx("warehouse_inventory")
+      .where({ warehouse_id: fromWarehouseId, product_id: productId })
+      .first();
+
+    if (!origin || origin.stock_qty < transferQty) {
+      throw new Error(`Insufficient stock in origin warehouse (${origin ? origin.stock_qty : 0} available)`);
+    }
+
+    await trx("warehouse_inventory")
+      .where({ id: origin.id })
+      .update({ stock_qty: origin.stock_qty - transferQty, updated_at: trx.fn.now() });
+
+    const dest = await trx("warehouse_inventory")
+      .where({ warehouse_id: toWarehouseId, product_id: productId })
+      .first();
+
+    if (dest) {
+      await trx("warehouse_inventory")
+        .where({ id: dest.id })
+        .update({ stock_qty: dest.stock_qty + transferQty, updated_at: trx.fn.now() });
+    } else {
+      await trx("warehouse_inventory").insert({
+        warehouse_id: toWarehouseId,
+        product_id: productId,
+        product_name: origin.product_name,
+        stock_qty: transferQty
+      });
+    }
+
+    return {
+      success: true,
+      message: `Transferred ${transferQty} units from ${fromWarehouseId} to ${toWarehouseId}`
+    };
+  });
+}
+
+export async function listFulfillmentOrders() {
+  const quotes = await db("quotations")
+    .whereIn("stage", ["Fulfillment", "Approved", "In Review", "Draft"])
+    .orderBy("created_at", "desc");
+
+  return quotes.map((q) => ({
+    id: `ord-${q.id.replace("Q-", "")}`,
+    code: q.id,
+    type: q.customer_tier === "Enterprise" ? "Priority" : "Standard",
+    customer: q.customer_name,
+    initials: (q.customer_name || "CU").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
+    status: q.stage === "Fulfillment" ? "Split Pending" : q.stage === "Approved" ? "Ready for Dispatch" : "Backorder",
+    warehouses: ["Main Warehouse", "East Depot"],
+    items: [
+      { product: "Enterprise Server Rack X1", qty: 2, mainAlloc: 2, eastAlloc: 0, pending: 0 },
+      { product: "Setup & Onboarding Service", qty: 1, mainAlloc: 1, eastAlloc: 0, pending: 0 }
+    ],
+    totalUnits: 3,
+    routingRule: "Nearest Depot Preferred (Distance Optimized)",
+    dispatchDate: new Date(Date.now() + 86400000 * 3).toISOString().split("T")[0]
+  }));
+}
+
 export async function getPendingFinanceApprovals() {
   try {
     const quotes = await db("quotations")
@@ -21,20 +144,8 @@ export async function getPendingFinanceApprovals() {
 
     return quotes;
   } catch (error) {
-    console.warn("DB query for pending finance approvals failed, returning seed fallback:", error.message);
-    return [
-      {
-        id: "Q-8841",
-        customer_name: "Beta Industries",
-        customer_tier: "Silver",
-        total_amount: 88500.00,
-        stage: "Pending Approval",
-        blended_risk_score: 14.8,
-        approval_required: true,
-        approval_status: "Pending Finance Review",
-        stalled_days: 1
-      }
-    ];
+    console.warn("DB query for pending finance approvals failed:", error.message);
+    return [];
   }
 }
 

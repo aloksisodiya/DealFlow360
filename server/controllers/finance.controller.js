@@ -7,8 +7,59 @@ import {
   getReconciledBillingSchedule,
   calculateMidCycleProration,
   createCreditNote,
-  listCreditNotes
+  listCreditNotes,
+  listWarehouses,
+  listWarehouseInventory,
+  adjustInventoryStock,
+  transferStock,
+  listFulfillmentOrders
 } from "../services/finance.services.js";
+
+// Warehouse & Inventory Endpoints
+export async function getWarehouses(req, res) {
+  try {
+    const data = await listWarehouses();
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+}
+
+export async function getInventory(req, res) {
+  try {
+    const data = await listWarehouseInventory();
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+}
+
+export async function allocateStock(req, res) {
+  try {
+    const result = await adjustInventoryStock(req.body || {});
+    return res.status(201).json({ success: true, data: result });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+}
+
+export async function transferStockAction(req, res) {
+  try {
+    const result = await transferStock(req.body || {});
+    return res.json({ success: true, data: result });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+}
+
+export async function getFulfillmentOrders(req, res) {
+  try {
+    const data = await listFulfillmentOrders();
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+}
 
 // 1. Second-Level Approvals
 export async function getApprovals(req, res) {

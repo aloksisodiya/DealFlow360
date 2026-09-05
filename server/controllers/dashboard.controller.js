@@ -9,6 +9,7 @@ export async function getOverview(req, res) {
     const data = await getDashboardMetricsFromDb();
     return res.status(200).json({
       success: true,
+      data,
       pageTitle: "Sales Dashboard / Home",
       subtitle: "Central hub, links out to every module below",
       metrics: {
@@ -39,6 +40,7 @@ export async function getActivities(req, res) {
     const activities = await getRecentActivitiesFromDb();
     return res.status(200).json({
       success: true,
+      data: activities,
       activities,
     });
   } catch (error) {
