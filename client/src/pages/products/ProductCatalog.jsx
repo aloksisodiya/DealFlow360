@@ -40,8 +40,25 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
   // Products Data loaded from live PostgreSQL database
   const [products, setProducts] = useState([]);
 
+  // Modals state
+  const [activeModal, setActiveModal] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [openActionMenuId, setOpenActionMenuId] = useState(null);
+
+  // New Product Form State
+  const [newProdName, setNewProdName] = useState('');
+  const [newProdSku, setNewProdSku] = useState('');
+  const [newProdCat, setNewProdCat] = useState('Hardware');
+  const [newProdPrice, setNewProdPrice] = useState(500);
+  const [newProdUnit, setNewProdUnit] = useState('Each');
+  const [newProdTax, setNewProdTax] = useState('15%');
   const [newProdVariants, setNewProdVariants] = useState('Standard');
   const [newProdStock, setNewProdStock] = useState(100);
+
+  // Edit Product Form State
+  const [editName, setEditName] = useState('');
+  const [editPrice, setEditPrice] = useState(0);
+  const [editTax, setEditTax] = useState('15%');
 
   const loadProducts = async (showLoading = true) => {
     try {
@@ -67,11 +84,6 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
     }, 4000);
     return () => clearInterval(interval);
   }, [activeCategory, searchQuery, selectedTier]);
-
-  // Edit Product Form State
-  const [editName, setEditName] = useState('');
-  const [editPrice, setEditPrice] = useState(0);
-  const [editTax, setEditTax] = useState('15%');
 
   // Filter calculation
   const filteredProducts = products;
