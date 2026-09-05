@@ -257,7 +257,7 @@ export default function Approvals({ user, onNavigate, onLogout }) {
 
             <button className="btn-new-approval" onClick={() => setIsNewApprovalOpen(true)}>
               <Plus size={16} />
-              <span>+ New Approval Request</span>
+              <span>New Approval Request</span>
             </button>
           </div>
         </div>

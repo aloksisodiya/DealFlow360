@@ -169,7 +169,7 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
             onClick={() => onNavigate ? onNavigate('quotations') : setActiveModal('newQuote')}
           >
             <Plus size={16} />
-            <span>+ New Quotation</span>
+            <span>New Quotation</span>
           </button>
 
           <button 

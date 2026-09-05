@@ -317,7 +317,7 @@ export default function DealHealth({ user, onNavigate, onLogout }) {
               onClick={() => setActiveModal('configureRules')}
             >
               <Sliders size={15} />
-              <span>+ Configure Rules & Thresholds</span>
+              <span>Configure Rules & Thresholds</span>
             </button>
           </div>
         </div>

@@ -220,7 +220,7 @@ export default function Reports({ user, onNavigate, onLogout }) {
               onClick={() => setActiveModal('customReport')}
             >
               <Plus size={16} />
-              <span>+ Create Custom Report</span>
+              <span>Create Custom Report</span>
             </button>
           </div>
         </div>

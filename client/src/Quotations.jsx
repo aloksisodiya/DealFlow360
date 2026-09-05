@@ -232,7 +232,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
               onClick={() => setIsNewQuoteOpen(true)}
             >
               <Plus size={16} />
-              <span>+ New Quotation</span>
+              <span>New Quotation</span>
             </button>
           </div>
         </div>
@@ -550,7 +550,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
               onClick={() => setIsNewQuoteOpen(true)}
             >
               <Plus size={16} />
-              <span>+ New Quotation</span>
+              <span>New Quotation</span>
             </button>
 
             <button 

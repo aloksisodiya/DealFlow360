@@ -393,7 +393,7 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
               onClick={() => setActiveModal('newPlan')}
             >
               <Plus size={16} />
-              <span>+ New Plan (Admin)</span>
+              <span>New Plan (Admin)</span>
             </button>
           </div>
         </div>
@@ -738,7 +738,7 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
             onClick={() => setActiveModal('newPlan')}
           >
             <Plus size={15} />
-            <span>+ New Plan (Admin)</span>
+            <span>New Plan (Admin)</span>
           </button>
         </div>
 

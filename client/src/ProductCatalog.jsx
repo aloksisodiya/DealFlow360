@@ -294,7 +294,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
               onClick={() => setActiveModal('newProduct')}
             >
               <Plus size={16} />
-              <span>+ New Product</span>
+              <span>New Product</span>
             </button>
           </div>
         </div>
