@@ -84,7 +84,7 @@ export default function Navbar({ activePage, user, onNavigate, onLogout, onToast
 
               <button
                 className={`nav-tab-button ${activePage === 'dealhealth' ? 'active' : ''}`}
-                onClick={() => notify('Deal Health: 3 deals flagged for review')}
+                onClick={() => onNavigate && onNavigate('dealhealth')}
               >
                 <span>Deal Health</span>
                 <span className="nav-tab-badge">3</span>
@@ -209,6 +209,16 @@ export default function Navbar({ activePage, user, onNavigate, onLogout, onToast
                   >
                     <DollarSign size={14} />
                     <span>Invoices</span>
+                  </button>
+                  <button 
+                    className="nav-dropdown-item" 
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      if (onNavigate) onNavigate('dealhealth');
+                    }}
+                  >
+                    <AlertTriangle size={14} />
+                    <span>Deal Health</span>
                   </button>
                   <button 
                     className="nav-dropdown-item logout" 
