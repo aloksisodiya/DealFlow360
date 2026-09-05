@@ -12,6 +12,7 @@ router.use("/admin", adminRoutes);
 router.use("/dashboard", dashboardRoutes);
 router.use("/sales/rep", salesRepRoutes);
 router.use("/sales/manager", salesManagerRoutes);
+router.use("/sales", salesRepRoutes);
 router.use("/finance", financeRoutes);
 router.use("/portal", portalRoutes);
 

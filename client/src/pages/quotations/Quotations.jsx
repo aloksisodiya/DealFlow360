@@ -9,9 +9,14 @@ import {
   ArrowRight, 
   Send 
 } from 'lucide-react';
-import Navbar from './Navbar';
+import Navbar from '../../components/layout/Navbar';
 import './Quotations.css';
 
+/**
+ * DealFlow360 - Quotations Management & CPQ
+ * 
+ * Multi-stage quotation tracker with Kanban Board, Table View, and New Quote generation.
+ */
 export default function Quotations({ user, onNavigate, onLogout }) {
   const [viewMode, setViewMode] = useState('board'); // 'board' | 'table'
   const [searchQuery, setSearchQuery] = useState('');
@@ -19,7 +24,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
   const [isNewQuoteOpen, setIsNewQuoteOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 
-  // Initial Quotations Data matching mockup exactly
+  // Initial Quotations Data
   const [quotes, setQuotes] = useState([
     {
       id: 'Q-9402',
@@ -168,7 +173,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
         </div>
       )}
 
-      {/* Universal Constant Header */}
+      {/* Unified Navigation Header */}
       <Navbar 
         activePage="quotations" 
         user={user} 
@@ -232,7 +237,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
               onClick={() => setIsNewQuoteOpen(true)}
             >
               <Plus size={16} />
-              <span>+ New Quotation</span>
+              <span>New Quotation</span>
             </button>
           </div>
         </div>
@@ -550,7 +555,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
               onClick={() => setIsNewQuoteOpen(true)}
             >
               <Plus size={16} />
-              <span>+ New Quotation</span>
+              <span>New Quotation</span>
             </button>
 
             <button 

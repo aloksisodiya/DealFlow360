@@ -19,7 +19,7 @@ import {
   Sliders,
   Download
 } from 'lucide-react';
-import Navbar from './Navbar';
+import Navbar from '../../components/layout/Navbar';
 import './Reports.css';
 
 export default function Reports({ user, onNavigate, onLogout }) {
@@ -220,7 +220,7 @@ export default function Reports({ user, onNavigate, onLogout }) {
               onClick={() => setActiveModal('customReport')}
             >
               <Plus size={16} />
-              <span>+ Create Custom Report</span>
+              <span>Create Custom Report</span>
             </button>
           </div>
         </div>

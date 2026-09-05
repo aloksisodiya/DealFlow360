@@ -16,7 +16,7 @@ import {
   Info,
   AlertCircle
 } from 'lucide-react';
-import Navbar from './Navbar';
+import Navbar from '../../components/layout/Navbar';
 import './Invoices.css';
 
 export default function Invoices({ user, onNavigate, onLogout }) {

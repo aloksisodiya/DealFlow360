@@ -20,7 +20,7 @@ import {
   Info,
   ChevronRight
 } from 'lucide-react';
-import Navbar from './Navbar';
+import Navbar from '../../components/layout/Navbar';
 import './DealHealth.css';
 
 export default function DealHealth({ user, onNavigate, onLogout }) {
@@ -317,7 +317,7 @@ export default function DealHealth({ user, onNavigate, onLogout }) {
               onClick={() => setActiveModal('configureRules')}
             >
               <Sliders size={15} />
-              <span>+ Configure Rules & Thresholds</span>
+              <span>Configure Rules & Thresholds</span>
             </button>
           </div>
         </div>

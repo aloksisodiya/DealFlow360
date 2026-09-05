@@ -5,16 +5,14 @@ import {
   loginAdmin,
   resetAdminCredentials,
   updateManagedAccount,
+  requestPasswordReset,
+  verifyAndResetPassword,
 } from "../services/admin.services.js";
 
 const MANAGED_ROLES = ["sales_rep", "sales_manager", "finance", "customer"];
 
 function validateRoleEmail(workEmail, role) {
-  if (role === "admin") return null;
-  const expectedFormat = new RegExp(`^[^\\s@]+@${role}\\.com$`, "i");
-  if (!expectedFormat.test(workEmail)) {
-    return `Work email for ${role} must use this format: name@${role}.com`;
-  }
+  // Allow all standard valid email formats (including @gmail.com, enterprise domains, etc.)
   return null;
 }
 
@@ -169,3 +167,58 @@ export async function me(req, res) {
     return sendError(res, error);
   }
 }
+
+export async function forgotPassword(req, res) {
+  const { email, workEmail } = req.body || {};
+  const targetEmail = email || workEmail;
+
+  if (!targetEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) {
+    return res.status(400).json({
+      success: false,
+      message: "A valid work email address is required.",
+    });
+  }
+
+  try {
+    const result = await requestPasswordReset(targetEmail);
+    return res.status(200).json({
+      success: true,
+      message: `Password reset verification code dispatched to ${result.email} via Nodemailer.`,
+      data: result,
+    });
+  } catch (error) {
+    console.error("Forgot password error:", error.message);
+    return res.status(error.message.includes("No account") ? 404 : 500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+}
+
+export async function resetPasswordWithToken(req, res) {
+  const { email, workEmail, code, newPassword } = req.body || {};
+  const targetEmail = email || workEmail;
+
+  if (!targetEmail || !code || !newPassword) {
+    return res.status(400).json({
+      success: false,
+      message: "Work email, verification code, and new password are required.",
+    });
+  }
+
+  try {
+    const result = await verifyAndResetPassword({
+      workEmail: targetEmail,
+      code,
+      newPassword,
+    });
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("Reset password with token error:", error.message);
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+}
+
