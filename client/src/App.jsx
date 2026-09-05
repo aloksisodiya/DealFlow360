@@ -19,9 +19,10 @@ import Fulfillment from './Fulfillment';
 import Subscriptions from './Subscriptions';
 import Invoices from './Invoices';
 import DealHealth from './DealHealth';
+import Reports from './Reports';
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState('auth'); // 'auth' | 'dashboard' | 'quotations' | 'approvals' | 'fulfillment' | 'subscriptions' | 'invoices' | 'dealhealth'
+  const [currentScreen, setCurrentScreen] = useState('auth'); // 'auth' | 'dashboard' | 'quotations' | 'approvals' | 'fulfillment' | 'subscriptions' | 'invoices' | 'dealhealth' | 'reports'
   const [currentUser, setCurrentUser] = useState({
     name: 'Alex Morgan',
     email: 'alex.morgan@firm-capital.com',
@@ -208,6 +209,16 @@ export default function App() {
   if (currentScreen === 'dealhealth') {
     return (
       <DealHealth 
+        user={currentUser} 
+        onNavigate={(screen) => setCurrentScreen(screen)}
+        onLogout={handleLogout} 
+      />
+    );
+  }
+
+  if (currentScreen === 'reports') {
+    return (
+      <Reports 
         user={currentUser} 
         onNavigate={(screen) => setCurrentScreen(screen)}
         onLogout={handleLogout} 

@@ -92,7 +92,7 @@ export default function Navbar({ activePage, user, onNavigate, onLogout, onToast
 
               <button
                 className={`nav-tab-button ${activePage === 'reports' ? 'active' : ''}`}
-                onClick={() => notify('Opening Analytics & Reports')}
+                onClick={() => onNavigate && onNavigate('reports')}
               >
                 <span>Reports</span>
               </button>
@@ -219,6 +219,16 @@ export default function Navbar({ activePage, user, onNavigate, onLogout, onToast
                   >
                     <AlertTriangle size={14} />
                     <span>Deal Health</span>
+                  </button>
+                  <button 
+                    className="nav-dropdown-item" 
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      if (onNavigate) onNavigate('reports');
+                    }}
+                  >
+                    <BarChart3 size={14} />
+                    <span>Reports</span>
                   </button>
                   <button 
                     className="nav-dropdown-item logout" 
