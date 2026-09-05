@@ -188,12 +188,17 @@ export default function CustomerPortal({ token }) {
         ))}
       </div>
 
-      {/* Header */}
+      {/* Universal DealFlow360 Styled Header */}
       <header className="portal-header">
-        <div className="portal-logo">DealFlow<span>360</span></div>
-        <div className="portal-header-badge">
-          <span className="pulse" />
-          Secure Quotation Portal
+        <div className="portal-header-inner">
+          <div className="portal-brand">
+            <span className="portal-brand-dark">DealFlow</span>
+            <span className="portal-brand-purple">360</span>
+          </div>
+          <div className="portal-header-badge">
+            <span className="pulse-dot" />
+            <span>Secure Customer Portal</span>
+          </div>
         </div>
       </header>
 

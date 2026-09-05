@@ -25,6 +25,11 @@ export async function fetchQuoteMessages(quoteId) {
   return res.messages || [];
 }
 
+export async function applyQuotationDiscount(quoteId, discountPercent, note) {
+  const res = await api.patch(`/sales/rep/quotations/${quoteId}/discount`, { discountPercent, note });
+  return res;
+}
+
 export async function sendSalesRepReply(quoteId, message) {
   const res = await api.post(`/sales/rep/quotations/${quoteId}/reply`, { message });
   return res;

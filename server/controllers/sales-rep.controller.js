@@ -146,6 +146,23 @@ export const sendPortalLink = async (req, res) => {
   }
 };
 
+export const applyDiscount = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { discountPercent, note } = req.body || {};
+    if (discountPercent === undefined || discountPercent === null) {
+      return res.status(400).json({ success: false, message: "discountPercent is required" });
+    }
+
+    const { applyQuotationDiscount } = await import("../services/sales-rep.services.js");
+    const result = await applyQuotationDiscount(req.auth.adminId, id, discountPercent, note);
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    console.error("[applyDiscount]", error.message);
+    return res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 export const getQuoteMessages = async (req, res) => {
   try {
     const { id } = req.params;

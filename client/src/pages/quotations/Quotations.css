@@ -634,3 +634,12 @@
     justify-content: center;
   }
 }
+
+/* Modal Content Scroll & Polish */
+.modal-content {
+  max-height: 90vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+

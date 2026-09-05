@@ -13,7 +13,10 @@ import {
   Loader2,
   Copy,
   MessageSquare,
-  CheckCircle2
+  CheckCircle2,
+  TrendingDown,
+  AlertTriangle,
+  ArrowUpRight
 } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
 import { 
@@ -22,7 +25,8 @@ import {
   requestNegotiation, 
   sendPortalLink,
   fetchQuoteMessages,
-  sendSalesRepReply
+  sendSalesRepReply,
+  applyQuotationDiscount
 } from '../../services/quotationService';
 import './Quotations.css';
 
@@ -60,6 +64,10 @@ export default function Quotations({ user, onNavigate, onLogout }) {
   const [portalSent, setPortalSent] = useState(null); // { url, email }
   const [copiedLink, setCopiedLink] = useState(false);
 
+  // Discount management & authority state for selected quote
+  const [repDiscountPct, setRepDiscountPct] = useState(0);
+  const [applyingDiscount, setApplyingDiscount] = useState(false);
+
   // Negotiation messages state
   const [quoteMessages, setQuoteMessages] = useState([]);
   const [repReplyText, setRepReplyText] = useState('');
@@ -78,6 +86,29 @@ export default function Quotations({ user, onNavigate, onLogout }) {
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
     showToast('Portal link copied to clipboard!');
+  };
+
+  const handleApplyDiscount = async () => {
+    if (!selectedQuote || applyingDiscount) return;
+    setApplyingDiscount(true);
+    try {
+      const res = await applyQuotationDiscount(selectedQuote.id, repDiscountPct);
+      showToast(res.message || `Discount of ${repDiscountPct}% submitted!`);
+      setSelectedQuote(prev => ({
+        ...prev,
+        discountPercent: repDiscountPct,
+        amount: res.newTotal || prev.amount,
+        stage: res.requiresManagerApproval ? 'pending' : (prev.stage === 'draft' ? 'approved' : prev.stage),
+        alert: res.requiresManagerApproval ? 'Status: Pending Manager Review' : 'Status: Auto-Approved',
+      }));
+      await loadQuotations();
+      const msgs = await fetchQuoteMessages(selectedQuote.id);
+      setQuoteMessages(msgs);
+    } catch (err) {
+      showToast(err.message || 'Failed to apply discount');
+    } finally {
+      setApplyingDiscount(false);
+    }
   };
 
   const handleSendPortal = async () => {
@@ -126,6 +157,10 @@ export default function Quotations({ user, onNavigate, onLogout }) {
 
         const cEmail = q.customer_email || q.portal_customer_email || '';
         const pUrl = q.portal_token ? `${window.location.origin}/portal/${q.portal_token}` : null;
+        const discPct = Number(q.discount_percent || 0);
+        const curAmount = Number(q.total_amount || 0);
+        const maxLimit = Number(q.max_allowed_discount || (q.customer_tier === 'Gold' ? 15 : q.customer_tier === 'Silver' ? 10 : q.customer_tier === 'Enterprise' ? 25 : 5));
+        const baseAmt = Number(q.base_amount || 0) || (discPct > 0 && discPct < 100 ? curAmount / (1 - discPct / 100) : curAmount);
 
         return {
           id: q.id,
@@ -133,12 +168,14 @@ export default function Quotations({ user, onNavigate, onLogout }) {
           customerEmail: cEmail,
           portalToken: q.portal_token || null,
           portalUrl: pUrl,
-          amount: Number(q.total_amount || 0),
+          amount: curAmount,
+          baseAmount: baseAmt,
           stage: stageName,
           rawStage: q.stage,
           customerTier: q.customer_tier || 'Bronze',
-          discountPercent: Number(q.discount_percent || 0),
-          desc: q.negotiation_request || `${q.customer_tier || 'Bronze'} Tier deal with ${q.discount_percent || 0}% discount.`,
+          discountPercent: discPct,
+          maxAllowedDiscount: maxLimit,
+          desc: q.negotiation_request || `${q.customer_tier || 'Bronze'} Tier deal with ${discPct}% discount.`,
           created: 'Active in DB',
           owner: q.owner_email ? q.owner_email.split('@')[0] : (user?.name || 'Sales Rep'),
           ownerInitials: q.owner_email ? q.owner_email.slice(0, 2).toUpperCase() : 'SR',
@@ -162,6 +199,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
   useEffect(() => {
     if (selectedQuote) {
       setPortalEmail(selectedQuote.customerEmail || '');
+      setRepDiscountPct(selectedQuote.discountPercent || 0);
       if (selectedQuote.portalUrl) {
         setPortalSent({ url: selectedQuote.portalUrl, email: selectedQuote.customerEmail || 'Customer' });
       } else {
@@ -175,6 +213,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
       setPortalSent(null);
       setPortalEmail('');
       setRepReplyText('');
+      setRepDiscountPct(0);
     }
   }, [selectedQuote]);
 
@@ -231,6 +270,16 @@ export default function Quotations({ user, onNavigate, onLogout }) {
   const pendingQuotes = filteredQuotes.filter(q => q.stage === 'pending');
   const approvedQuotes = filteredQuotes.filter(q => q.stage === 'approved');
   const negotiationQuotes = filteredQuotes.filter(q => q.stage === 'negotiation');
+
+  const selectedBasePrice = selectedQuote
+    ? Number(selectedQuote.baseAmount || (selectedQuote.discountPercent > 0 ? selectedQuote.amount / (1 - selectedQuote.discountPercent / 100) : selectedQuote.amount) || 0)
+    : 0;
+  const selectedDiscountDollar = Math.round(selectedBasePrice * (repDiscountPct / 100));
+  const selectedNewTotal = Math.round(selectedBasePrice * (1 - repDiscountPct / 100));
+  const selectedMaxAllowed = selectedQuote
+    ? Number(selectedQuote.maxAllowedDiscount || (selectedQuote.customerTier === 'Gold' ? 15 : selectedQuote.customerTier === 'Silver' ? 10 : selectedQuote.customerTier === 'Enterprise' ? 25 : 5))
+    : 5;
+  const exceedsAuthority = repDiscountPct > selectedMaxAllowed;
 
   return (
     <div className="quotations-container">
@@ -680,6 +729,198 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                 ℹ️ {selectedQuote.alert}
               </div>
             )}
+
+            {/* Discount Percent Counter & Approval Authority Section */}
+            <div style={{
+              background: '#ffffff',
+              border: exceedsAuthority ? '1.5px solid #fed7aa' : '1px solid #e2e8f0',
+              borderRadius: '12px',
+              padding: '16px',
+              marginBottom: '14px',
+              boxShadow: '0 2px 8px -2px rgba(15, 23, 42, 0.04)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                  <TrendingDown size={15} color="#714b67" />
+                  <span style={{ fontWeight: 700, fontSize: '13px', color: '#0f172a' }}>Discount Counter & Authority</span>
+                </div>
+                <span style={{
+                  fontSize: '11px',
+                  background: exceedsAuthority ? '#fff7ed' : '#f0fdf4',
+                  color: exceedsAuthority ? '#c2410c' : '#166534',
+                  border: exceedsAuthority ? '1px solid #ffedd5' : '1px solid #bbf7d0',
+                  padding: '3px 8px',
+                  borderRadius: '10px',
+                  fontWeight: 700
+                }}>
+                  Max Self-Approval: {selectedMaxAllowed}% ({selectedQuote.customerTier || 'Bronze'})
+                </span>
+              </div>
+
+              {/* Counter Row: Stepper Controls + Value + Quick Presets */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    className="btn-dash-secondary"
+                    onClick={() => setRepDiscountPct(prev => Math.max(0, prev - 1))}
+                    style={{ width: '34px', height: '34px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 700 }}
+                  >
+                    -
+                  </button>
+                  <div style={{
+                    minWidth: '64px',
+                    height: '34px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: '#f8fafc',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    fontWeight: 800,
+                    fontSize: '16px',
+                    color: exceedsAuthority ? '#ea580c' : '#714b67'
+                  }}>
+                    {repDiscountPct}%
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-dash-secondary"
+                    onClick={() => setRepDiscountPct(prev => Math.min(80, prev + 1))}
+                    style={{ width: '34px', height: '34px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 700 }}
+                  >
+                    +
+                  </button>
+                </div>
+
+                {/* Quick Presets */}
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                  {[0, 5, 10, 15, 20].map(p => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setRepDiscountPct(p)}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        border: repDiscountPct === p ? '1.5px solid #714b67' : '1px solid #e2e8f0',
+                        background: repDiscountPct === p ? '#faf5f8' : '#ffffff',
+                        color: repDiscountPct === p ? '#714b67' : '#64748b'
+                      }}
+                    >
+                      {p}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Price Calculation Breakdown */}
+              <div style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                padding: '10px 12px',
+                marginBottom: '12px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                fontSize: '12.5px',
+                flexWrap: 'wrap',
+                gap: '8px'
+              }}>
+                <div>
+                  <span style={{ color: '#64748b' }}>Base: </span>
+                  <strong>${Math.round(selectedBasePrice).toLocaleString()}</strong>
+                  <span style={{ margin: '0 6px', color: '#cbd5e1' }}>•</span>
+                  <span style={{ color: '#c2410c' }}>Disc ({repDiscountPct}%): -${selectedDiscountDollar.toLocaleString()}</span>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b' }}>New Total: </span>
+                  <strong style={{ fontSize: '14px', color: '#0f172a' }}>${selectedNewTotal.toLocaleString()}</strong>
+                </div>
+              </div>
+
+              {/* Authority Notice & Action Button */}
+              {exceedsAuthority ? (
+                <div style={{
+                  background: '#fff7ed',
+                  border: '1px solid #ffedd5',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  marginBottom: '10px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#c2410c', marginBottom: '4px' }}>
+                    <AlertTriangle size={13} />
+                    <span>Permission Required from Sales Manager</span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '11.5px', color: '#9a3412', lineHeight: 1.4 }}>
+                    Your self-approval limit for {selectedQuote.customerTier || 'Bronze'} Tier is {selectedMaxAllowed}%.
+                    A discount of <strong>{repDiscountPct}%</strong> will automatically flag this deal as <strong>Pending Manager Review</strong> and send it to the Sales Manager for approval.
+                  </p>
+                </div>
+              ) : (
+                <div style={{
+                  background: '#f0fdf4',
+                  border: '1px solid #bbf7d0',
+                  borderRadius: '8px',
+                  padding: '8px 12px',
+                  marginBottom: '10px',
+                  fontSize: '11.5px',
+                  color: '#166534',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <CheckCircle2 size={13} color="#16a34a" />
+                  <span>Within your self-approval authority ({selectedMaxAllowed}% max limit). Will be auto-approved instantly.</span>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleApplyDiscount}
+                disabled={applyingDiscount}
+                style={{
+                  width: '100%',
+                  height: '38px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: exceedsAuthority
+                    ? 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)'
+                    : 'linear-gradient(135deg, #714b67 0%, #54324c 100%)',
+                  color: '#ffffff',
+                  fontSize: '13px',
+                  fontFamily: 'inherit',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  boxShadow: exceedsAuthority ? '0 2px 8px rgba(234, 88, 12, 0.25)' : '0 2px 8px rgba(113, 75, 103, 0.25)'
+                }}
+              >
+                {applyingDiscount ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" />
+                    <span>Processing...</span>
+                  </>
+                ) : exceedsAuthority ? (
+                  <>
+                    <ArrowUpRight size={14} />
+                    <span>Request Sales Manager Approval for {repDiscountPct}%</span>
+                  </>
+                ) : (
+                  <>
+                    <Check size={14} />
+                    <span>Apply & Confirm {repDiscountPct}% Discount (Auto-Approved)</span>
+                  </>
+                )}
+              </button>
+            </div>
 
             {/* Send Portal Link Section */}
             <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '10px', padding: '16px', marginBottom: '14px' }}>

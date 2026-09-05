@@ -6,6 +6,7 @@ import {
   sendPortalLink,
   postSalesRepReply,
   getQuoteMessages,
+  applyDiscount,
 } from "../controllers/sales-rep.controller.js";
 import { requireAdmin, requireRole } from "../middleware/admin-auth.js";
 
@@ -18,6 +19,9 @@ const salesRepAccess = [
 router.get("/quotations", ...salesRepAccess, getQuotes);
 router.post("/quotations", ...salesRepAccess, createQuote);
 router.post("/quotations/:id/negotiation", ...salesRepAccess, negotiate);
+
+// Apply or counter discount with sales manager approval threshold check
+router.patch("/quotations/:id/discount", ...salesRepAccess, applyDiscount);
 
 // Portal link generation (sales rep sends invite to customer)
 router.post("/quotations/:id/send-portal", ...salesRepAccess, sendPortalLink);
