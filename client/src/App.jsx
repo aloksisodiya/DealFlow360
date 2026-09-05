@@ -99,7 +99,7 @@ export default function App() {
       {toastMessage && (
         <div className="toast-container">
           <div className="toast">
-            <CheckCircle2 size={20} color="#38bdf8" />
+            <CheckCircle2 size={20} color="#e9d5e3" />
             <span>{toastMessage}</span>
           </div>
         </div>
@@ -254,7 +254,7 @@ export default function App() {
                 {/* Security Trust Badge */}
                 <div className="security-badge-row">
                   <div className="security-badge-left">
-                    <ShieldCheck size={16} color="#0284c7" />
+                    <ShieldCheck size={16} color="#714b67" />
                     <span>256-bit TLS & SOC2 Type II Certified</span>
                   </div>
                   <div className="security-badge-right">

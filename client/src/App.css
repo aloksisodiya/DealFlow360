@@ -4,7 +4,7 @@
   flex-direction: column;
   min-height: 100vh;
   background-color: #f8fafc;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #f9f7f9 100%);
 }
 
 /* Header */
@@ -43,7 +43,7 @@
 .brand-name {
   font-size: 24px;
   font-weight: 800;
-  color: #0284c7;
+  color: #714b67;
   letter-spacing: -0.025em;
   font-family: var(--font-main);
   display: flex;
@@ -80,16 +80,16 @@
 }
 
 .nav-link:hover {
-  color: #0284c7;
-  background-color: #f1f5f9;
+  color: #714b67;
+  background-color: #f8f4f7;
 }
 
 .btn-contact-sales {
   font-size: 14.5px;
   font-weight: 600;
-  color: #0284c7;
+  color: #714b67;
   background-color: #ffffff;
-  border: 1.5px solid #bae6fd;
+  border: 1.5px solid #dfc2d6;
   border-radius: 8px;
   padding: 8px 20px;
   cursor: pointer;
@@ -100,9 +100,9 @@
 }
 
 .btn-contact-sales:hover {
-  background-color: #f0f9ff;
-  border-color: #7dd3fc;
-  color: #0369a1;
+  background-color: #faf5f8;
+  border-color: #c99bbd;
+  color: #5a3951;
 }
 
 .btn-help-circle {
@@ -122,9 +122,9 @@
 }
 
 .btn-help-circle:hover {
-  border-color: #94a3b8;
-  color: #0f172a;
-  background-color: #f8fafc;
+  border-color: #714b67;
+  color: #714b67;
+  background-color: #faf5f8;
 }
 
 /* Main Content */
@@ -259,8 +259,8 @@
 }
 
 .form-input:focus {
-  border-color: #0284c7;
-  box-shadow: 0 0 0 4px rgba(2, 132, 199, 0.14);
+  border-color: #714b67;
+  box-shadow: 0 0 0 4px rgba(113, 75, 103, 0.15);
 }
 
 .input-icon-btn {
@@ -278,7 +278,7 @@
 }
 
 .input-icon-btn:hover {
-  color: #475569;
+  color: #714b67;
 }
 
 .input-icon-static {
@@ -326,8 +326,8 @@
 }
 
 .custom-checkbox:checked {
-  background-color: #0284c7;
-  border-color: #0284c7;
+  background-color: #714b67;
+  border-color: #714b67;
 }
 
 .custom-checkbox:checked::after {
@@ -342,7 +342,7 @@
 .link-forgot {
   font-size: 14px;
   font-weight: 600;
-  color: #0284c7;
+  color: #714b67;
   text-decoration: none;
   background: none;
   border: none;
@@ -352,7 +352,7 @@
 }
 
 .link-forgot:hover {
-  color: #0369a1;
+  color: #5a3951;
   text-decoration: underline;
 }
 
@@ -362,7 +362,7 @@
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: #0284c7;
+  color: #714b67;
   margin-top: 8px;
 }
 
@@ -384,7 +384,7 @@
 }
 
 .terms-link {
-  color: #0284c7;
+  color: #714b67;
   text-decoration: none;
   font-weight: 600;
   cursor: pointer;
@@ -392,6 +392,7 @@
 
 .terms-link:hover {
   text-decoration: underline;
+  color: #5a3951;
 }
 
 /* Submit Button */
@@ -399,8 +400,8 @@
   width: 100%;
   height: 50px;
   padding: 0 24px;
-  background: #0284c7;
-  background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%);
+  background: #714b67;
+  background: linear-gradient(180deg, #714b67 0%, #5a3951 100%);
   color: #ffffff;
   border: none;
   border-radius: 10px;
@@ -412,13 +413,13 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(2, 132, 199, 0.25);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 3px 6px rgba(113, 75, 103, 0.25);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-primary-submit:hover {
-  background: linear-gradient(180deg, #0369a1 0%, #075985 100%);
-  box-shadow: 0 4px 16px rgba(2, 132, 199, 0.4);
+  background: linear-gradient(180deg, #5e3b55 0%, #4a2d42 100%);
+  box-shadow: 0 4px 18px rgba(113, 75, 103, 0.4);
   transform: translateY(-1px);
 }
 
@@ -465,7 +466,7 @@
 .bottom-switch-link button {
   background: none;
   border: none;
-  color: #0284c7;
+  color: #714b67;
   font-weight: 600;
   cursor: pointer;
   margin-left: 6px;
@@ -475,6 +476,7 @@
 
 .bottom-switch-link button:hover {
   text-decoration: underline;
+  color: #5a3951;
 }
 
 /* Footer */
@@ -520,7 +522,7 @@
 }
 
 .footer-link:hover {
-  color: #0f172a;
+  color: #714b67;
 }
 
 .status-badge {
@@ -535,7 +537,7 @@
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(15, 23, 42, 0.4);
+  background-color: rgba(15, 23, 42, 0.45);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -586,13 +588,13 @@
 }
 
 .toast {
-  background: #0f172a;
+  background: #231821;
   color: #ffffff;
   padding: 14px 22px;
   border-radius: 10px;
   font-size: 14.5px;
   font-weight: 500;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 20px -3px rgba(0, 0, 0, 0.18);
   display: flex;
   align-items: center;
   gap: 12px;
