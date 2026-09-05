@@ -148,10 +148,13 @@ export async function transferStock({ fromWarehouseId, toWarehouseId, productId,
 }
 
 export async function listFulfillmentOrders() {
-  const quotes = await db("quotations")
-    .whereIn("stage", ["Fulfillment", "Approved", "Confirmed", "In Review", "Draft"])
-    .orderBy("created_at", "desc")
-    .limit(15);
+  const [quotes, inventory] = await Promise.all([
+    db("quotations")
+      .whereIn("stage", ["Fulfillment", "Approved", "Confirmed", "In Review", "Draft", "Dispatched", "Fulfilled"])
+      .orderBy("created_at", "desc")
+      .limit(25),
+    db("warehouse_inventory").select("warehouse_id", "product_id", "product_name", "stock_qty")
+  ]);
 
   return quotes.map((q) => {
     let quoteItems = [];
@@ -167,21 +170,71 @@ export async function listFulfillmentOrders() {
       ? quoteItems.map(it => {
           const qty = Number(it.quantity || 1);
           const isBack = !!it.isBackorder || String(it.warehouseAvailability || "").toLowerCase().includes("backorder");
+          const prodName = it.name || "Enterprise Product";
+
+          // Lookup real warehouse stock
+          const mainStock = inventory.find(i => i.warehouse_id === "wh-main" && (i.product_name === prodName || i.product_id === it.productId))?.stock_qty || 0;
+          const eastStock = inventory.find(i => i.warehouse_id === "wh-east" && (i.product_name === prodName || i.product_id === it.productId))?.stock_qty || 0;
+          const westStock = inventory.find(i => i.warehouse_id === "wh-west" && (i.product_name === prodName || i.product_id === it.productId))?.stock_qty || 0;
+
+          let mainAlloc = 0;
+          let eastAlloc = 0;
+          let westAlloc = 0;
+
+          if (!isBack) {
+            let needed = qty;
+            // Primary: Main Warehouse (up to 60% or available)
+            const fromMain = Math.min(needed, Number(mainStock));
+            mainAlloc = fromMain;
+            needed -= fromMain;
+
+            if (needed > 0) {
+              const fromEast = Math.min(needed, Number(eastStock));
+              eastAlloc = fromEast;
+              needed -= fromEast;
+            }
+
+            if (needed > 0) {
+              const fromWest = Math.min(needed, Number(westStock));
+              westAlloc = fromWest;
+              needed -= fromWest;
+            }
+          }
+
+          const totalAllocated = mainAlloc + eastAlloc + westAlloc;
+          const pending = Math.max(0, qty - totalAllocated);
+
           return {
-            product: it.name || "Enterprise Product",
+            product: prodName,
+            productId: it.productId || it.id || "prod-1",
             qty: qty,
-            mainAlloc: isBack ? 0 : Math.ceil(qty * 0.7),
-            eastAlloc: isBack ? 0 : Math.floor(qty * 0.3),
-            pending: isBack ? qty : 0,
+            mainAlloc,
+            eastAlloc,
+            westAlloc,
+            pending,
+            stocks: {
+              main: Number(mainStock),
+              east: Number(eastStock),
+              west: Number(westStock)
+            }
           };
         })
       : [
-          { product: "Enterprise Server Rack X1", qty: 2, mainAlloc: 2, eastAlloc: 0, pending: 0 },
-          { product: "Setup & Onboarding Service", qty: 1, mainAlloc: 1, eastAlloc: 0, pending: 0 }
+          { 
+            product: "Enterprise Server Rack X1", 
+            productId: "prod-1",
+            qty: 2, 
+            mainAlloc: 2, 
+            eastAlloc: 0, 
+            westAlloc: 0, 
+            pending: 0,
+            stocks: { main: 45, east: 15, west: 30 }
+          }
         ];
 
     const totalUnits = items.reduce((sum, it) => sum + it.qty, 0);
     const hasBackorder = items.some(it => it.pending > 0);
+    const isDispatched = q.stage === "Dispatched" || q.stage === "Fulfilled" || q.approval_status === "Dispatched";
 
     return {
       id: `ord-${q.id.replace("Q-", "")}`,
@@ -189,12 +242,93 @@ export async function listFulfillmentOrders() {
       type: q.customer_tier === "Enterprise" ? "Priority" : "Standard",
       customer: q.customer_name || "Enterprise Client",
       initials: (q.customer_name || "CU").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
-      status: hasBackorder ? "Backorder" : q.stage === "Confirmed" ? "Ready for Dispatch" : q.stage === "Fulfillment" ? "Split Pending" : "Ready for Dispatch",
+      status: isDispatched 
+        ? "Dispatched" 
+        : hasBackorder 
+        ? "Backorder" 
+        : q.stage === "Confirmed" 
+        ? "Ready for Dispatch" 
+        : q.stage === "Fulfillment" 
+        ? "Split Pending" 
+        : "Ready for Dispatch",
       warehouses: ["Main Warehouse", "East Depot", "West Hub"],
       items,
       totalUnits,
       routingRule: "Nearest Depot Preferred (Distance & Freight Optimized)",
       dispatchDate: new Date(Date.now() + 86400000 * (hasBackorder ? 7 : 2)).toISOString().split("T")[0]
+    };
+  });
+}
+
+export async function dispatchFulfillmentOrder({ quoteId, splitAllocations }) {
+  return await db.transaction(async (trx) => {
+    if (Array.isArray(splitAllocations) && splitAllocations.length > 0) {
+      for (const item of splitAllocations) {
+        const prodId = item.productId;
+        const prodName = item.product;
+
+        const deductions = [
+          { warehouseId: "wh-main", qty: Number(item.mainAlloc || 0) },
+          { warehouseId: "wh-east", qty: Number(item.eastAlloc || 0) },
+          { warehouseId: "wh-west", qty: Number(item.westAlloc || 0) }
+        ];
+
+        for (const d of deductions) {
+          if (d.qty > 0) {
+            const row = await trx("warehouse_inventory")
+              .where({ warehouse_id: d.warehouseId })
+              .andWhere(builder => {
+                if (prodId) builder.where("product_id", prodId);
+                else if (prodName) builder.whereRaw("LOWER(product_name) LIKE ?", [`%${prodName.toLowerCase()}%`]);
+              })
+              .first();
+
+            if (row) {
+              await trx("warehouse_inventory")
+                .where({ id: row.id })
+                .update({
+                  stock_qty: Math.max(0, Number(row.stock_qty) - d.qty),
+                  updated_at: trx.fn.now()
+                });
+            }
+
+            // Log fulfillment split
+            await trx("quotation_fulfillment_splits").insert({
+              quote_id: quoteId,
+              warehouse_id: d.warehouseId,
+              product_id: prodId || "prod-custom",
+              allocated_qty: d.qty,
+              backorder_qty: 0,
+              status: "Dispatched"
+            }).catch(() => {});
+          }
+        }
+      }
+    } else {
+      const { deductInventoryForOrder } = await import("./products.services.js");
+      await deductInventoryForOrder(quoteId);
+    }
+
+    await trx("quotations")
+      .where({ id: quoteId })
+      .update({
+        stage: "Dispatched",
+        approval_status: "Dispatched",
+        updated_at: trx.fn.now()
+      });
+
+    await trx("approval_audit_logs").insert({
+      quote_id: quoteId,
+      reviewer_role: "Operations",
+      reviewer_id: "FulfillmentManager",
+      action: "DISPATCH",
+      reason: `Order ${quoteId} authorized & dispatched from regional warehouses.`
+    }).catch(() => {});
+
+    return {
+      success: true,
+      quoteId,
+      message: `Order ${quoteId} successfully dispatched from selected warehouses!`
     };
   });
 }

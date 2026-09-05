@@ -35,3 +35,8 @@ export async function consolidateBackorder(quoteId, warehouseId) {
   return res.data;
 }
 
+export async function dispatchOrder(quoteId, splitAllocations) {
+  const res = await api.post('/finance/fulfillment/dispatch', { quoteId, splitAllocations });
+  return res.data;
+}
+

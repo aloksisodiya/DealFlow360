@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Upload, 
   Plus, 
@@ -16,7 +16,10 @@ import {
   Check, 
   AlertTriangle, 
   Download,
-  Loader2
+  Loader2,
+  RefreshCw,
+  Send,
+  Zap
 } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
 import { 
@@ -24,7 +27,8 @@ import {
   fetchFulfillmentOrders, 
   allocateStock, 
   transferStock, 
-  overrideFulfillmentSplit 
+  overrideFulfillmentSplit,
+  dispatchOrder
 } from '../../services/fulfillmentService';
 import { canManageFulfillment } from '../../utils/rbac';
 import './Fulfillment.css';
@@ -33,6 +37,7 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
   // Toast notifications
   const [toastMessage, setToastMessage] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -40,11 +45,11 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
   };
 
   // Warehouse Inventory State from database
-  const [warehouseFilter, setWarehouseFilter] = useState('all'); // 'all' | 'Main Warehouse' | 'East Depot'
+  const [warehouseFilter, setWarehouseFilter] = useState('all'); // 'all' | 'Main Warehouse' | 'East Depot' | 'West Hub'
   const [inventoryList, setInventoryList] = useState([]);
 
   // Orders Awaiting Fulfillment State from database
-  const [orderFilter, setOrderFilter] = useState('all'); // 'all' | 'split-pending' | 'backorder'
+  const [orderFilter, setOrderFilter] = useState('all'); // 'all' | 'split-pending' | 'backorder' | 'dispatched'
   const [searchQuery, setSearchQuery] = useState('');
   const [ordersList, setOrdersList] = useState([]);
 
@@ -57,14 +62,16 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
 
   // Form states for modals
   const [newAllocWarehouse, setNewAllocWarehouse] = useState('Main Warehouse');
-  const [newAllocProduct, setNewAllocProduct] = useState('Enterprise Server Rack X1');
+  const [newAllocProduct, setNewAllocProduct] = useState('');
   const [newAllocQty, setNewAllocQty] = useState(25);
 
   const [transferOrigin, setTransferOrigin] = useState('Main Warehouse');
   const [transferDest, setTransferDest] = useState('East Depot');
   const [transferQty, setTransferQty] = useState(5);
 
-  const [restockQty, setRestockQty] = useState(20);
+  const [restockWarehouse, setRestockWarehouse] = useState('Main Warehouse');
+  const [restockProduct, setRestockProduct] = useState('');
+  const [restockQty, setRestockQty] = useState(25);
 
   // Split management state
   const [splitDraft, setSplitDraft] = useState(null);
@@ -98,6 +105,21 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
     return () => clearInterval(interval);
   }, []);
 
+  // Unique list of products for allocation & restock dropdowns
+  const uniqueProducts = useMemo(() => {
+    const map = new Map();
+    inventoryList.forEach(item => {
+      if (item.product && !map.has(item.product)) {
+        map.set(item.product, {
+          productId: item.productId,
+          productName: item.product,
+          sku: item.sku
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [inventoryList]);
+
   // Filter handlers
   const filteredInventory = inventoryList.filter(item => {
     if (warehouseFilter === 'all') return true;
@@ -108,7 +130,8 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
     const matchesFilter = 
       orderFilter === 'all' ? true :
       orderFilter === 'split-pending' ? order.status === 'Split Pending' :
-      orderFilter === 'backorder' ? order.status === 'Backorder' : true;
+      orderFilter === 'backorder' ? order.status === 'Backorder' :
+      orderFilter === 'dispatched' ? order.status === 'Dispatched' : true;
 
     const matchesSearch = 
       (order.code || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -145,16 +168,37 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
   const handleOpenTransfer = (item) => {
     setSelectedInventory(item);
     setTransferOrigin(item.warehouse);
-    setTransferDest(item.warehouse === 'Main Warehouse' ? 'East Depot' : 'Main Warehouse');
+    const defaultDest = item.warehouse.includes('Main') 
+      ? 'East Depot' 
+      : item.warehouse.includes('East') 
+      ? 'West Hub' 
+      : 'Main Warehouse';
+    setTransferDest(defaultDest);
     setTransferQty(Math.min(5, item.available || 5));
     setActiveModal('transfer');
   };
 
   // Open Restock Modal
   const handleOpenRestock = (item) => {
-    setSelectedInventory(item);
-    setRestockQty(20);
+    if (item) {
+      setSelectedInventory(item);
+      setRestockProduct(item.product);
+      setRestockWarehouse(item.warehouse);
+    } else {
+      setSelectedInventory(null);
+      setRestockProduct(uniqueProducts[0]?.productName || 'Enterprise Server Rack X1');
+      setRestockWarehouse('Main Warehouse');
+    }
+    setRestockQty(25);
     setActiveModal('restock');
+  };
+
+  // Open New Stock Allocation Modal
+  const handleOpenNewAllocation = () => {
+    setNewAllocWarehouse('Main Warehouse');
+    setNewAllocProduct(uniqueProducts[0]?.productName || 'Enterprise Server Rack X1');
+    setNewAllocQty(30);
+    setActiveModal('newAllocation');
   };
 
   // Submit Transfer
@@ -164,12 +208,23 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
       showToast('Please enter a valid transfer quantity.');
       return;
     }
+    if (transferOrigin === transferDest) {
+      showToast('Origin and Destination warehouse must be different.');
+      return;
+    }
 
-    const fromWhId = transferOrigin.includes('East') ? 'wh-east' : 'wh-main';
-    const toWhId = transferDest.includes('East') ? 'wh-east' : 'wh-main';
+    const getWhId = (name) => {
+      if (name.includes('East')) return 'wh-east';
+      if (name.includes('West')) return 'wh-west';
+      return 'wh-main';
+    };
+
+    const fromWhId = getWhId(transferOrigin);
+    const toWhId = getWhId(transferDest);
     const prodId = selectedInventory?.productId || 'prod-1';
 
     try {
+      setActionLoading(true);
       await transferStock({
         fromWarehouseId: fromWhId,
         toWarehouseId: toWhId,
@@ -181,6 +236,8 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
       await loadFulfillmentData();
     } catch (err) {
       showToast(`Transfer failed: ${err.message}`);
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -192,21 +249,34 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
       return;
     }
 
-    const whId = (selectedInventory?.warehouse || '').includes('East') ? 'wh-east' : 'wh-main';
-    const prodId = selectedInventory?.productId || 'prod-1';
+    const getWhId = (name) => {
+      if ((name || '').includes('East')) return 'wh-east';
+      if ((name || '').includes('West')) return 'wh-west';
+      return 'wh-main';
+    };
+
+    const targetWh = selectedInventory?.warehouse || restockWarehouse;
+    const targetProd = selectedInventory?.product || restockProduct;
+    const whId = getWhId(targetWh);
+
+    const foundProd = uniqueProducts.find(p => p.productName === targetProd);
+    const prodId = selectedInventory?.productId || foundProd?.productId || 'prod-1';
 
     try {
+      setActionLoading(true);
       await allocateStock({
         warehouseId: whId,
         productId: prodId,
-        productName: selectedInventory?.product,
+        productName: targetProd,
         stockDelta: Number(restockQty)
       });
-      showToast(`Restocked ${restockQty} units at ${selectedInventory.warehouse}!`);
+      showToast(`Restocked ${restockQty} units of "${targetProd}" at ${targetWh}!`);
       setActiveModal(null);
       await loadFulfillmentData();
     } catch (err) {
       showToast(`Restock failed: ${err.message}`);
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -218,12 +288,21 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
       return;
     }
 
-    const whId = newAllocWarehouse.includes('East') ? 'wh-east' : 'wh-main';
+    const getWhId = (name) => {
+      if ((name || '').includes('East')) return 'wh-east';
+      if ((name || '').includes('West')) return 'wh-west';
+      return 'wh-main';
+    };
+
+    const whId = getWhId(newAllocWarehouse);
+    const foundProd = uniqueProducts.find(p => p.productName === newAllocProduct);
+    const prodId = foundProd?.productId || 'prod-1';
 
     try {
+      setActionLoading(true);
       await allocateStock({
         warehouseId: whId,
-        productId: newAllocProduct.includes('Server') ? 'prod-1' : 'prod-2',
+        productId: prodId,
         productName: newAllocProduct,
         stockDelta: Number(newAllocQty)
       });
@@ -232,31 +311,74 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
       await loadFulfillmentData();
     } catch (err) {
       showToast(`Allocation failed: ${err.message}`);
+    } finally {
+      setActionLoading(false);
     }
   };
 
   // Open Manage Split Modal
   const handleOpenManageSplit = (order) => {
     setSelectedOrder(order);
-    setSplitDraft(JSON.parse(JSON.stringify(order.items)));
+    const draft = (order.items || []).map(it => ({
+      product: it.product,
+      productId: it.productId,
+      qty: it.qty,
+      mainAlloc: it.mainAlloc !== undefined ? it.mainAlloc : Math.ceil(it.qty * 0.6),
+      eastAlloc: it.eastAlloc !== undefined ? it.eastAlloc : Math.floor(it.qty * 0.2),
+      westAlloc: it.westAlloc !== undefined ? it.westAlloc : Math.max(0, it.qty - Math.ceil(it.qty * 0.6) - Math.floor(it.qty * 0.2)),
+      stocks: it.stocks || { main: 45, east: 15, west: 30 }
+    }));
+    setSplitDraft(draft);
     setActiveModal('manageSplit');
   };
 
   // Open Review Stock Modal
   const handleOpenReviewStock = (order) => {
     setSelectedOrder(order);
+    const draft = (order.items || []).map(it => ({
+      product: it.product,
+      productId: it.productId,
+      qty: it.qty,
+      mainAlloc: it.mainAlloc !== undefined ? it.mainAlloc : Math.ceil(it.qty * 0.6),
+      eastAlloc: it.eastAlloc !== undefined ? it.eastAlloc : Math.floor(it.qty * 0.2),
+      westAlloc: it.westAlloc !== undefined ? it.westAlloc : Math.max(0, it.qty - Math.ceil(it.qty * 0.6) - Math.floor(it.qty * 0.2)),
+      stocks: it.stocks || { main: 45, east: 15, west: 30 }
+    }));
+    setSplitDraft(draft);
     setActiveModal('reviewStock');
   };
 
   // Save Split changes
   const handleSaveSplit = async () => {
     try {
+      setActionLoading(true);
       await overrideFulfillmentSplit(selectedOrder.code, splitDraft);
-      showToast(`Warehouse split allocation saved for ${selectedOrder.code}! Dispatch scheduled.`);
+      showToast(`Warehouse split allocation saved for ${selectedOrder.code}!`);
       setActiveModal(null);
       await loadFulfillmentData();
     } catch (err) {
       showToast(`Split update failed: ${err.message}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Direct Dispatch Order Action
+  const handleDispatchOrder = async (orderToDispatch, splitData) => {
+    const targetOrder = orderToDispatch || selectedOrder;
+    const targetSplit = splitData || splitDraft || targetOrder?.items;
+    if (!targetOrder) return;
+
+    try {
+      setActionLoading(true);
+      const res = await dispatchOrder(targetOrder.code, targetSplit);
+      showToast(`🚀 ${res.message || `Order ${targetOrder.code} dispatched and stock deducted!`}`);
+      setActiveModal(null);
+      await loadFulfillmentData();
+    } catch (err) {
+      showToast(`Dispatch failed: ${err.message}`);
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -304,13 +426,24 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
             </button>
 
             {canManageFulfillment(user) ? (
-              <button 
-                className="btn-new-allocation"
-                onClick={() => setActiveModal('newAllocation')}
-              >
-                <Plus size={16} />
-                <span>New Stock Allocation</span>
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                  className="btn-dash-secondary"
+                  onClick={() => handleOpenRestock(null)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: 600 }}
+                  title="Restock units directly into any warehouse"
+                >
+                  <Truck size={15} />
+                  <span>Restock Inventory</span>
+                </button>
+                <button 
+                  className="btn-new-allocation"
+                  onClick={handleOpenNewAllocation}
+                >
+                  <Plus size={16} />
+                  <span>New Stock Allocation</span>
+                </button>
+              </div>
             ) : (
               <span style={{ 
                 display: 'inline-flex', 
@@ -336,7 +469,7 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
             <div className="section-title-left">
               <span className="wh-dot purple" style={{ width: '9px', height: '9px' }}></span>
               <span className="section-title-text">Warehouse Inventory Levels</span>
-              <span className="section-title-muted">3 monitored locations</span>
+              <span className="section-title-muted">3 monitored regional hubs</span>
             </div>
 
             <div className="section-filters-right">
@@ -359,6 +492,12 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                 >
                   East Depot
                 </button>
+                <button 
+                  className={`btn-filter-tab ${warehouseFilter === 'West Hub' ? 'active' : ''}`}
+                  onClick={() => setWarehouseFilter('West Hub')}
+                >
+                  West Hub
+                </button>
               </div>
             </div>
           </div>
@@ -369,6 +508,7 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                 <tr>
                   <th>Warehouse</th>
                   <th>Product</th>
+                  <th>SKU</th>
                   <th>In Stock</th>
                   <th>Reserved</th>
                   <th>Available</th>
@@ -377,52 +517,63 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                 </tr>
               </thead>
               <tbody>
-                {filteredInventory.map(item => (
-                  <tr key={item.id}>
-                    <td>
-                      <div className="warehouse-name-cell">
-                        <span className={`wh-dot ${item.dotColor}`}></span>
-                        <span>{item.warehouse}</span>
-                      </div>
-                    </td>
-                    <td style={{ fontWeight: 600 }}>{item.product}</td>
-                    <td style={{ fontWeight: 700 }}>{item.inStock}</td>
-                    <td style={{ color: '#64748b' }}>{item.reserved}</td>
-                    <td style={{ 
-                      fontWeight: 700, 
-                      color: item.status === 'Low Stock' ? '#b45309' : '#0f172a' 
-                    }}>
-                      {item.available}
-                    </td>
-                    <td>
-                      <span className={`stock-status-pill ${item.status === 'Optimal' ? 'optimal' : item.status === 'Low Stock' ? 'low' : 'healthy'}`}>
-                        <span className="wh-dot" style={{ 
-                          width: '6px', 
-                          height: '6px', 
-                          backgroundColor: item.status === 'Low Stock' ? '#f59e0b' : '#10b981' 
-                        }}></span>
-                        {item.status}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      {item.status === 'Low Stock' ? (
-                        <button 
-                          className="btn-inventory-action"
-                          onClick={() => handleOpenRestock(item)}
-                        >
-                          Restock
-                        </button>
-                      ) : (
-                        <button 
-                          className="btn-inventory-action"
-                          onClick={() => handleOpenTransfer(item)}
-                        >
-                          Transfer
-                        </button>
-                      )}
+                {filteredInventory.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
+                      No inventory records found for the selected warehouse filter.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredInventory.map(item => (
+                    <tr key={item.id}>
+                      <td>
+                        <div className="warehouse-name-cell">
+                          <span className={`wh-dot ${item.dotColor}`}></span>
+                          <span>{item.warehouse}</span>
+                        </div>
+                      </td>
+                      <td style={{ fontWeight: 600 }}>{item.product}</td>
+                      <td style={{ fontSize: '12px', color: '#64748b', fontFamily: 'monospace' }}>{item.sku}</td>
+                      <td style={{ fontWeight: 700 }}>{item.inStock}</td>
+                      <td style={{ color: '#64748b' }}>{item.reserved}</td>
+                      <td style={{ 
+                        fontWeight: 700, 
+                        color: item.status === 'Low Stock' ? '#b45309' : item.status === 'Out of Stock' ? '#e11d48' : '#0f172a' 
+                      }}>
+                        {item.available}
+                      </td>
+                      <td>
+                        <span className={`stock-status-pill ${item.status === 'Optimal' ? 'optimal' : item.status === 'Low Stock' ? 'low' : item.status === 'Out of Stock' ? 'out' : 'healthy'}`}>
+                          <span className="wh-dot" style={{ 
+                            width: '6px', 
+                            height: '6px', 
+                            backgroundColor: item.status === 'Low Stock' ? '#f59e0b' : item.status === 'Out of Stock' ? '#e11d48' : '#10b981' 
+                          }}></span>
+                          {item.status}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: '6px' }}>
+                          <button 
+                            className="btn-inventory-action"
+                            style={{ background: '#f8fafc', borderColor: '#cbd5e1' }}
+                            onClick={() => handleOpenRestock(item)}
+                            title="Add stock to this product"
+                          >
+                            + Restock
+                          </button>
+                          <button 
+                            className="btn-inventory-action"
+                            onClick={() => handleOpenTransfer(item)}
+                            title="Transfer stock to another regional hub"
+                          >
+                            Transfer
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -433,9 +584,9 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
           <div className="section-header-row">
             <div className="section-title-left">
               <div>
-                <span className="section-title-text">Orders Awaiting Fulfillment</span>
+                <span className="section-title-text">Orders Awaiting Fulfillment & Routing</span>
                 <span className="section-title-muted" style={{ display: 'block', marginTop: '2px', fontSize: '12.5px' }}>
-                  Quotations authorized for fulfillment routing and warehouse dispatch
+                  Quotations authorized for warehouse dispatch, inter-depot split routing, and customer fulfillment
                 </span>
               </div>
             </div>
@@ -459,6 +610,12 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                   onClick={() => setOrderFilter('backorder')}
                 >
                   Backorder ({ordersList.filter(o => o.status === 'Backorder').length})
+                </button>
+                <button 
+                  className={`btn-filter-tab ${orderFilter === 'dispatched' ? 'active' : ''}`}
+                  onClick={() => setOrderFilter('dispatched')}
+                >
+                  Dispatched ({ordersList.filter(o => o.status === 'Dispatched').length})
                 </button>
               </div>
 
@@ -528,11 +685,22 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                         </div>
                       </td>
                       <td>
-                        <span className={`fulfillment-status-pill ${order.status === 'Split Pending' ? 'split-pending' : 'backorder'}`}>
+                        <span className={`fulfillment-status-pill ${
+                          order.status === 'Dispatched' 
+                            ? 'dispatched' 
+                            : order.status === 'Split Pending' 
+                            ? 'split-pending' 
+                            : order.status === 'Backorder' 
+                            ? 'backorder' 
+                            : 'optimal'
+                        }`}>
                           <span className="wh-dot" style={{ 
                             width: '6px', 
                             height: '6px', 
-                            backgroundColor: order.status === 'Split Pending' ? '#f59e0b' : '#e11d48' 
+                            backgroundColor: 
+                              order.status === 'Dispatched' ? '#10b981' :
+                              order.status === 'Split Pending' ? '#f59e0b' : 
+                              order.status === 'Backorder' ? '#e11d48' : '#3b82f6' 
                           }}></span>
                           {order.status}
                         </span>
@@ -549,7 +717,16 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                       </td>
                       <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                          {order.status === 'Split Pending' ? (
+                          {order.status === 'Dispatched' ? (
+                            <button 
+                              className="btn-dash-secondary"
+                              style={{ height: '32px', fontSize: '12.5px', padding: '0 12px', background: '#f0fdf4', color: '#16a34a', borderColor: '#bbf7d0', fontWeight: 600 }}
+                              onClick={() => handleOpenManageSplit(order)}
+                            >
+                              <Check size={14} />
+                              <span>View Dispatch</span>
+                            </button>
+                          ) : order.status === 'Split Pending' ? (
                             <button 
                               className="btn-manage-split"
                               onClick={() => handleOpenManageSplit(order)}
@@ -594,8 +771,26 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                                 boxShadow: '0 4px 14px rgba(0,0,0,0.1)',
                                 padding: '4px 0',
                                 zIndex: 10,
-                                minWidth: '170px'
+                                minWidth: '180px'
                               }}>
+                                <button 
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px 14px',
+                                    textAlign: 'left',
+                                    background: 'none',
+                                    border: 'none',
+                                    fontSize: '12.5px',
+                                    color: '#334155',
+                                    cursor: 'pointer'
+                                  }}
+                                  onClick={() => {
+                                    setOpenActionMenuId(null);
+                                    handleDispatchOrder(order);
+                                  }}
+                                >
+                                  🚀 Direct Dispatch Order
+                                </button>
                                 <button 
                                   style={{
                                     width: '100%',
@@ -614,24 +809,6 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                                 >
                                   Print Packing Slip
                                 </button>
-                                <button 
-                                  style={{
-                                    width: '100%',
-                                    padding: '8px 14px',
-                                    textAlign: 'left',
-                                    background: 'none',
-                                    border: 'none',
-                                    fontSize: '12.5px',
-                                    color: '#334155',
-                                    cursor: 'pointer'
-                                  }}
-                                  onClick={() => {
-                                    setOpenActionMenuId(null);
-                                    showToast(`Dispatch hold placed on ${order.code}`);
-                                  }}
-                                >
-                                  Hold Dispatch
-                                </button>
                               </div>
                             )}
                           </div>
@@ -644,7 +821,7 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
             </table>
           </div>
 
-          {/* Table Footer / Pagination */}
+          {/* Table Footer */}
           <div style={{ 
             display: 'flex', 
             alignItems: 'center', 
@@ -704,7 +881,7 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
           </div>
         </div>
 
-        {/* Informational Banner / Tip Box */}
+        {/* Tip Box */}
         <div style={{
           backgroundColor: '#fffdf5',
           border: '1px solid #fde68a',
@@ -735,10 +912,10 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
             </div>
             <div>
               <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#92400e' }}>
-                Click an order row to open its warehouse split detail.
+                Multi-Warehouse Split Router & Auto-Balancing Active
               </div>
               <div style={{ fontSize: '12.5px', color: '#b45309', marginTop: '2px' }}>
-                Review order allocation across multiple depots, fulfillment routing rules, and dispatch schedules.
+                If a primary warehouse is at maximum capacity or out of stock, click "Manage Split" or "Review Stock" to route units from East Depot or West Hub, then dispatch with one click.
               </div>
             </div>
           </div>
@@ -753,7 +930,7 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
             color: '#b45309',
             fontFamily: 'monospace'
           }}>
-            Shortcut: Enter ↵
+            Capacity: 3 Regional Depots
           </div>
         </div>
 
@@ -820,9 +997,9 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                   value={newAllocWarehouse}
                   onChange={(e) => setNewAllocWarehouse(e.target.value)}
                 >
-                  <option value="Main Warehouse">Main Warehouse (Central Hub)</option>
-                  <option value="East Depot">East Depot (Regional East)</option>
-                  <option value="West Coast Hub">West Coast Hub (San Jose)</option>
+                  <option value="Main Warehouse">Main Warehouse (Chicago Hub - Central)</option>
+                  <option value="East Depot">East Depot (Newark Depot - East Coast)</option>
+                  <option value="West Hub">West Hub (San Jose Depot - West Coast)</option>
                 </select>
               </div>
 
@@ -832,10 +1009,13 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                   className="form-input"
                   value={newAllocProduct}
                   onChange={(e) => setNewAllocProduct(e.target.value)}
+                  required
                 >
-                  <option value="Laptop Pro 14">Laptop Pro 14 (SKU-LP14-PRO)</option>
-                  <option value="Docking Station">Docking Station (SKU-DS-THUNDER)</option>
-                  <option value="4K Thunderbolt Display 27">4K Thunderbolt Display 27</option>
+                  {uniqueProducts.map(p => (
+                    <option key={p.productName} value={p.productName}>
+                      {p.productName} ({p.sku})
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -864,8 +1044,9 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                   type="submit" 
                   className="btn-new-allocation"
                   style={{ flex: 1, justifyContent: 'center' }}
+                  disabled={actionLoading}
                 >
-                  Confirm Allocation
+                  {actionLoading ? <Loader2 size={16} className="animate-spin" /> : 'Confirm Allocation'}
                 </button>
               </div>
             </form>
@@ -903,8 +1084,11 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                   value={transferDest}
                   onChange={(e) => setTransferDest(e.target.value)}
                 >
-                  <option value="Main Warehouse">Main Warehouse</option>
-                  <option value="East Depot">East Depot</option>
+                  {['Main Warehouse', 'East Depot', 'West Hub']
+                    .filter(w => !w.toLowerCase().includes((selectedInventory.warehouse || '').toLowerCase().replace(' warehouse', '').replace(' depot', '').replace(' hub', '')))
+                    .map(w => (
+                      <option key={w} value={w}>{w}</option>
+                    ))}
                 </select>
               </div>
 
@@ -913,7 +1097,7 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                 <input 
                   type="number"
                   min="1"
-                  max={selectedInventory.available}
+                  max={Math.max(1, selectedInventory.available || 1)}
                   className="form-input"
                   value={transferQty}
                   onChange={(e) => setTransferQty(Number(e.target.value))}
@@ -934,8 +1118,9 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                   type="submit" 
                   className="btn-new-allocation"
                   style={{ flex: 1, justifyContent: 'center' }}
+                  disabled={actionLoading}
                 >
-                  Dispatch Transfer
+                  {actionLoading ? <Loader2 size={16} className="animate-spin" /> : 'Dispatch Transfer'}
                 </button>
               </div>
             </form>
@@ -943,14 +1128,16 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
         </div>
       )}
 
-      {/* MODAL 3: Restock */}
-      {activeModal === 'restock' && selectedInventory && (
+      {/* MODAL 3: Inbound Restock */}
+      {activeModal === 'restock' && (
         <div className="modal-overlay" onClick={() => setActiveModal(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Truck size={20} color="#714b67" />
-                <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>Emergency Restock</h3>
+                <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
+                  {selectedInventory ? `Restock: ${selectedInventory.product}` : 'Restock Existing Product'}
+                </h3>
               </div>
               <button className="modal-close-btn" onClick={() => setActiveModal(null)}>
                 <X size={18} />
@@ -958,20 +1145,53 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
             </div>
 
             <form onSubmit={handleSubmitRestock}>
-              <div style={{ background: '#fef3c7', padding: '12px 14px', borderRadius: '8px', border: '1px solid #fde68a', marginBottom: '16px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#b45309' }}>
-                  Low Stock Warning: {selectedInventory.product}
+              {selectedInventory ? (
+                <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
+                    {selectedInventory.product} ({selectedInventory.sku})
+                  </div>
+                  <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: '2px' }}>
+                    Warehouse: <strong>{selectedInventory.warehouse}</strong> (Current Stock: {selectedInventory.inStock} units, Available: {selectedInventory.available} units).
+                  </div>
                 </div>
-                <div style={{ fontSize: '12.5px', color: '#92400e', marginTop: '2px' }}>
-                  Location: {selectedInventory.warehouse} (Only {selectedInventory.available} available units remaining).
-                </div>
-              </div>
+              ) : (
+                <>
+                  <div className="form-group" style={{ marginBottom: '14px' }}>
+                    <label className="form-label">Select Product to Restock</label>
+                    <select 
+                      className="form-input"
+                      value={restockProduct}
+                      onChange={(e) => setRestockProduct(e.target.value)}
+                      required
+                    >
+                      {uniqueProducts.map(p => (
+                        <option key={p.productName} value={p.productName}>
+                          {p.productName} ({p.sku})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: '14px' }}>
+                    <label className="form-label">Select Target Warehouse</label>
+                    <select 
+                      className="form-input"
+                      value={restockWarehouse}
+                      onChange={(e) => setRestockWarehouse(e.target.value)}
+                    >
+                      <option value="Main Warehouse">Main Warehouse (Chicago Hub)</option>
+                      <option value="East Depot">East Depot (Newark Hub)</option>
+                      <option value="West Hub">West Hub (San Jose Hub)</option>
+                    </select>
+                  </div>
+                </>
+              )}
 
               <div className="form-group" style={{ marginBottom: '20px' }}>
-                <label className="form-label">Inbound Restock Quantity</label>
+                <label className="form-label">Units to Add into Stock</label>
                 <input 
                   type="number"
-                  min="5"
+                  min="1"
                   className="form-input"
                   value={restockQty}
                   onChange={(e) => setRestockQty(Number(e.target.value))}
@@ -992,8 +1212,9 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                   type="submit" 
                   className="btn-new-allocation"
                   style={{ flex: 1, justifyContent: 'center' }}
+                  disabled={actionLoading}
                 >
-                  Confirm Inbound Restock
+                  {actionLoading ? <Loader2 size={16} className="animate-spin" /> : 'Confirm Inbound Restock'}
                 </button>
               </div>
             </form>
@@ -1004,7 +1225,7 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
       {/* MODAL 4: Manage Split Modal */}
       {activeModal === 'manageSplit' && selectedOrder && (
         <div className="modal-overlay" onClick={() => setActiveModal(null)}>
-          <div className="modal-content" style={{ maxWidth: '640px' }} onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" style={{ maxWidth: '680px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Layers size={20} color="#714b67" />
@@ -1013,7 +1234,7 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                     Warehouse Split Router — {selectedOrder.code}
                   </h3>
                   <div style={{ fontSize: '12.5px', color: '#64748b' }}>
-                    Customer: {selectedOrder.customer} • Priority: {selectedOrder.type}
+                    Customer: {selectedOrder.customer} • Priority: {selectedOrder.type} • Status: {selectedOrder.status}
                   </div>
                 </div>
               </div>
@@ -1024,70 +1245,108 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
 
             <div style={{ marginBottom: '16px' }}>
               <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', marginBottom: '8px' }}>
-                Allocate Quantity by Warehouse Depot:
+                Multi-Depot Stock Allocation per Item:
               </div>
 
-              {splitDraft && splitDraft.map((item, idx) => (
-                <div key={idx} className="split-router-box">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <div>
-                      <strong style={{ fontSize: '14px', color: '#0f172a' }}>{item.product}</strong>
-                      <div style={{ fontSize: '12px', color: '#64748b' }}>Order Requirement: {item.qty} units</div>
-                    </div>
-                    <span className="order-type-badge standard">Total: {item.qty}</span>
-                  </div>
+              {splitDraft && splitDraft.map((item, idx) => {
+                const totalAlloc = Number(item.mainAlloc || 0) + Number(item.eastAlloc || 0) + Number(item.westAlloc || 0);
+                const diff = item.qty - totalAlloc;
 
-                  <div className="split-warehouse-row">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span className="wh-dot blue"></span>
-                      <span style={{ fontSize: '13px', fontWeight: 600 }}>Main Warehouse</span>
+                return (
+                  <div key={idx} className="split-router-box" style={{ marginBottom: '16px', padding: '16px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                      <div>
+                        <strong style={{ fontSize: '14.5px', color: '#0f172a' }}>{item.product}</strong>
+                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                          Order Requirement: <strong>{item.qty} units</strong>
+                        </div>
+                      </div>
+                      <span style={{ 
+                        fontSize: '12px', 
+                        fontWeight: 700, 
+                        padding: '4px 10px', 
+                        borderRadius: '6px', 
+                        background: diff === 0 ? '#dcfce7' : diff > 0 ? '#fef3c7' : '#fee2e2',
+                        color: diff === 0 ? '#15803d' : diff > 0 ? '#b45309' : '#b91c1c'
+                      }}>
+                        {diff === 0 ? '✓ Fully Allocated' : diff > 0 ? `⚠️ ${diff} units unassigned` : `⚠️ Over-allocated by ${Math.abs(diff)}`}
+                      </span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '12px', color: '#64748b' }}>Allocated:</span>
-                      <input 
-                        type="number"
-                        min="0"
-                        max={item.qty}
-                        className="split-qty-input"
-                        value={item.mainAlloc}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          const updated = [...splitDraft];
-                          updated[idx].mainAlloc = val;
-                          setSplitDraft(updated);
-                        }}
-                      />
-                    </div>
-                  </div>
 
-                  <div className="split-warehouse-row">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span className="wh-dot amber"></span>
-                      <span style={{ fontSize: '13px', fontWeight: 600 }}>East Depot</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '12px', color: '#64748b' }}>Allocated:</span>
-                      <input 
-                        type="number"
-                        min="0"
-                        max={item.qty}
-                        className="split-qty-input"
-                        value={item.eastAlloc}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          const updated = [...splitDraft];
-                          updated[idx].eastAlloc = val;
-                          setSplitDraft(updated);
-                        }}
-                      />
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '10px' }}>
+                      {/* Main Warehouse */}
+                      <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                          <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#1e293b' }}>Main Warehouse</span>
+                          <span style={{ fontSize: '11px', color: '#64748b' }}>({item.stocks?.main ?? 45} avail)</span>
+                        </div>
+                        <input 
+                          type="number"
+                          min="0"
+                          max={item.qty}
+                          className="split-qty-input"
+                          style={{ width: '100%', padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px' }}
+                          value={item.mainAlloc}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            const updated = [...splitDraft];
+                            updated[idx].mainAlloc = val;
+                            setSplitDraft(updated);
+                          }}
+                        />
+                      </div>
+
+                      {/* East Depot */}
+                      <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                          <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#1e293b' }}>East Depot</span>
+                          <span style={{ fontSize: '11px', color: '#64748b' }}>({item.stocks?.east ?? 15} avail)</span>
+                        </div>
+                        <input 
+                          type="number"
+                          min="0"
+                          max={item.qty}
+                          className="split-qty-input"
+                          style={{ width: '100%', padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px' }}
+                          value={item.eastAlloc}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            const updated = [...splitDraft];
+                            updated[idx].eastAlloc = val;
+                            setSplitDraft(updated);
+                          }}
+                        />
+                      </div>
+
+                      {/* West Hub */}
+                      <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                          <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#1e293b' }}>West Hub</span>
+                          <span style={{ fontSize: '11px', color: '#64748b' }}>({item.stocks?.west ?? 30} avail)</span>
+                        </div>
+                        <input 
+                          type="number"
+                          min="0"
+                          max={item.qty}
+                          className="split-qty-input"
+                          style={{ width: '100%', padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px' }}
+                          value={item.westAlloc}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            const updated = [...splitDraft];
+                            updated[idx].westAlloc = val;
+                            setSplitDraft(updated);
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '20px', fontSize: '12.5px', color: '#475569' }}>
-              <strong>Routing Rule:</strong> {selectedOrder.routingRule}
+              <strong>Routing Rule:</strong> {selectedOrder.routingRule || 'Nearest Regional Depot with Available Stock Priority'}
             </div>
 
             {canManageFulfillment(user) ? (
@@ -1098,22 +1357,29 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                   style={{ flex: 1 }}
                   onClick={() => setActiveModal(null)}
                 >
-                  Cancel
+                  Close
+                </button>
+                <button 
+                  type="button" 
+                  className="btn-dash-secondary" 
+                  style={{ flex: 1, borderColor: '#714b67', color: '#714b67', fontWeight: 600 }}
+                  onClick={handleSaveSplit}
+                  disabled={actionLoading}
+                >
+                  Save Split Plan
                 </button>
                 <button 
                   type="button" 
                   className="btn-new-allocation"
-                  style={{ flex: 1, justifyContent: 'center' }}
-                  onClick={handleSaveSplit}
+                  style={{ flex: 1.3, justifyContent: 'center' }}
+                  onClick={() => handleDispatchOrder(selectedOrder, splitDraft)}
+                  disabled={actionLoading}
                 >
-                  Authorize & Dispatch Split
+                  {actionLoading ? <Loader2 size={16} className="animate-spin" /> : '🚀 Authorize & Dispatch'}
                 </button>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12.5px', color: '#64748b' }}>
-                  ℹ️ <strong>Tracking View:</strong> Warehouse fulfillment splits and backorder decisions are managed by Corporate Finance & Operations.
-                </div>
                 <button 
                   type="button" 
                   className="btn-dash-secondary" 
@@ -1128,19 +1394,19 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
         </div>
       )}
 
-      {/* MODAL 5: Review Stock for Backorder */}
+      {/* MODAL 5: Review Stock for Orders & Shortages */}
       {activeModal === 'reviewStock' && selectedOrder && (
         <div className="modal-overlay" onClick={() => setActiveModal(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" style={{ maxWidth: '640px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <AlertTriangle size={20} color="#e11d48" />
                 <div>
                   <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
-                    Stock Shortage Review — {selectedOrder.code}
+                    Stock Availability Review — {selectedOrder.code}
                   </h3>
                   <div style={{ fontSize: '12.5px', color: '#64748b' }}>
-                    Customer: {selectedOrder.customer}
+                    Customer: {selectedOrder.customer} • Status: {selectedOrder.status}
                   </div>
                 </div>
               </div>
@@ -1149,18 +1415,40 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
               </button>
             </div>
 
-            <div style={{ background: '#ffe4e6', padding: '14px', borderRadius: '8px', border: '1px solid #fecdd3', marginBottom: '16px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 700, color: '#e11d48' }}>Backorder Status Active</div>
-              <div style={{ fontSize: '12.5px', color: '#9f1239', marginTop: '4px' }}>
-                This order requires 12 units of Laptop Pro 14. Currently only 4 units are available at East Depot (8 units pending inbound freight arrival).
+            <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>
+                Order Items & Multi-Warehouse Stock Breakdown:
               </div>
+
+              {splitDraft && splitDraft.map((item, idx) => {
+                const totalAvail = (item.stocks?.main || 0) + (item.stocks?.east || 0) + (item.stocks?.west || 0);
+                const isSufficient = totalAvail >= item.qty;
+
+                return (
+                  <div key={idx} style={{ padding: '10px 0', borderBottom: idx < splitDraft.length - 1 ? '1px solid #e2e8f0' : 'none' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 600, color: '#0f172a', fontSize: '13.5px' }}>{item.product}</span>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#54324c' }}>Required: {item.qty} units</span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '14px', marginTop: '6px', fontSize: '12px', color: '#64748b' }}>
+                      <span>Main: <strong style={{ color: '#0f172a' }}>{item.stocks?.main ?? 45}</strong></span>
+                      <span>East: <strong style={{ color: '#0f172a' }}>{item.stocks?.east ?? 15}</strong></span>
+                      <span>West: <strong style={{ color: '#0f172a' }}>{item.stocks?.west ?? 30}</strong></span>
+                      <span style={{ marginLeft: 'auto', fontWeight: 700, color: isSufficient ? '#15803d' : '#b45309' }}>
+                        {isSufficient ? '✓ In Stock Across Warehouses' : '⚠️ Regional Backorder'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             <div style={{ fontSize: '13px', color: '#334155', marginBottom: '20px', lineHeight: 1.5 }}>
-              <div><strong>Suggested Resolution:</strong></div>
+              <div><strong>Fulfillment Resolution:</strong></div>
               <ul style={{ paddingLeft: '20px', marginTop: '6px', color: '#64748b' }}>
-                <li>Auto-route 8 units from Main Warehouse (currently 22 available).</li>
-                <li>Dispatch partial shipment of 4 units immediately to {selectedOrder.customer}.</li>
+                <li>Auto-balance stock allocation across Main Warehouse, East Depot, and West Hub.</li>
+                <li>Dispatch instantly with automated deduction from PostgreSQL inventory.</li>
               </ul>
             </div>
 
@@ -1176,13 +1464,11 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
               <button 
                 type="button" 
                 className="btn-new-allocation"
-                style={{ flex: 1, justifyContent: 'center' }}
-                onClick={() => {
-                  showToast('Inter-warehouse transfer initiated to clear backorder.');
-                  setActiveModal(null);
-                }}
+                style={{ flex: 1.4, justifyContent: 'center' }}
+                onClick={() => handleDispatchOrder(selectedOrder, splitDraft)}
+                disabled={actionLoading}
               >
-                Auto-Route from Main Warehouse
+                {actionLoading ? <Loader2 size={16} className="animate-spin" /> : '⚡ Auto-Balance & Dispatch Order'}
               </button>
             </div>
           </div>
@@ -1208,7 +1494,7 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                 DealFlow360 guarantees enterprise-grade security, automated stock tracking, and multi-warehouse fulfillment synchronization.
               </p>
               <p>
-                All fulfillment logs, carrier integrations, and stock allocations are encrypted in transit and at rest.
+                All fulfillment logs, carrier integrations, and stock allocations are encrypted in transit and at rest across all regional depots.
               </p>
             </div>
           </div>

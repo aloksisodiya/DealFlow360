@@ -61,6 +61,20 @@ export async function getFulfillmentOrders(req, res) {
   }
 }
 
+export async function dispatchOrderAction(req, res) {
+  try {
+    const { quoteId, splitAllocations } = req.body || {};
+    if (!quoteId) {
+      return res.status(400).json({ success: false, message: "quoteId is required for dispatch" });
+    }
+    const { dispatchFulfillmentOrder } = await import("../services/finance.services.js");
+    const result = await dispatchFulfillmentOrder({ quoteId, splitAllocations });
+    return res.json({ success: true, result });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+}
+
 // 1. Second-Level Approvals
 export async function getApprovals(req, res) {
   try {

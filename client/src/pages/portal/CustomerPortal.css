@@ -882,3 +882,33 @@
   .portal-quote-amount { text-align: left; }
   .portal-upsell-grid { grid-template-columns: 1fr; }
 }
+
+/* ─── Invoice Modal & Print Styles ─────────────────────────────────── */
+.invoice-modal-container {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px -10px rgba(15, 23, 42, 0.25);
+  border: 1px solid #e2e8f0;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-tax-invoice, #printable-tax-invoice * {
+    visibility: visible;
+  }
+  #printable-tax-invoice {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 20px;
+    background: #ffffff !important;
+  }
+  .portal-header, .portal-footer, .portal-toast-wrap, .modal-close-btn, .modal-header, .btn-new-allocation, .btn-dash-secondary {
+    display: none !important;
+  }
+}
+

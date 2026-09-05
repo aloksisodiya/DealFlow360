@@ -13,7 +13,8 @@ import {
   getInventory,
   allocateStock,
   transferStockAction,
-  getFulfillmentOrders
+  getFulfillmentOrders,
+  dispatchOrderAction
 } from "../controllers/finance.controller.js";
 
 const router = express.Router();
@@ -24,6 +25,7 @@ router.get("/inventory", getInventory);
 router.post("/inventory/allocate", allocateStock);
 router.post("/inventory/transfer", transferStockAction);
 router.get("/fulfillment/orders", getFulfillmentOrders);
+router.post("/fulfillment/dispatch", dispatchOrderAction);
 
 // 1. Second-Level Approvals for High-Risk Discounts
 router.get("/approvals", getApprovals);

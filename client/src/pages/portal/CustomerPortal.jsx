@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { CheckCircle, Send, TrendingDown, MessageSquare, Package, Loader2, AlertCircle } from "lucide-react";
+import { CheckCircle, Send, TrendingDown, MessageSquare, Package, Loader2, AlertCircle, FileText, Download, Printer, X } from "lucide-react";
 import {
   getPortalQuotation,
   getPortalMessages,
@@ -19,6 +19,7 @@ import "./CustomerPortal.css";
  *   - Counter-discount slider
  *   - One-click order confirmation
  *   - Inventory-aware upsell/cross-sell panel (post-confirm)
+ *   - Official Tax Invoice & Purchase Bill download/print
  */
 export default function CustomerPortal({ token }) {
   const [quotation, setQuotation]       = useState(null);
@@ -36,6 +37,7 @@ export default function CustomerPortal({ token }) {
   const [counterSent, setCounterSent]   = useState(false);
   const [submittingCounter, setSubmittingCounter] = useState(false);
   const [toasts, setToasts]             = useState([]);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [activeTab, setActiveTab]       = useState("overview"); // 'overview' | 'lines' | 'chat'
   const threadRef = useRef(null);
   const pollRef   = useRef(null);
@@ -553,15 +555,40 @@ export default function CustomerPortal({ token }) {
         <div className="portal-section">
           <div className="portal-section-title">
             <CheckCircle size={14} />
-            Confirm Order
+            Confirm Order & Invoice Receipt
           </div>
 
           {confirmed ? (
             <div className="portal-confirmed-banner">
               <div className="portal-confirmed-icon">🎉</div>
-              <div className="portal-confirmed-title">Order Confirmed!</div>
+              <div className="portal-confirmed-title">Order Confirmed & Authorized!</div>
               <div className="portal-confirmed-msg">
-                {confirmResult?.message || "Your order has been confirmed and sent to our team for fulfillment."}
+                {confirmResult?.message || "Your order has been confirmed and routed to our regional warehouses for fulfillment."}
+              </div>
+
+              <div style={{ marginTop: '18px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button 
+                  type="button"
+                  className="portal-download-invoice-btn"
+                  onClick={() => setShowInvoiceModal(true)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    background: '#54324c',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '10px 18px',
+                    fontSize: '13.5px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(84, 50, 76, 0.25)'
+                  }}
+                >
+                  <FileText size={16} />
+                  <span>📄 Download / Print Official Tax Invoice</span>
+                </button>
               </div>
             </div>
           ) : (
@@ -569,7 +596,7 @@ export default function CustomerPortal({ token }) {
               <div className="portal-confirm-title">Ready to proceed?</div>
               <div className="portal-confirm-desc">
                 By clicking below, you confirm acceptance of the quoted terms and pricing.
-                Our team will immediately move your order to fulfillment.
+                Our team will immediately move your order to fulfillment and generate your official tax invoice.
               </div>
               <button
                 className="portal-confirm-btn"
@@ -637,6 +664,192 @@ export default function CustomerPortal({ token }) {
         )}
 
       </main>
+
+      {/* ── Official Tax Invoice Modal ── */}
+      {showInvoiceModal && quotation && (
+        <div className="modal-overlay" onClick={() => setShowInvoiceModal(false)}>
+          <div className="modal-content invoice-modal-container" style={{ maxWidth: '780px', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header" style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FileText size={20} color="#714b67" />
+                <div>
+                  <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                    Official Tax Invoice & Purchase Bill
+                  </h3>
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>
+                    Invoice Reference: INV-{quotation.id} • Authorized Transaction
+                  </div>
+                </div>
+              </div>
+              <button className="modal-close-btn" onClick={() => setShowInvoiceModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Printable Invoice Sheet */}
+            <div id="printable-tax-invoice" style={{ padding: '20px 8px', background: '#ffffff' }}>
+              
+              {/* Invoice Top Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #f1f5f9', paddingBottom: '20px', marginBottom: '20px' }}>
+                <div>
+                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#0b1528', letterSpacing: '-0.025em' }}>
+                    DealFlow<span style={{ color: '#714b67' }}>360</span>
+                  </div>
+                  <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: '4px', lineHeight: 1.4 }}>
+                    DealFlow360 Technologies, Inc.<br />
+                    100 Enterprise Way, Suite 400<br />
+                    Chicago, IL 60601 • USA<br />
+                    Tax EIN: 84-2918492
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ display: 'inline-block', padding: '4px 12px', background: '#dcfce7', color: '#15803d', borderRadius: '6px', fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>
+                    ● CONFIRMED & PAID
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#64748b' }}>
+                    Invoice #: <strong style={{ color: '#0f172a' }}>INV-{quotation.id}</strong>
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>
+                    Date: <strong style={{ color: '#0f172a' }}>{new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</strong>
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>
+                    Payment Terms: <strong style={{ color: '#0f172a' }}>Net 30 Days</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Billed To / Account Info */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '24px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', marginBottom: '4px' }}>
+                    Billed To
+                  </div>
+                  <div style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>
+                    {quotation.customerName}
+                  </div>
+                  <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '2px' }}>
+                    Account Tier: <strong>{quotation.customerTier || 'Enterprise'}</strong>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                    Routing: Nearest Depot Preferred
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', marginBottom: '4px' }}>
+                    Account Executive & Rep
+                  </div>
+                  <div style={{ fontSize: '14.5px', fontWeight: 700, color: '#0f172a' }}>
+                    {quotation.ownerName || 'DealFlow360 Sales Manager'}
+                  </div>
+                  <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: '2px' }}>
+                    Status: <strong>Order Confirmed for Dispatch</strong>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#16a34a', marginTop: '2px' }}>
+                    ✓ 3 Regional Warehouses Synced
+                  </div>
+                </div>
+              </div>
+
+              {/* Itemized Lines */}
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '24px', fontSize: '13px' }}>
+                <thead>
+                  <tr style={{ background: '#f1f5f9', textAlign: 'left', borderBottom: '2px solid #cbd5e1' }}>
+                    <th style={{ padding: '10px 12px', color: '#334155', fontWeight: 700 }}>Item Description</th>
+                    <th style={{ padding: '10px 12px', color: '#334155', fontWeight: 700 }}>Category</th>
+                    <th style={{ padding: '10px 12px', color: '#334155', fontWeight: 700, textAlign: 'center' }}>Qty</th>
+                    <th style={{ padding: '10px 12px', color: '#334155', fontWeight: 700, textAlign: 'right' }}>Unit Price</th>
+                    <th style={{ padding: '10px 12px', color: '#334155', fontWeight: 700, textAlign: 'right' }}>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(quotation.items || []).map((it, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '10px 12px', fontWeight: 600, color: '#0f172a' }}>
+                        {it.name}
+                        {it.sku && <div style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>SKU: {it.sku}</div>}
+                      </td>
+                      <td style={{ padding: '10px 12px', color: '#64748b' }}>{it.category || 'Standard'}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600 }}>{it.quantity || 1}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#475569' }}>
+                        ${Number(it.unitPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>
+                        ${Number(it.totalPrice || (it.quantity || 1) * (it.unitPrice || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Financial Calculation Summary */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
+                <div style={{ width: '320px', background: '#faf5f8', padding: '16px', borderRadius: '10px', border: '1px solid #f3e8f0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#64748b', marginBottom: '8px' }}>
+                    <span>Gross Subtotal:</span>
+                    <span style={{ fontWeight: 600, color: '#0f172a' }}>
+                      ${(Number(quotation.baseAmount || quotation.totalAmount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  {Number(quotation.discountPercent) > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#15803d', marginBottom: '8px' }}>
+                      <span>Discount ({quotation.discountPercent}%):</span>
+                      <span style={{ fontWeight: 700 }}>
+                        -${((Number(quotation.baseAmount || quotation.totalAmount) * Number(quotation.discountPercent)) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#64748b', marginBottom: '8px' }}>
+                    <span>Estimated Tax (15%):</span>
+                    <span style={{ fontWeight: 600, color: '#0f172a' }}>
+                      Included
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 800, color: '#54324c', borderTop: '2px solid #e9d5e3', paddingTop: '10px', marginTop: '4px' }}>
+                    <span>Total Net Amount:</span>
+                    <span>
+                      ${Number(quotation.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer Note */}
+              <div style={{ fontSize: '11.5px', color: '#94a3b8', textAlign: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '14px' }}>
+                Thank you for your business! For billing or warehouse fulfillment questions, contact support@dealflow360.com.
+              </div>
+
+            </div>
+
+            {/* Modal Actions */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '14px' }}>
+              <button 
+                type="button" 
+                className="btn-dash-secondary"
+                onClick={() => setShowInvoiceModal(false)}
+              >
+                Close
+              </button>
+              <button 
+                type="button" 
+                className="btn-new-allocation"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                onClick={() => {
+                  window.print();
+                }}
+              >
+                <Printer size={16} />
+                <span>Print / Save as PDF</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       <footer className="portal-footer">
         DealFlow360 Technologies Inc. · Secure Quotation Portal · Your link is unique and private
