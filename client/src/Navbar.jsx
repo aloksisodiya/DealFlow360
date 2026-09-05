@@ -77,7 +77,7 @@ export default function Navbar({ activePage, user, onNavigate, onLogout, onToast
 
               <button
                 className={`nav-tab-button ${activePage === 'invoices' ? 'active' : ''}`}
-                onClick={() => notify('Opening Invoices module')}
+                onClick={() => onNavigate && onNavigate('invoices')}
               >
                 <span>Invoices</span>
               </button>
@@ -199,6 +199,16 @@ export default function Navbar({ activePage, user, onNavigate, onLogout, onToast
                   >
                     <RefreshCw size={14} />
                     <span>Subscriptions</span>
+                  </button>
+                  <button 
+                    className="nav-dropdown-item" 
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      if (onNavigate) onNavigate('invoices');
+                    }}
+                  >
+                    <DollarSign size={14} />
+                    <span>Invoices</span>
                   </button>
                   <button 
                     className="nav-dropdown-item logout" 
