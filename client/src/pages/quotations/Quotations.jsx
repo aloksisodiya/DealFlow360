@@ -348,6 +348,8 @@ export default function Quotations({ user, onNavigate, onLogout }) {
     const unitPrice = Number(selectedProductUnitPrice || prod.price || 0);
     const qty = Number(selectedProductQty || 1);
     const itemTotal = unitPrice * qty;
+    const availableStock = Number(prod.totalStock ?? prod.stockQty ?? 0);
+    const isBackorder = availableStock < qty;
 
     const newItem = {
       id: `item-${Date.now()}-${Math.random().toString().slice(-4)}`,
@@ -358,8 +360,12 @@ export default function Quotations({ user, onNavigate, onLogout }) {
       quantity: qty,
       unitPrice: unitPrice,
       totalPrice: itemTotal,
-      inStock: true,
-      warehouseAvailability: 'Main Warehouse (In Stock)'
+      inStock: !isBackorder,
+      isBackorder: isBackorder,
+      availableStock: availableStock,
+      warehouseAvailability: isBackorder
+        ? '⚠️ Backorder (0 in stock · Estimated Lead Time: 5-7 days)'
+        : `Main Depot (${availableStock} units in stock)`
     };
 
     const updatedItems = [...quoteItems, newItem];
@@ -373,7 +379,12 @@ export default function Quotations({ user, onNavigate, onLogout }) {
     setSelectedProductId('');
     setSelectedProductQty(1);
     setSelectedProductUnitPrice(0);
-    showToast(`Added "${prod.name}" to quotation!`);
+
+    if (isBackorder) {
+      showToast(`⚠️ Added "${prod.name}" (Out of Stock — Backorder flagged)!`);
+    } else {
+      showToast(`Added "${prod.name}" (${availableStock} units available) to quotation!`);
+    }
   };
 
   const handleRemoveQuoteItem = (itemId) => {
@@ -1438,13 +1449,43 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                     }}
                   >
                     <option value="">-- Choose Product from Catalog ({availableProducts.length} available) --</option>
-                    {availableProducts.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        [{p.sku || 'SKU'}] {p.name} — ${Number(p.price || 0).toLocaleString()} ({p.category || 'Hardware'})
-                      </option>
-                    ))}
+                    {availableProducts.map((p) => {
+                      const stock = Number(p.totalStock ?? p.stockQty ?? 0);
+                      const isOut = stock <= 0;
+                      return (
+                        <option key={p.id} value={p.id}>
+                          [{p.sku || 'SKU'}] {p.name} — ${Number(p.price || 0).toLocaleString()} (Stock: {stock} {isOut ? '⚠️ OUT OF STOCK - Backorder' : 'units'})
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
+
+                {/* Real-time Out-of-stock Warning Banner */}
+                {selectedProductId && (() => {
+                  const prod = availableProducts.find(p => String(p.id) === String(selectedProductId));
+                  const stock = Number(prod?.totalStock ?? prod?.stockQty ?? 0);
+                  if (prod && stock <= 0) {
+                    return (
+                      <div style={{
+                        background: '#fffbeb',
+                        border: '1px solid #fde68a',
+                        borderRadius: '6px',
+                        padding: '8px 10px',
+                        marginBottom: '10px',
+                        fontSize: '11.5px',
+                        color: '#b45309',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}>
+                        <AlertTriangle size={14} color="#d97706" />
+                        <span><strong>Inventory Reality Notice:</strong> "{prod.name}" is currently <strong>Out of Stock (0 units)</strong> across all warehouses. Adding this item will flag the order as <strong>Backorder Fulfillment</strong>.</span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
 
                 {/* Quantity, Unit Price, and Add Button Row */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr', gap: '8px' }}>
@@ -1517,7 +1558,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                       {quoteItems.map((item) => (
                         <div key={item.id} style={{
                           backgroundColor: '#ffffff',
-                          border: '1px solid #cbd5e1',
+                          border: item.isBackorder ? '1px solid #fde68a' : '1px solid #cbd5e1',
                           borderRadius: '6px',
                           padding: '8px 10px',
                           display: 'flex',
@@ -1527,12 +1568,17 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                         }}>
                           <div>
                             <strong style={{ color: '#0f172a' }}>{item.name}</strong>
+                            {item.isBackorder && (
+                              <span style={{ fontSize: '10px', background: '#fef3c7', color: '#b45309', padding: '1px 6px', borderRadius: '4px', marginLeft: '6px', fontWeight: 700 }}>
+                                ⚠️ Backorder
+                              </span>
+                            )}
                             <span style={{ fontSize: '11.5px', color: '#64748b', marginLeft: '6px' }}>
                               [{item.sku}] — {item.quantity}x @ ${item.unitPrice.toLocaleString()}
                             </span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <strong style={{ color: '#059669' }}>${item.totalPrice.toLocaleString()}</strong>
+                            <strong style={{ color: item.isBackorder ? '#b45309' : '#059669' }}>${item.totalPrice.toLocaleString()}</strong>
                             <button
                               type="button"
                               onClick={() => handleRemoveQuoteItem(item.id)}

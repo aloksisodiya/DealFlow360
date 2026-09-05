@@ -36,7 +36,7 @@ export const createQuotation = async (ownerId, input) => {
   const limit = isManagerOrAdmin ? 100 : await discountLimit(customerTier);
   const approvalRequired = discountPercent > limit;
 
-  const items = input.upsellItems || input.upsell_items || [];
+  const items = input.items || input.upsellItems || input.upsell_items || [];
 
   const [inserted] = await db("quotations")
     .insert({
@@ -48,7 +48,8 @@ export const createQuotation = async (ownerId, input) => {
       total_amount: totalAmount,
       discount_percent: discountPercent,
       notes: input.notes || input.scopeDetails || input.description || null,
-      upsell_items: JSON.stringify(items),
+      items: JSON.stringify(items),
+      upsell_items: JSON.stringify(input.upsellItems || input.upsell_items || []),
       owner_id: ownerId,
       stage: approvalRequired ? "Pending Approval" : (input.stage || "Draft"),
       approval_required: approvalRequired,

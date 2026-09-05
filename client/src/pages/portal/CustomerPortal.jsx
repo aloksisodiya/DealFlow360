@@ -407,9 +407,15 @@ export default function CustomerPortal({ token }) {
                         ${Number(it.totalPrice || (it.quantity || 1) * (it.unitPrice || 0)).toLocaleString()}
                       </td>
                       <td>
-                        <span style={{ fontSize: '11.5px', color: '#16a34a', fontWeight: 600 }}>
-                          ● {it.warehouseAvailability || 'Ready in Main Depot'}
-                        </span>
+                        {it.isBackorder || it.inStock === false || String(it.warehouseAvailability || '').toLowerCase().includes('backorder') ? (
+                          <span style={{ fontSize: '11.5px', color: '#b45309', fontWeight: 700, background: '#fef3c7', padding: '2px 8px', borderRadius: '6px' }}>
+                            ⚠️ Backorder (Lead time: 5-7 days)
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '11.5px', color: '#16a34a', fontWeight: 600 }}>
+                            ● {it.warehouseAvailability || 'Ready in Main Depot'}
+                          </span>
+                        )}
                       </td>
                       <td>
                         <button
