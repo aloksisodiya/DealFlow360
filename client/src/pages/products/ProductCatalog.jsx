@@ -40,9 +40,12 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
   // Products Data loaded from live PostgreSQL database
   const [products, setProducts] = useState([]);
 
-  const loadProducts = async () => {
+  const [newProdVariants, setNewProdVariants] = useState('Standard');
+  const [newProdStock, setNewProdStock] = useState(100);
+
+  const loadProducts = async (showLoading = true) => {
     try {
-      setIsLoading(true);
+      if (showLoading) setIsLoading(true);
       const data = await fetchProducts({
         category: activeCategory === 'All' ? undefined : activeCategory,
         search: searchQuery || undefined,
@@ -50,29 +53,20 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
       });
       setProducts(data);
     } catch (err) {
-      showToast('Failed to load products from database');
+      if (showLoading) showToast('Failed to load products from database');
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadProducts();
+    loadProducts(true);
+    // Real-time live polling every 4s for warehouse inventory syncing
+    const interval = setInterval(() => {
+      loadProducts(false);
+    }, 4000);
+    return () => clearInterval(interval);
   }, [activeCategory, searchQuery, selectedTier]);
-
-  // Modals state
-  const [activeModal, setActiveModal] = useState(null);
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [openActionMenuId, setOpenActionMenuId] = useState(null);
-
-  // New Product Form State
-  const [newProdName, setNewProdName] = useState('');
-  const [newProdSku, setNewProdSku] = useState('');
-  const [newProdCat, setNewProdCat] = useState('Hardware');
-  const [newProdPrice, setNewProdPrice] = useState(500);
-  const [newProdUnit, setNewProdUnit] = useState('Each');
-  const [newProdTax, setNewProdTax] = useState('15%');
-  const [newProdVariants, setNewProdVariants] = useState('Standard');
 
   // Edit Product Form State
   const [editName, setEditName] = useState('');
@@ -140,12 +134,14 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
         category: newProdCat,
         price: Number(newProdPrice),
         unit: newProdUnit,
+        stockQty: Number(newProdStock || 100),
         variants: [newProdVariants],
       });
-      showToast(`Product "${newProdName}" added to database catalog!`);
+      showToast(`Product "${newProdName}" added with ${newProdStock || 100} units warehouse stock!`);
       setActiveModal(null);
       setNewProdName('');
       setNewProdSku('');
+      setNewProdStock(100);
       await loadProducts();
     } catch (err) {
       showToast(err.message || 'Failed to create product in database');
@@ -374,7 +370,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
                   <th>VARIANTS</th>
                   <th>PRICE</th>
                   <th>UNIT</th>
-                  <th>TAX</th>
+                  <th>WAREHOUSE STOCK</th>
                   <th>STATUS</th>
                   <th style={{ textAlign: 'right' }}>ACTIONS</th>
                 </tr>
@@ -427,14 +423,31 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
                       )}
                     </td>
 
-                    {/* Tax */}
-                    <td style={{ color: '#64748b' }}>
-                      {prod.tax}
+                    {/* Live Warehouse Inventory */}
+                    <td>
+                      <div>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          fontWeight: 700,
+                          fontSize: '12.5px',
+                          color: (prod.stockQty || 0) <= 0 ? '#ef4444' : (prod.stockQty || 0) < 20 ? '#d97706' : '#16a34a'
+                        }}>
+                          <span>●</span>
+                          <span>{prod.stockQty ?? 0} units</span>
+                        </span>
+                        {prod.warehouseBreakdown?.length > 0 && (
+                          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                            {prod.warehouseBreakdown.map(wb => `${wb.warehouseName.split(' ')[0]}: ${wb.stockQty}`).join(' · ')}
+                          </div>
+                        )}
+                      </div>
                     </td>
 
                     {/* Status */}
                     <td>
-                      <span className="cat-status-pill">
+                      <span className={`cat-status-pill ${(prod.stockQty || 0) <= 0 ? 'inactive' : (prod.stockQty || 0) < 20 ? 'warning' : 'active'}`}>
                         <span className="cat-status-dot"></span>
                         <span>{prod.status}</span>
                       </span>
@@ -628,7 +641,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px', marginBottom: '16px' }}>
                 <div className="form-group">
                   <label className="form-label">Base Price ($)</label>
                   <input 
@@ -637,6 +650,17 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
                     className="form-input"
                     value={newProdPrice}
                     onChange={(e) => setNewProdPrice(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Initial Stock (Units)</label>
+                  <input 
+                    type="number"
+                    min="0"
+                    className="form-input"
+                    value={newProdStock}
+                    onChange={(e) => setNewProdStock(e.target.value)}
                     required
                   />
                 </div>

@@ -187,6 +187,15 @@ export async function decideFinanceApproval(reviewerId, quoteId, decision, reaso
       action,
       reason: reason || `Finance decision executed: ${action}`
     });
+
+    if (action === "APPROVE") {
+      try {
+        const { deductInventoryForOrder } = await import("./products.services.js");
+        await deductInventoryForOrder(quoteId);
+      } catch (err) {
+        console.warn("[decideFinanceApproval] Inventory deduction note:", err.message);
+      }
+    }
   } catch (err) {
     console.warn("DB update error in decideFinanceApproval:", err.message);
     updatedQuote = { id: quoteId, stage: newStage, approval_status: newStatus };

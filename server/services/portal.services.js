@@ -296,6 +296,14 @@ export async function confirmOrderByToken(token) {
     });
   } catch {}
 
+  // Deduct warehouse stock on order confirmation
+  try {
+    const { deductInventoryForOrder } = await import("./products.services.js");
+    await deductInventoryForOrder(quote.id);
+  } catch (err) {
+    console.warn("[confirmOrderByToken] Could not deduct inventory:", err.message);
+  }
+
   // Run upsell engine
   const upsellSuggestions = await getUpsellSuggestions(quote.id);
 
