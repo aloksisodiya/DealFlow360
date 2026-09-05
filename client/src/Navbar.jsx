@@ -70,7 +70,7 @@ export default function Navbar({ activePage, user, onNavigate, onLogout, onToast
 
               <button
                 className={`nav-tab-button ${activePage === 'subscriptions' ? 'active' : ''}`}
-                onClick={() => notify('Opening Subscriptions module')}
+                onClick={() => onNavigate && onNavigate('subscriptions')}
               >
                 <span>Subscriptions</span>
               </button>
@@ -189,6 +189,16 @@ export default function Navbar({ activePage, user, onNavigate, onLogout, onToast
                   >
                     <LayoutGrid size={14} />
                     <span>Fulfillment</span>
+                  </button>
+                  <button 
+                    className="nav-dropdown-item" 
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      if (onNavigate) onNavigate('subscriptions');
+                    }}
+                  >
+                    <RefreshCw size={14} />
+                    <span>Subscriptions</span>
                   </button>
                   <button 
                     className="nav-dropdown-item logout" 
