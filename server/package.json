@@ -8,7 +8,8 @@
     "dev": "node app.js",
     "db:check": "node scripts/check-db.js",
     "db:migrate": "knex migrate:latest --env development",
-    "db:seed": "knex seed:run --env development"
+    "db:seed": "knex seed:run --env development",
+    "db:reset": "node reset_database.js"
   },
   "keywords": [],
   "author": "",

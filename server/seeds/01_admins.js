@@ -1,28 +1,12 @@
 import bcrypt from "bcryptjs";
 
 /**
- * Seed script for DealFlow360 platform roles:
- * - Admin: arjavdariya2@gmail.com / Arjav@123
- * - Sales Manager: rjavdariya@gmail.com / rjav@123
- * - Sales Rep: gautampa07@gmail.com / Gautam@123
- * - Finance: aloksisodiya38@gmail.com / Alok@123
- * - Sales Rep: aloksisodiya30@gmail.com / Alok30@123
+ * Seed 01: Core Team Accounts & Roles
  *
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
 export async function seed(knex) {
-  // Remove old deprecated demo accounts
-  const deprecatedEmails = [
-    "admin@gmail.com",
-    "salesrep@gmail.com",
-    "salesmanager@gmail.com",
-    "finance@gmail.com",
-    "admin@dealflow360.local"
-  ];
-  
-  await knex("admins").whereIn("work_email", deprecatedEmails).delete();
-
   const usersToSeed = [
     {
       work_email: "arjavdariya2@gmail.com",
@@ -53,12 +37,11 @@ export async function seed(knex) {
       password: "Alok30@123",
       role: "sales_rep",
       profile: { name: "Alok Sisodiya (Sales)", title: "Enterprise Account Executive" },
-    }
+    },
   ];
 
   for (const user of usersToSeed) {
     const passwordHash = await bcrypt.hash(user.password, 12);
-
     await knex("admins")
       .insert({
         work_email: user.work_email,
@@ -78,5 +61,5 @@ export async function seed(knex) {
       });
   }
 
-  console.log("Successfully seeded DealFlow360 actual accounts and removed previous IDs.");
+  console.log("✅ Seed 01: Core Admins & Team Accounts populated.");
 }
