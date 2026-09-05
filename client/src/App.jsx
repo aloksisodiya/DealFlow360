@@ -14,9 +14,10 @@ import {
 import './App.css';
 import Dashboard from './Dashboard';
 import Quotations from './Quotations';
+import Approvals from './Approvals';
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState('auth'); // 'auth' | 'dashboard' | 'quotations'
+  const [currentScreen, setCurrentScreen] = useState('auth'); // 'auth' | 'dashboard' | 'quotations' | 'approvals'
   const [currentUser, setCurrentUser] = useState({
     name: 'Alex Morgan',
     email: 'alex.morgan@firm-capital.com',
@@ -139,7 +140,7 @@ export default function App() {
     showToast('Signed out successfully.');
   };
 
-  // Route to Dashboard or Quotations based on currentScreen
+  // Route Views
   if (currentScreen === 'dashboard') {
     return (
       <Dashboard 
@@ -153,6 +154,16 @@ export default function App() {
   if (currentScreen === 'quotations') {
     return (
       <Quotations 
+        user={currentUser} 
+        onNavigate={(screen) => setCurrentScreen(screen)}
+        onLogout={handleLogout} 
+      />
+    );
+  }
+
+  if (currentScreen === 'approvals') {
+    return (
+      <Approvals 
         user={currentUser} 
         onNavigate={(screen) => setCurrentScreen(screen)}
         onLogout={handleLogout} 

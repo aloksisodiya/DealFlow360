@@ -93,7 +93,7 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
 
               <button
                 className="nav-tab-item"
-                onClick={() => showToast('Opening Approvals')}
+                onClick={() => onNavigate && onNavigate('approvals')}
               >
                 <span>Approvals</span>
               </button>
@@ -316,7 +316,7 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
 
           <button 
             className="btn-dash-secondary"
-            onClick={() => setActiveModal('approvals')}
+            onClick={() => onNavigate ? onNavigate('approvals') : setActiveModal('approvals')}
           >
             <CheckSquare size={16} />
             <span>View Approvals</span>

@@ -213,7 +213,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
 
               <button
                 className="nav-tab-item"
-                onClick={() => showToast('Opening Approvals management')}
+                onClick={() => onNavigate('approvals')}
               >
                 <span>Approvals</span>
               </button>
