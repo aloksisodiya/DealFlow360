@@ -26,6 +26,7 @@ import {
   transferStock, 
   overrideFulfillmentSplit 
 } from '../../services/fulfillmentService';
+import { canManageFulfillment } from '../../utils/rbac';
 import './Fulfillment.css';
 
 export default function Fulfillment({ user, onNavigate, onLogout }) {
@@ -297,13 +298,30 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
               <span>Export Inventory CSV</span>
             </button>
 
-            <button 
-              className="btn-new-allocation"
-              onClick={() => setActiveModal('newAllocation')}
-            >
-              <Plus size={16} />
-              <span>New Stock Allocation</span>
-            </button>
+            {canManageFulfillment(user) ? (
+              <button 
+                className="btn-new-allocation"
+                onClick={() => setActiveModal('newAllocation')}
+              >
+                <Plus size={16} />
+                <span>New Stock Allocation</span>
+              </button>
+            ) : (
+              <span style={{ 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                gap: '6px', 
+                background: '#eff6ff', 
+                color: '#1e40af', 
+                border: '1px solid #bfdbfe', 
+                padding: '8px 14px', 
+                borderRadius: '8px', 
+                fontSize: '12.5px', 
+                fontWeight: 600 
+              }}>
+                <span>📦 Fulfillment Progress Tracking</span>
+              </span>
+            )}
           </div>
         </div>
 
@@ -1067,24 +1085,40 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
               <strong>Routing Rule:</strong> {selectedOrder.routingRule}
             </div>
 
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button 
-                type="button" 
-                className="btn-dash-secondary" 
-                style={{ flex: 1 }}
-                onClick={() => setActiveModal(null)}
-              >
-                Cancel
-              </button>
-              <button 
-                type="button" 
-                className="btn-new-allocation"
-                style={{ flex: 1, justifyContent: 'center' }}
-                onClick={handleSaveSplit}
-              >
-                Authorize & Dispatch Split
-              </button>
-            </div>
+            {canManageFulfillment(user) ? (
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button 
+                  type="button" 
+                  className="btn-dash-secondary" 
+                  style={{ flex: 1 }}
+                  onClick={() => setActiveModal(null)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button" 
+                  className="btn-new-allocation"
+                  style={{ flex: 1, justifyContent: 'center' }}
+                  onClick={handleSaveSplit}
+                >
+                  Authorize & Dispatch Split
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12.5px', color: '#64748b' }}>
+                  ℹ️ <strong>Tracking View:</strong> Warehouse fulfillment splits and backorder decisions are managed by Corporate Finance & Operations.
+                </div>
+                <button 
+                  type="button" 
+                  className="btn-dash-secondary" 
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  onClick={() => setActiveModal(null)}
+                >
+                  Close Router View
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

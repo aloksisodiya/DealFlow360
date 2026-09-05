@@ -10,7 +10,7 @@ import {
   verifyAndResetPassword,
 } from "../services/admin.services.js";
 
-const MANAGED_ROLES = ["admin", "sales_rep", "sales_manager", "finance", "customer", "warehouse", "operations"];
+const MANAGED_ROLES = ["admin", "sales_rep", "sales_manager", "finance", "customer"];
 
 function validateRoleEmail(workEmail, role) {
   // Allow all standard valid email formats (including @gmail.com, enterprise domains, etc.)

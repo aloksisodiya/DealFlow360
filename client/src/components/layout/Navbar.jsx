@@ -16,6 +16,7 @@ import {
   Package,
   ShieldCheck
 } from 'lucide-react';
+import { hasAccess, getRoleDisplayName } from '../../utils/rbac';
 import './Navbar.css';
 
 /**
@@ -49,72 +50,90 @@ export default function Navbar({ activePage, user, onNavigate, onLogout, onToast
               </span>
             </div>
 
-            {/* Standardized Navigation Tabs Across All Pages */}
+            {/* Standardized Navigation Tabs filtered by Role */}
             <nav className="app-nav-tabs" role="tablist">
-              <button
-                className={`nav-tab-button ${activePage === 'dashboard' ? 'active' : ''}`}
-                onClick={() => onNavigate && onNavigate('dashboard')}
-              >
-                <Home size={15} className="tab-icon" />
-                <span>Dashboard</span>
-              </button>
+              {hasAccess(user, 'dashboard') && (
+                <button
+                  className={`nav-tab-button ${activePage === 'dashboard' ? 'active' : ''}`}
+                  onClick={() => onNavigate && onNavigate('dashboard')}
+                >
+                  <Home size={15} className="tab-icon" />
+                  <span>Dashboard</span>
+                </button>
+              )}
 
-              <button
-                className={`nav-tab-button ${activePage === 'quotations' ? 'active' : ''}`}
-                onClick={() => onNavigate && onNavigate('quotations')}
-              >
-                <span>Quotations</span>
-              </button>
+              {hasAccess(user, 'quotations') && (
+                <button
+                  className={`nav-tab-button ${activePage === 'quotations' ? 'active' : ''}`}
+                  onClick={() => onNavigate && onNavigate('quotations')}
+                >
+                  <span>Quotations</span>
+                </button>
+              )}
 
-              <button
-                className={`nav-tab-button ${activePage === 'approvals' ? 'active' : ''}`}
-                onClick={() => onNavigate && onNavigate('approvals')}
-              >
-                <span>Approvals</span>
-              </button>
+              {hasAccess(user, 'approvals') && (
+                <button
+                  className={`nav-tab-button ${activePage === 'approvals' ? 'active' : ''}`}
+                  onClick={() => onNavigate && onNavigate('approvals')}
+                >
+                  <span>Approvals</span>
+                </button>
+              )}
 
-              <button
-                className={`nav-tab-button ${activePage === 'fulfillment' ? 'active' : ''}`}
-                onClick={() => onNavigate && onNavigate('fulfillment')}
-              >
-                <span>Fulfillment</span>
-              </button>
+              {hasAccess(user, 'fulfillment') && (
+                <button
+                  className={`nav-tab-button ${activePage === 'fulfillment' ? 'active' : ''}`}
+                  onClick={() => onNavigate && onNavigate('fulfillment')}
+                >
+                  <span>Fulfillment</span>
+                </button>
+              )}
 
-              <button
-                className={`nav-tab-button ${activePage === 'subscriptions' ? 'active' : ''}`}
-                onClick={() => onNavigate && onNavigate('subscriptions')}
-              >
-                <span>Subscriptions</span>
-              </button>
+              {hasAccess(user, 'subscriptions') && (
+                <button
+                  className={`nav-tab-button ${activePage === 'subscriptions' ? 'active' : ''}`}
+                  onClick={() => onNavigate && onNavigate('subscriptions')}
+                >
+                  <span>Subscriptions</span>
+                </button>
+              )}
 
-              <button
-                className={`nav-tab-button ${activePage === 'invoices' ? 'active' : ''}`}
-                onClick={() => onNavigate && onNavigate('invoices')}
-              >
-                <span>Invoices</span>
-              </button>
+              {hasAccess(user, 'invoices') && (
+                <button
+                  className={`nav-tab-button ${activePage === 'invoices' ? 'active' : ''}`}
+                  onClick={() => onNavigate && onNavigate('invoices')}
+                >
+                  <span>Invoices</span>
+                </button>
+              )}
 
-              <button
-                className={`nav-tab-button ${activePage === 'dealhealth' ? 'active' : ''}`}
-                onClick={() => onNavigate && onNavigate('dealhealth')}
-              >
-                <span>Deal Health</span>
-                <span className="nav-tab-badge">3</span>
-              </button>
+              {hasAccess(user, 'dealhealth') && (
+                <button
+                  className={`nav-tab-button ${activePage === 'dealhealth' ? 'active' : ''}`}
+                  onClick={() => onNavigate && onNavigate('dealhealth')}
+                >
+                  <span>Deal Health</span>
+                  <span className="nav-tab-badge">3</span>
+                </button>
+              )}
 
-              <button
-                className={`nav-tab-button ${activePage === 'reports' ? 'active' : ''}`}
-                onClick={() => onNavigate && onNavigate('reports')}
-              >
-                <span>Reports</span>
-              </button>
+              {hasAccess(user, 'reports') && (
+                <button
+                  className={`nav-tab-button ${activePage === 'reports' ? 'active' : ''}`}
+                  onClick={() => onNavigate && onNavigate('reports')}
+                >
+                  <span>Reports</span>
+                </button>
+              )}
 
-              <button
-                className={`nav-tab-button ${activePage === 'product' ? 'active' : ''}`}
-                onClick={() => onNavigate && onNavigate('product')}
-              >
-                <span>Products</span>
-              </button>
+              {hasAccess(user, 'product') && (
+                <button
+                  className={`nav-tab-button ${activePage === 'product' ? 'active' : ''}`}
+                  onClick={() => onNavigate && onNavigate('product')}
+                >
+                  <span>Products</span>
+                </button>
+              )}
             </nav>
           </div>
 
@@ -163,112 +182,141 @@ export default function Navbar({ activePage, user, onNavigate, onLogout, onToast
                     <div className="nav-dropdown-email">{user?.email || 'alex.morgan@firm-capital.com'}</div>
                     {user?.role && (
                       <div className="nav-dropdown-role-badge">
-                        {user.role}
+                        {getRoleDisplayName(user.role)}
                       </div>
                     )}
                   </div>
-                  <button 
-                    className="nav-dropdown-item" 
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      if (onNavigate) onNavigate('dashboard');
-                    }}
-                  >
-                    <Home size={14} />
-                    <span>Dashboard</span>
-                  </button>
-                  <button 
-                    className="nav-dropdown-item" 
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      if (onNavigate) onNavigate('quotations');
-                    }}
-                  >
-                    <FileText size={14} />
-                    <span>Quotations</span>
-                  </button>
-                  <button 
-                    className="nav-dropdown-item" 
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      if (onNavigate) onNavigate('approvals');
-                    }}
-                  >
-                    <CheckSquare size={14} />
-                    <span>Approvals</span>
-                  </button>
-                  <button 
-                    className="nav-dropdown-item" 
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      if (onNavigate) onNavigate('fulfillment');
-                    }}
-                  >
-                    <LayoutGrid size={14} />
-                    <span>Fulfillment</span>
-                  </button>
-                  <button 
-                    className="nav-dropdown-item" 
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      if (onNavigate) onNavigate('subscriptions');
-                    }}
-                  >
-                    <RefreshCw size={14} />
-                    <span>Subscriptions</span>
-                  </button>
-                  <button 
-                    className="nav-dropdown-item" 
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      if (onNavigate) onNavigate('invoices');
-                    }}
-                  >
-                    <DollarSign size={14} />
-                    <span>Invoices</span>
-                  </button>
-                  <button 
-                    className="nav-dropdown-item" 
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      if (onNavigate) onNavigate('dealhealth');
-                    }}
-                  >
-                    <AlertTriangle size={14} />
-                    <span>Deal Health</span>
-                  </button>
-                  <button 
-                    className="nav-dropdown-item" 
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      if (onNavigate) onNavigate('reports');
-                    }}
-                  >
-                    <BarChart3 size={14} />
-                    <span>Reports</span>
-                  </button>
-                  <button 
-                    className="nav-dropdown-item" 
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      if (onNavigate) onNavigate('product');
-                    }}
-                  >
-                    <Package size={14} />
-                    <span>Products</span>
-                  </button>
 
-                  <button 
-                    className="nav-dropdown-item admin-panel-item" 
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      if (onNavigate) onNavigate('admin');
-                    }}
-                  >
-                    <ShieldCheck size={14} className="admin-dropdown-icon" />
-                    <span style={{ flex: 1 }}>Admin Panel</span>
-                    <span className="nav-admin-badge">ADMIN</span>
-                  </button>
+                  {hasAccess(user, 'dashboard') && (
+                    <button 
+                      className="nav-dropdown-item" 
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        if (onNavigate) onNavigate('dashboard');
+                      }}
+                    >
+                      <Home size={14} />
+                      <span>Dashboard</span>
+                    </button>
+                  )}
+
+                  {hasAccess(user, 'quotations') && (
+                    <button 
+                      className="nav-dropdown-item" 
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        if (onNavigate) onNavigate('quotations');
+                      }}
+                    >
+                      <FileText size={14} />
+                      <span>Quotations</span>
+                    </button>
+                  )}
+
+                  {hasAccess(user, 'approvals') && (
+                    <button 
+                      className="nav-dropdown-item" 
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        if (onNavigate) onNavigate('approvals');
+                      }}
+                    >
+                      <CheckSquare size={14} />
+                      <span>Approvals</span>
+                    </button>
+                  )}
+
+                  {hasAccess(user, 'fulfillment') && (
+                    <button 
+                      className="nav-dropdown-item" 
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        if (onNavigate) onNavigate('fulfillment');
+                      }}
+                    >
+                      <LayoutGrid size={14} />
+                      <span>Fulfillment</span>
+                    </button>
+                  )}
+
+                  {hasAccess(user, 'subscriptions') && (
+                    <button 
+                      className="nav-dropdown-item" 
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        if (onNavigate) onNavigate('subscriptions');
+                      }}
+                    >
+                      <RefreshCw size={14} />
+                      <span>Subscriptions</span>
+                    </button>
+                  )}
+
+                  {hasAccess(user, 'invoices') && (
+                    <button 
+                      className="nav-dropdown-item" 
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        if (onNavigate) onNavigate('invoices');
+                      }}
+                    >
+                      <DollarSign size={14} />
+                      <span>Invoices</span>
+                    </button>
+                  )}
+
+                  {hasAccess(user, 'dealhealth') && (
+                    <button 
+                      className="nav-dropdown-item" 
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        if (onNavigate) onNavigate('dealhealth');
+                      }}
+                    >
+                      <AlertTriangle size={14} />
+                      <span>Deal Health</span>
+                    </button>
+                  )}
+
+                  {hasAccess(user, 'reports') && (
+                    <button 
+                      className="nav-dropdown-item" 
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        if (onNavigate) onNavigate('reports');
+                      }}
+                    >
+                      <BarChart3 size={14} />
+                      <span>Reports</span>
+                    </button>
+                  )}
+
+                  {hasAccess(user, 'product') && (
+                    <button 
+                      className="nav-dropdown-item" 
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        if (onNavigate) onNavigate('product');
+                      }}
+                    >
+                      <Package size={14} />
+                      <span>Products</span>
+                    </button>
+                  )}
+
+                  {hasAccess(user, 'admin') && (
+                    <button 
+                      className="nav-dropdown-item admin-panel-item" 
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        if (onNavigate) onNavigate('admin');
+                      }}
+                    >
+                      <ShieldCheck size={14} className="admin-dropdown-icon" />
+                      <span style={{ flex: 1 }}>Admin Panel</span>
+                      <span className="nav-admin-badge">ADMIN</span>
+                    </button>
+                  )}
 
                   <button 
                     className="nav-dropdown-item logout" 

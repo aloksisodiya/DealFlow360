@@ -11,6 +11,7 @@ import DealHealth from './pages/deal-health/DealHealth';
 import Reports from './pages/reports/Reports';
 import ProductCatalog from './pages/products/ProductCatalog';
 import AdminPanel from './pages/admin/AdminPanel';
+import { hasAccess } from './utils/rbac';
 import { 
   getStoredUser, 
   getStoredScreen, 
@@ -48,8 +49,12 @@ export default function App() {
     }, 4000);
   };
 
-  // When screen changes, save to localStorage if user is authenticated
+  // When screen changes, save to localStorage if user is authenticated and authorized
   const handleNavigate = (screen) => {
+    if (currentUser && !hasAccess(currentUser, screen)) {
+      showToast(`Access restricted: ${screen.toUpperCase()} is not available for your role.`);
+      return;
+    }
     setCurrentScreen(screen);
     if (currentUser) {
       saveActiveScreen(screen);
@@ -88,7 +93,10 @@ export default function App() {
       onToast: showToast
     };
 
-    switch (currentScreen) {
+    // If user is trying to view an unauthorized screen, fallback to Dashboard
+    const activeScreenKey = hasAccess(currentUser, currentScreen) ? currentScreen : 'dashboard';
+
+    switch (activeScreenKey) {
       case 'dashboard':
         return <Dashboard {...commonProps} />;
       case 'quotations':

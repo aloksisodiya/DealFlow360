@@ -6,23 +6,19 @@ import {
   Shield,
   Search,
   Filter,
-  Trophy,
   Briefcase,
   KeyRound,
   CheckCircle2,
-  XCircle,
   Edit2,
   Trash2,
   RefreshCw,
   Download,
-  AlertTriangle,
   Lock,
   Building2,
   Mail,
   User,
   Hash,
   Activity,
-  ChevronRight,
   X,
   Check
 } from 'lucide-react';
@@ -35,24 +31,14 @@ import {
 } from '../../services/adminService';
 import './AdminPanel.css';
 
-// Pre-defined high-performance sales leagues
-const AVAILABLE_LEAGUES = [
-  { id: 'premier_enterprise', name: 'Premier Enterprise League', quota: '$2,500,000/yr', badgeColor: 'gold' },
-  { id: 'mid_market_alpha', name: 'Mid-Market Alpha League', quota: '$1,200,000/yr', badgeColor: 'purple' },
-  { id: 'commercial_growth', name: 'Commercial Growth League', quota: '$800,000/yr', badgeColor: 'blue' },
-  { id: 'strategic_accounts', name: 'Strategic Global Accounts', quota: '$3,500,000/yr', badgeColor: 'emerald' },
-  { id: 'operations_core', name: 'Core Operations & Finance', quota: 'N/A', badgeColor: 'slate' },
-];
-
 export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('directory'); // 'directory' | 'leagues' | 'commands'
+  const [activeTab, setActiveTab] = useState('directory'); // 'directory' | 'commands'
   
   // Search and Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
-  const [leagueFilter, setLeagueFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
 
   // Modals
@@ -68,9 +54,8 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
     workEmail: '',
     employeeId: `EMP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
     role: 'sales_rep',
-    league: 'Premier Enterprise League',
-    department: 'Enterprise Sales',
-    title: 'Senior Account Executive',
+    department: 'Sales',
+    title: 'Account Executive',
     password: 'Password@2026',
     isActive: true
   });
@@ -79,8 +64,7 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
   const [auditLogs, setAuditLogs] = useState([
     { id: 1, action: 'Platform Session Verified', actor: user?.email || 'admin@dealflow360.com', target: 'PostgreSQL Core DB', time: 'Just now', type: 'success' },
     { id: 2, action: 'Role Policy Enforced', actor: 'System Admin', target: 'RBAC Access Matrix', time: '12 mins ago', type: 'info' },
-    { id: 3, action: 'League Quota Recalibration', actor: 'Arjav Dariya', target: 'Premier Enterprise League', time: '1 hour ago', type: 'warning' },
-    { id: 4, action: 'Employee Directory Synced', actor: 'Automated Daemon', target: 'DealFlow360 Cluster', time: '3 hours ago', type: 'success' }
+    { id: 3, action: 'Employee Directory Synced', actor: 'Automated Daemon', target: 'DealFlow360 Cluster', time: '1 hour ago', type: 'success' }
   ]);
 
   const notify = (msg) => {
@@ -112,7 +96,7 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
       const name = (profile.name || '').toLowerCase();
       const email = (emp.work_email || emp.workEmail || '').toLowerCase();
       const empId = (profile.employeeId || `EMP-${emp.id}`).toLowerCase();
-      const league = (profile.league || 'Premier Enterprise League').toLowerCase();
+      const dept = (profile.department || '').toLowerCase();
       const role = (emp.role || '').toLowerCase();
       const query = searchQuery.toLowerCase().trim();
 
@@ -120,17 +104,16 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
         name.includes(query) || 
         email.includes(query) || 
         empId.includes(query) || 
-        league.includes(query);
+        dept.includes(query);
 
       const matchesRole = roleFilter === 'all' || role === roleFilter.toLowerCase();
-      const matchesLeague = leagueFilter === 'all' || league.includes(leagueFilter.toLowerCase());
       const matchesStatus = statusFilter === 'all' || 
         (statusFilter === 'active' && emp.is_active) || 
         (statusFilter === 'inactive' && !emp.is_active);
 
-      return matchesSearch && matchesRole && matchesLeague && matchesStatus;
+      return matchesSearch && matchesRole && matchesStatus;
     });
-  }, [employees, searchQuery, roleFilter, leagueFilter, statusFilter]);
+  }, [employees, searchQuery, roleFilter, statusFilter]);
 
   // Handle Employee Provisioning (Create)
   const handleCreateSubmit = async (e) => {
@@ -149,23 +132,22 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
           name: formData.name.trim(),
           title: formData.title.trim(),
           employeeId: formData.employeeId.trim(),
-          league: formData.league,
-          department: formData.department,
+          department: formData.department.trim(),
         }
       };
 
       await createEmployee(payload);
       notify(`Employee ID ${formData.employeeId} provisioned for ${formData.name}!`);
       setIsCreateModalOpen(false);
-      // Reset form
+      
+      // Reset form with a new ID
       setFormData({
         name: '',
         workEmail: '',
         employeeId: `EMP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
         role: 'sales_rep',
-        league: 'Premier Enterprise League',
-        department: 'Enterprise Sales',
-        title: 'Senior Account Executive',
+        department: 'Sales',
+        title: 'Account Executive',
         password: 'Password@2026',
         isActive: true
       });
@@ -206,14 +188,13 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
           ...profile,
           name: editingEmployee.editName || profile.name,
           title: editingEmployee.editTitle || profile.title,
-          league: editingEmployee.editLeague || profile.league,
           department: editingEmployee.editDept || profile.department,
           employeeId: editingEmployee.editEmpId || profile.employeeId
         }
       };
 
       await updateEmployee(editingEmployee.id, updates);
-      notify(`Updated settings for ${profile.name || editingEmployee.work_email}`);
+      notify(`Updated employee ${profile.name || editingEmployee.work_email}`);
       setEditingEmployee(null);
       await loadEmployees();
     } catch (err) {
@@ -274,7 +255,7 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
       return;
     }
 
-    const headers = ['ID', 'Employee ID', 'Name', 'Work Email', 'Role', 'Sales League', 'Department', 'Status', 'Created At'];
+    const headers = ['ID', 'Employee ID', 'Name', 'Work Email', 'Role', 'Department', 'Job Title', 'Status', 'Created At'];
     const rows = employees.map(emp => {
       const profile = typeof emp.profile === 'string' ? JSON.parse(emp.profile || '{}') : (emp.profile || {});
       return [
@@ -283,8 +264,8 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
         `"${profile.name || 'Staff'}"`,
         emp.work_email,
         emp.role,
-        `"${profile.league || 'General'}"`,
         `"${profile.department || 'Sales'}"`,
+        `"${profile.title || 'Team Member'}"`,
         emp.is_active ? 'Active' : 'Suspended',
         emp.created_at || new Date().toISOString()
       ].join(',');
@@ -294,11 +275,11 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `dealflow360_workforce_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `dealflow360_employees_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    notify('Employee workforce directory exported to CSV.');
+    notify('Employee directory exported to CSV.');
   };
 
   return (
@@ -320,9 +301,9 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
               <ShieldCheck size={14} />
               <span>Executive Administration Console</span>
             </div>
-            <h1 className="admin-page-title">Workforce & League Governance</h1>
+            <h1 className="admin-page-title">Employee Management & Access Control</h1>
             <p className="admin-page-subtitle">
-              Provision employee IDs, assign sales leagues and performance tiers, regulate RBAC permissions, and execute system commands.
+              Manage employee identities, provision unique employee IDs, assign access roles, and execute platform commands.
             </p>
           </div>
 
@@ -330,7 +311,7 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
             <button 
               className="btn-admin-secondary"
               onClick={handleExportCSV}
-              title="Export Workforce Directory"
+              title="Export Employee Directory"
             >
               <Download size={15} />
               <span>Export CSV</span>
@@ -355,18 +336,7 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
             <div className="admin-kpi-info">
               <span className="admin-kpi-label">Total Workforce</span>
               <span className="admin-kpi-value">{employees.length}</span>
-              <span className="admin-kpi-subtext">Registered Employee IDs</span>
-            </div>
-          </div>
-
-          <div className="admin-kpi-card">
-            <div className="admin-kpi-icon leagues-icon">
-              <Trophy size={22} />
-            </div>
-            <div className="admin-kpi-info">
-              <span className="admin-kpi-label">Active Sales Leagues</span>
-              <span className="admin-kpi-value">{AVAILABLE_LEAGUES.length}</span>
-              <span className="admin-kpi-subtext">Competitive Tiers</span>
+              <span className="admin-kpi-subtext">Registered Employee Accounts</span>
             </div>
           </div>
 
@@ -382,6 +352,19 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
               <span className="admin-kpi-subtext">
                 {employees.filter(e => !e.is_active).length} Suspended / Inactive
               </span>
+            </div>
+          </div>
+
+          <div className="admin-kpi-card">
+            <div className="admin-kpi-icon roles-icon">
+              <Briefcase size={22} />
+            </div>
+            <div className="admin-kpi-info">
+              <span className="admin-kpi-label">Platform Roles</span>
+              <span className="admin-kpi-value">
+                {new Set(employees.map(e => e.role)).size} Roles
+              </span>
+              <span className="admin-kpi-subtext">RBAC Access Levels</span>
             </div>
           </div>
 
@@ -409,14 +392,6 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
           </button>
 
           <button 
-            className={`admin-tab ${activeTab === 'leagues' ? 'active' : ''}`}
-            onClick={() => setActiveTab('leagues')}
-          >
-            <Trophy size={16} />
-            <span>Sales Leagues & Tiers</span>
-          </button>
-
-          <button 
             className={`admin-tab ${activeTab === 'commands' ? 'active' : ''}`}
             onClick={() => setActiveTab('commands')}
           >
@@ -434,7 +409,7 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
                 <Search size={16} className="search-icon" />
                 <input 
                   type="text" 
-                  placeholder="Search by employee name, work email, ID, or league..." 
+                  placeholder="Search by name, work email, employee ID, or department..." 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="admin-search-input"
@@ -459,24 +434,6 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
                     <option value="sales_manager">Sales Manager</option>
                     <option value="sales_rep">Sales Representative</option>
                     <option value="finance">Corporate Finance</option>
-                    <option value="warehouse">Logistics / Warehouse</option>
-                    <option value="operations">Operations</option>
-                  </select>
-                </div>
-
-                <div className="filter-select-wrapper">
-                  <Trophy size={14} className="filter-icon" />
-                  <select 
-                    value={leagueFilter} 
-                    onChange={(e) => setLeagueFilter(e.target.value)}
-                    className="admin-select"
-                  >
-                    <option value="all">All Sales Leagues</option>
-                    <option value="premier">Premier Enterprise</option>
-                    <option value="mid-market">Mid-Market Alpha</option>
-                    <option value="growth">Commercial Growth</option>
-                    <option value="strategic">Strategic Accounts</option>
-                    <option value="operations">Operations & Finance</option>
                   </select>
                 </div>
 
@@ -503,8 +460,8 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
                     <th>Employee ID</th>
                     <th>Member Profile</th>
                     <th>Role</th>
-                    <th>Assigned League</th>
                     <th>Department</th>
+                    <th>Job Title</th>
                     <th>Status</th>
                     <th style={{ textAlign: 'right' }}>Admin Actions</th>
                   </tr>
@@ -533,9 +490,8 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
                         : (emp.profile || {});
                       const name = profile.name || emp.work_email.split('@')[0];
                       const employeeId = profile.employeeId || `EMP-${202600 + emp.id}`;
-                      const league = profile.league || 'Premier Enterprise League';
                       const department = profile.department || (emp.role === 'finance' ? 'Finance' : 'Sales');
-                      const title = profile.title || 'Team Member';
+                      const title = profile.title || (emp.role === 'admin' ? 'Administrator' : 'Account Representative');
                       
                       const initials = name
                         .split(' ')
@@ -563,7 +519,6 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
                               <div className="member-details">
                                 <span className="member-name">{name}</span>
                                 <span className="member-email">{emp.work_email}</span>
-                                <span className="member-title">{title}</span>
                               </div>
                             </div>
                           </td>
@@ -575,20 +530,17 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
                             </span>
                           </td>
 
-                          {/* Assigned League */}
-                          <td>
-                            <span className={`league-pill ${league.toLowerCase().includes('premier') ? 'gold' : league.toLowerCase().includes('strategic') ? 'emerald' : league.toLowerCase().includes('mid') ? 'purple' : 'blue'}`}>
-                              <Trophy size={12} />
-                              <span>{league}</span>
-                            </span>
-                          </td>
-
                           {/* Department */}
                           <td>
                             <span className="department-text">
                               <Building2 size={13} />
                               <span>{department}</span>
                             </span>
+                          </td>
+
+                          {/* Job Title */}
+                          <td>
+                            <span className="job-title-text">{title}</span>
                           </td>
 
                           {/* Status */}
@@ -613,7 +565,6 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
                                   ...emp,
                                   editName: name,
                                   editTitle: title,
-                                  editLeague: league,
                                   editDept: department,
                                   editEmpId: employeeId
                                 })}
@@ -651,84 +602,7 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
           </div>
         )}
 
-        {/* Tab 2: Sales Leagues Governance */}
-        {activeTab === 'leagues' && (
-          <div className="leagues-governance-section">
-            <div className="section-intro-card">
-              <div className="intro-title-row">
-                <Trophy size={20} color="#714b67" />
-                <h3>Sales Leagues & Tier Governance</h3>
-              </div>
-              <p>
-                Sales leagues establish target deal sizes, performance quotas, and institutional ranking tiers for account executives across DealFlow360.
-              </p>
-            </div>
-
-            <div className="leagues-card-grid">
-              {AVAILABLE_LEAGUES.map((league) => {
-                const members = employees.filter(e => {
-                  const p = typeof e.profile === 'string' ? JSON.parse(e.profile || '{}') : (e.profile || {});
-                  return (p.league || '').toLowerCase() === league.name.toLowerCase();
-                });
-
-                return (
-                  <div className={`league-card ${league.badgeColor}`} key={league.id}>
-                    <div className="league-card-header">
-                      <div className="league-header-left">
-                        <Trophy size={18} />
-                        <h4>{league.name}</h4>
-                      </div>
-                      <span className="league-quota-tag">{league.quota}</span>
-                    </div>
-
-                    <p className="league-desc">
-                      Tier specification and target deal flow volume. Assigned employees compete under unified compensation and approval thresholds.
-                    </p>
-
-                    <div className="league-members-summary">
-                      <div className="members-count-row">
-                        <span>Assigned Employees</span>
-                        <strong>{members.length} Members</strong>
-                      </div>
-
-                      <div className="members-avatars-stack">
-                        {members.slice(0, 5).map(m => {
-                          const p = typeof m.profile === 'string' ? JSON.parse(m.profile || '{}') : (m.profile || {});
-                          const initials = (p.name || m.work_email).slice(0, 2).toUpperCase();
-                          return (
-                            <span className="stacked-avatar" key={m.id} title={p.name || m.work_email}>
-                              {initials}
-                            </span>
-                          );
-                        })}
-                        {members.length > 5 && (
-                          <span className="stacked-avatar more">+{members.length - 5}</span>
-                        )}
-                        {members.length === 0 && (
-                          <span className="empty-members-label">No employees assigned yet</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="league-card-footer">
-                      <button 
-                        className="btn-assign-league"
-                        onClick={() => {
-                          setFormData(prev => ({ ...prev, league: league.name }));
-                          setIsCreateModalOpen(true);
-                        }}
-                      >
-                        + Provision ID to this League
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Tab 3: Admin Command Console */}
+        {/* Tab 2: Admin Command Console */}
         {activeTab === 'commands' && (
           <div className="admin-commands-section">
             <div className="commands-grid">
@@ -881,7 +755,6 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
                     <option value="sales_rep">Sales Representative</option>
                     <option value="sales_manager">Sales Manager (Approval Authority)</option>
                     <option value="finance">Corporate Finance</option>
-                    <option value="warehouse">Logistics & Warehouse</option>
                     <option value="admin">Platform Administrator</option>
                   </select>
                 </div>
@@ -889,51 +762,36 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
 
               <div className="form-row two-cols">
                 <div className="form-field">
-                  <label>Sales League / Performance Tier *</label>
-                  <select 
-                    value={formData.league} 
-                    onChange={(e) => setFormData({ ...formData, league: e.target.value })}
-                    className="modal-select"
-                  >
-                    {AVAILABLE_LEAGUES.map(l => (
-                      <option key={l.id} value={l.name}>{l.name} ({l.quota})</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-field">
                   <label>Department</label>
                   <input 
                     type="text" 
-                    placeholder="e.g. Strategic Enterprise Sales"
+                    placeholder="e.g. Sales, Finance, Executive"
                     value={formData.department}
                     onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                   />
                 </div>
-              </div>
 
-              <div className="form-row two-cols">
                 <div className="form-field">
                   <label>Job Title</label>
                   <input 
                     type="text" 
-                    placeholder="e.g. Vice President of Deals"
+                    placeholder="e.g. Senior Account Executive"
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   />
                 </div>
+              </div>
 
-                <div className="form-field">
-                  <label>Initial Temporary Password *</label>
-                  <div className="input-with-icon">
-                    <Lock size={15} />
-                    <input 
-                      type="text" 
-                      required 
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    />
-                  </div>
+              <div className="form-field">
+                <label>Initial Temporary Password *</label>
+                <div className="input-with-icon">
+                  <Lock size={15} />
+                  <input 
+                    type="text" 
+                    required 
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  />
                 </div>
               </div>
 
@@ -1004,26 +862,10 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
                     <option value="sales_rep">Sales Representative</option>
                     <option value="sales_manager">Sales Manager</option>
                     <option value="finance">Corporate Finance</option>
-                    <option value="warehouse">Logistics & Warehouse</option>
                     <option value="admin">Platform Administrator</option>
                   </select>
                 </div>
 
-                <div className="form-field">
-                  <label>Sales League</label>
-                  <select 
-                    value={editingEmployee.editLeague}
-                    onChange={(e) => setEditingEmployee({ ...editingEmployee, editLeague: e.target.value })}
-                    className="modal-select"
-                  >
-                    {AVAILABLE_LEAGUES.map(l => (
-                      <option key={l.id} value={l.name}>{l.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-row two-cols">
                 <div className="form-field">
                   <label>Department</label>
                   <input 
@@ -1032,15 +874,15 @@ export default function AdminPanel({ user, onNavigate, onLogout, onToast }) {
                     onChange={(e) => setEditingEmployee({ ...editingEmployee, editDept: e.target.value })}
                   />
                 </div>
+              </div>
 
-                <div className="form-field">
-                  <label>Job Title</label>
-                  <input 
-                    type="text" 
-                    value={editingEmployee.editTitle}
-                    onChange={(e) => setEditingEmployee({ ...editingEmployee, editTitle: e.target.value })}
-                  />
-                </div>
+              <div className="form-field">
+                <label>Job Title</label>
+                <input 
+                  type="text" 
+                  value={editingEmployee.editTitle}
+                  onChange={(e) => setEditingEmployee({ ...editingEmployee, editTitle: e.target.value })}
+                />
               </div>
 
               <div className="modal-footer-actions">

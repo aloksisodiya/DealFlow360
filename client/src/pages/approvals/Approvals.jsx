@@ -14,6 +14,7 @@ import {
 import Navbar from '../../components/layout/Navbar';
 import { downloadCSV } from '../../utils/formatters';
 import { fetchPendingApprovals, decideApproval, createApproval } from '../../services/approvalService';
+import { canApproveQuotes } from '../../utils/rbac';
 import './Approvals.css';
 
 /**
@@ -356,13 +357,23 @@ export default function Approvals({ user, onNavigate, onLogout }) {
                   <td>
                     <div className="actions-cell">
                       {item.status === 'pending' && (
-                        <button 
-                          className="btn-table-review"
-                          onClick={() => setReviewingItem(item)}
-                        >
-                          <span>Review Approval</span>
-                          <ArrowRight size={13} />
-                        </button>
+                        canApproveQuotes(user) ? (
+                          <button 
+                            className="btn-table-review"
+                            onClick={() => setReviewingItem(item)}
+                          >
+                            <span>Review Approval</span>
+                            <ArrowRight size={13} />
+                          </button>
+                        ) : (
+                          <button 
+                            className="btn-table-outlined"
+                            onClick={() => setReviewingItem(item)}
+                            title="Track Approval Progress"
+                          >
+                            <span>Track Status</span>
+                          </button>
+                        )
                       )}
 
                       {item.status === 'approved' && (
@@ -497,25 +508,43 @@ export default function Approvals({ user, onNavigate, onLogout }) {
             </div>
 
             <div style={{ display: 'flex', gap: '10px', marginTop: '16px', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className="btn-dash-primary"
-                style={{ flex: 1, justifyContent: 'center' }}
-                onClick={() => handleApprove(reviewingItem.id)}
-              >
-                <Check size={16} />
-                <span>Approve Quotation</span>
-              </button>
+              {canApproveQuotes(user) ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn-dash-primary"
+                    style={{ flex: 1, justifyContent: 'center' }}
+                    onClick={() => handleApprove(reviewingItem.id)}
+                  >
+                    <Check size={16} />
+                    <span>Approve Quotation</span>
+                  </button>
 
-              <button
-                type="button"
-                className="btn-dash-secondary"
-                style={{ flex: 1, justifyContent: 'center', borderColor: '#fecdd3', color: '#e11d48' }}
-                onClick={() => handleReturn(reviewingItem.id)}
-              >
-                <RotateCcw size={15} />
-                <span>Return with Remarks</span>
-              </button>
+                  <button
+                    type="button"
+                    className="btn-dash-secondary"
+                    style={{ flex: 1, justifyContent: 'center', borderColor: '#fecdd3', color: '#e11d48' }}
+                    onClick={() => handleReturn(reviewingItem.id)}
+                  >
+                    <RotateCcw size={15} />
+                    <span>Return with Remarks</span>
+                  </button>
+                </>
+              ) : (
+                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12.5px', color: '#64748b' }}>
+                    ℹ️ <strong>Approval Tracking View:</strong> Decision authority belongs to Sales Managers and Corporate Finance. You will be notified once this request is decided.
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-dash-secondary"
+                    style={{ width: '100%', justifyContent: 'center' }}
+                    onClick={() => setReviewingItem(null)}
+                  >
+                    Close Details
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
