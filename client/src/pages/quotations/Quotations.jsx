@@ -36,6 +36,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
   const [newDesc, setNewDesc] = useState('');
   const [newTier, setNewTier] = useState('Bronze');
   const [newDiscount, setNewDiscount] = useState(0);
+  const [newStage, setNewStage] = useState('draft');
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -95,6 +96,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
         customerTier: newTier,
         totalAmount: parseFloat(newAmount) || 10000,
         discountPercent: Number(newDiscount) || 0,
+        stage: newStage,
       });
 
       showToast(`Quotation created for ${newClient} in PostgreSQL!`);
@@ -102,6 +104,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
       setNewClient('');
       setNewAmount('');
       setNewDesc('');
+      setNewStage('draft');
       await loadQuotations();
     } catch (err) {
       showToast(err.message || 'Failed to create quotation');
