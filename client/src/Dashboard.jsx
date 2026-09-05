@@ -11,16 +11,12 @@ import {
   Edit3, 
   Package, 
   ArrowRight, 
-  Globe, 
-  User, 
-  LogOut, 
-  Settings, 
-  X
+  X 
 } from 'lucide-react';
+import Navbar from './Navbar';
 import './Dashboard.css';
 
 export default function Dashboard({ user, onNavigate, onLogout }) {
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
 
@@ -61,152 +57,14 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
         </div>
       )}
 
-      {/* Main Top Header */}
-      <header className="dash-header">
-        <div className="dash-header-inner">
-          <div className="dash-header-left">
-            {/* Logo and Brand Title */}
-            <div className="dash-brand" onClick={() => onNavigate && onNavigate('dashboard')}>
-              <img src="/logo.png" alt="DealFlow360 Logo" className="dash-logo" />
-              <span className="dash-brand-name">
-                <span className="dash-brand-dark">DealFlow</span>
-                <span className="dash-brand-purple">360</span>
-              </span>
-            </div>
-
-            {/* Navigation Tabs */}
-            <nav className="dash-nav-tabs" role="tablist">
-              <button
-                className="nav-tab-item active"
-                onClick={() => onNavigate && onNavigate('dashboard')}
-              >
-                <Home size={15} className="tab-icon" />
-                <span>Dashboard</span>
-              </button>
-
-              <button
-                className="nav-tab-item"
-                onClick={() => onNavigate && onNavigate('quotations')}
-              >
-                <span>Quotations</span>
-              </button>
-
-              <button
-                className="nav-tab-item"
-                onClick={() => showToast('Opening Approvals')}
-              >
-                <span>Approvals</span>
-              </button>
-
-              <button
-                className="nav-tab-item"
-                onClick={() => showToast('Opening Fulfillment')}
-              >
-                <span>Fulfillment</span>
-              </button>
-
-              <button
-                className="nav-tab-item"
-                onClick={() => showToast('Opening Subscriptions')}
-              >
-                <span>Subscriptions</span>
-              </button>
-
-              <button
-                className="nav-tab-item"
-                onClick={() => showToast('Opening Invoices')}
-              >
-                <span>Invoices</span>
-              </button>
-
-              <button
-                className="nav-tab-item"
-                onClick={() => showToast('Deal Health flagged 3 at-risk deals')}
-              >
-                <span>Deal Health</span>
-                <span className="tab-badge-count">3</span>
-              </button>
-
-              <button
-                className="nav-tab-item"
-                onClick={() => showToast('Opening Reports')}
-              >
-                <span>Reports</span>
-              </button>
-
-              <button
-                className="nav-tab-item"
-                onClick={() => showToast('Opening Products Catalog')}
-              >
-                <span>Product</span>
-              </button>
-            </nav>
-          </div>
-
-          {/* Header Right Actions */}
-          <div className="dash-header-right">
-            <button 
-              className="btn-dash-link"
-              onClick={() => setActiveModal('support')}
-            >
-              Support
-            </button>
-            <button 
-              className="btn-dash-contact"
-              onClick={() => setActiveModal('contact')}
-            >
-              Contact Sales
-            </button>
-            <button 
-              className="btn-icon-circle"
-              title="Global Regional Settings"
-              onClick={() => showToast('Region: US East (N. Virginia)')}
-            >
-              <Globe size={16} />
-            </button>
-
-            {/* User Avatar & Dropdown */}
-            <div className="user-avatar-wrapper">
-              <button 
-                className="user-avatar-btn"
-                onClick={() => setUserMenuOpen(!userMenuOpen)}
-                title="Account Menu"
-              >
-                {user?.initials || 'AM'}
-              </button>
-
-              {userMenuOpen && (
-                <div className="user-dropdown-menu">
-                  <div className="user-dropdown-header">
-                    <div className="user-dropdown-name">{user?.name || 'Alex Morgan'}</div>
-                    <div className="user-dropdown-email">{user?.email || 'alex.morgan@firm-capital.com'}</div>
-                  </div>
-                  <button 
-                    className="dropdown-item" 
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      if (onNavigate) onNavigate('quotations');
-                    }}
-                  >
-                    <FileText size={14} />
-                    <span>View Quotations</span>
-                  </button>
-                  <button 
-                    className="dropdown-item logout" 
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      if (onLogout) onLogout();
-                    }}
-                  >
-                    <LogOut size={14} />
-                    <span>Sign Out</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      {/* Universal Constant Header */}
+      <Navbar 
+        activePage="dashboard" 
+        user={user} 
+        onNavigate={onNavigate} 
+        onLogout={onLogout}
+        onToast={showToast}
+      />
 
       {/* Main Content Dashboard */}
       <main className="dash-main">
@@ -243,7 +101,7 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
               <span>2 require Finance approval</span>
               <button 
                 className="kpi-action-link"
-                onClick={() => setActiveModal('approvals')}
+                onClick={() => onNavigate ? onNavigate('approvals') : setActiveModal('approvals')}
               >
                 <span>Review</span>
                 <ArrowRight size={14} />
@@ -316,7 +174,7 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
 
           <button 
             className="btn-dash-secondary"
-            onClick={() => setActiveModal('approvals')}
+            onClick={() => onNavigate ? onNavigate('approvals') : setActiveModal('approvals')}
           >
             <CheckSquare size={16} />
             <span>View Approvals</span>
@@ -418,43 +276,11 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
                 {activeModal === 'newQuote' && 'Create New Quotation'}
                 {activeModal === 'approvals' && 'Pending Finance Approvals'}
                 {activeModal === 'atRisk' && 'Deal Health Risk Investigation'}
-                {activeModal === 'contact' && 'Contact Enterprise Sales'}
-                {activeModal === 'support' && 'DealFlow360 Support'}
               </h3>
               <button className="modal-close-btn" onClick={() => setActiveModal(null)}>
                 <X size={18} />
               </button>
             </div>
-
-            {activeModal === 'approvals' && (
-              <div>
-                <p style={{ fontSize: '13.5px', color: '#64748b', marginBottom: '14px' }}>
-                  The following quotations require managerial or finance sign-off:
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
-                  <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: '13.5px' }}>
-                      <span>Beta Industries (Quote #Q-8841)</span>
-                      <span style={{ color: '#d97706' }}>$88,500</span>
-                    </div>
-                    <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: '4px' }}>
-                      Reason: 15% discount exceeds standard 10% threshold.
-                    </div>
-                  </div>
-                </div>
-                <button 
-                  type="button" 
-                  className="btn-dash-primary"
-                  style={{ width: '100%', justifyContent: 'center' }}
-                  onClick={() => {
-                    showToast('Approved pending quotation.');
-                    setActiveModal(null);
-                  }}
-                >
-                  Approve Quotation
-                </button>
-              </div>
-            )}
 
             {activeModal === 'atRisk' && (
               <div>
@@ -477,41 +303,6 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
                   }}
                 >
                   Schedule Follow-up Task
-                </button>
-              </div>
-            )}
-
-            {activeModal === 'contact' && (
-              <div>
-                <p style={{ fontSize: '13.5px', color: '#64748b', marginBottom: '14px' }}>
-                  Enterprise priority advisory desk: sales@dealflow360.io or +1 (800) 555-DEAL.
-                </p>
-                <button 
-                  type="button" 
-                  className="btn-dash-primary"
-                  style={{ width: '100%', justifyContent: 'center' }}
-                  onClick={() => {
-                    showToast('Demo request registered.');
-                    setActiveModal(null);
-                  }}
-                >
-                  Request Demo
-                </button>
-              </div>
-            )}
-
-            {activeModal === 'support' && (
-              <div>
-                <p style={{ fontSize: '13.5px', color: '#64748b', marginBottom: '14px' }}>
-                  24/7 dedicated support desk: help@dealflow360.io
-                </p>
-                <button 
-                  type="button" 
-                  className="btn-dash-secondary"
-                  style={{ width: '100%', justifyContent: 'center' }}
-                  onClick={() => setActiveModal(null)}
-                >
-                  Close
                 </button>
               </div>
             )}

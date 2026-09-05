@@ -1,0 +1,666 @@
+/* Invoices Page Styles */
+.invoices-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-color: #f8fafc;
+  background: linear-gradient(180deg, #ffffff 0%, #f9f8fa 100%);
+  color: #0f172a;
+  overflow-x: hidden;
+}
+
+.invoices-main {
+  flex: 1;
+  max-width: 1440px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px 36px 48px;
+}
+
+/* Kicker & Breadcrumb Header */
+.invoices-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.invoices-breadcrumb-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.invoices-kicker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #714b67;
+}
+
+.badge-active-record {
+  background-color: #fdf2f8;
+  color: #be185d;
+  border: 1px solid #fbcfe8;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+
+.invoices-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.025em;
+  font-family: var(--font-main);
+  line-height: 1.2;
+}
+
+.invoices-subtitle {
+  font-size: 13.5px;
+  color: #64748b;
+}
+
+.invoices-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-inv-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #ffffff;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-main);
+  transition: all 0.15s ease;
+}
+
+.btn-inv-outline:hover {
+  background-color: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.btn-record-payment {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #54324c;
+  background: linear-gradient(180deg, #5e3755 0%, #4a2842 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-main);
+  box-shadow: 0 1px 3px rgba(84, 50, 76, 0.25);
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-record-payment:hover {
+  background: linear-gradient(180deg, #6d3f63 0%, #54324c 100%);
+  box-shadow: 0 3px 8px rgba(84, 50, 76, 0.35);
+  transform: translateY(-1px);
+}
+
+/* SECTION 1: Stepper Progress Pipeline Card */
+.invoices-stepper-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 22px 28px;
+  box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.04);
+  margin-bottom: 24px;
+}
+
+.stepper-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.stepper-title-kicker {
+  font-size: 11.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+}
+
+.stepper-stage-indicator {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.stepper-stage-bold {
+  font-weight: 700;
+  color: #0369a1;
+}
+
+/* Stepper Bar */
+.stepper-progress-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  position: relative;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.stepper-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  position: relative;
+  z-index: 2;
+  flex: 1;
+}
+
+.stepper-node-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  margin-bottom: 8px;
+  background-color: #ffffff;
+  border: 2px solid #e2e8f0;
+  color: #94a3b8;
+  transition: all 0.2s ease;
+}
+
+.stepper-step.completed .stepper-node-icon {
+  background-color: #059669;
+  border-color: #059669;
+  color: #ffffff;
+}
+
+.stepper-step.current .stepper-node-icon {
+  background-color: #0284c7;
+  border-color: #0284c7;
+  color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(2, 132, 199, 0.15);
+}
+
+.stepper-step.pending .stepper-node-icon {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+  color: #94a3b8;
+}
+
+.stepper-node-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.stepper-step.current .stepper-node-label {
+  color: #0369a1;
+}
+
+.stepper-step.pending .stepper-node-label {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.stepper-node-date {
+  font-size: 11.5px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.stepper-step.current .stepper-node-date {
+  color: #0284c7;
+  font-weight: 600;
+}
+
+/* Connector lines between steps */
+.stepper-connector-line {
+  position: absolute;
+  top: 19px;
+  height: 3px;
+  z-index: 1;
+  transform: translateY(-50%);
+}
+
+.stepper-connector-line.active {
+  background-color: #10b981;
+}
+
+.stepper-connector-line.inactive {
+  background-color: #e2e8f0;
+}
+
+/* SECTION 2: Linked Invoice Line Batches Card */
+.invoices-batch-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.batch-card-header {
+  padding: 18px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #f1f5f9;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.batch-title-main {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.batch-title-sub {
+  font-size: 12.5px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.batch-pills-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.batch-pill-outstanding {
+  background-color: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.batch-pill-settled {
+  background-color: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Invoice Batch Table */
+.invoices-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.invoices-table th {
+  background-color: #ffffff;
+  padding: 14px 24px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.invoices-table td {
+  padding: 18px 24px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 13.5px;
+  color: #0f172a;
+  vertical-align: middle;
+}
+
+.invoices-table tr:hover td {
+  background-color: #fafbfc;
+}
+
+/* Invoice ID cell */
+.inv-number-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inv-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.inv-dot.amber { background-color: #f59e0b; }
+.inv-dot.green { background-color: #10b981; }
+
+.inv-number-bold {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.inv-badge-type {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.inv-badge-type.primary {
+  background-color: #f1f5f9;
+  color: #475569;
+}
+
+.inv-badge-type.recurring {
+  background-color: #fdf2f8;
+  color: #be185d;
+}
+
+/* Description cell */
+.inv-desc-main {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.inv-desc-sub {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+/* Amount cell */
+.inv-amount-cell {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* Status Pill */
+.inv-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.inv-status-pill.unpaid {
+  background-color: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.inv-status-pill.paid {
+  background-color: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+/* Action Links in Table */
+.inv-actions-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-pay-now-link {
+  font-size: 13px;
+  font-weight: 700;
+  color: #714b67;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.btn-pay-now-link:hover {
+  text-decoration: underline;
+}
+
+.btn-view-slip-link {
+  font-size: 12.5px;
+  color: #64748b;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.btn-view-slip-link:hover {
+  color: #0f172a;
+  text-decoration: underline;
+}
+
+/* Table Footer / Summary Card Section */
+.inv-summary-footer-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 20px 24px;
+  background-color: #ffffff;
+  border-top: 1px solid #f1f5f9;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.inv-account-details-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.inv-account-details-left strong {
+  color: #0f172a;
+}
+
+.inv-totals-box-right {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 280px;
+  text-align: right;
+}
+
+.inv-totals-sub-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.inv-totals-sub-row.credit {
+  color: #059669;
+  font-weight: 600;
+}
+
+.inv-totals-main-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 8px;
+  margin-top: 4px;
+  border-top: 1.5px solid #e2e8f0;
+}
+
+.inv-total-label {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.inv-total-amount {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+/* SECTION 3: Guardrail Banner */
+.inv-guardrail-card {
+  background-color: #fffdf5;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  padding: 18px 22px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.inv-guardrail-icon-box {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background-color: #fef3c7;
+  color: #b45309;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.inv-guardrail-title {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #92400e;
+  margin-bottom: 3px;
+}
+
+.inv-guardrail-headline {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #78350f;
+  line-height: 1.4;
+}
+
+.inv-guardrail-body {
+  font-size: 12.5px;
+  color: #92400e;
+  margin-top: 4px;
+  line-height: 1.45;
+}
+
+/* SECTION 4: Bottom Action Bar */
+.inv-bottom-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.inv-bottom-buttons-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.inv-bottom-links-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.btn-inv-text-action {
+  background: none;
+  border: none;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.btn-inv-text-action:hover {
+  color: #714b67;
+  text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .invoices-main {
+    padding: 20px 16px 36px;
+  }
+  .invoices-batch-card {
+    overflow-x: auto;
+  }
+  .invoices-table {
+    min-width: 760px;
+  }
+}
+
+@media (max-width: 768px) {
+  .stepper-progress-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 18px;
+    padding-left: 20px;
+  }
+  .stepper-connector-line {
+    display: none;
+  }
+  .stepper-step {
+    flex-direction: row;
+    gap: 12px;
+    text-align: left;
+  }
+  .invoices-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .invoices-actions-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .inv-summary-footer-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .inv-totals-box-right {
+    width: 100%;
+    text-align: left;
+  }
+  .inv-bottom-actions-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

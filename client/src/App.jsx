@@ -14,9 +14,15 @@ import {
 import './App.css';
 import Dashboard from './Dashboard';
 import Quotations from './Quotations';
+import Approvals from './Approvals';
+import Fulfillment from './Fulfillment';
+import Subscriptions from './Subscriptions';
+import Invoices from './Invoices';
+import DealHealth from './DealHealth';
+import Reports from './Reports';
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState('auth'); // 'auth' | 'dashboard' | 'quotations'
+  const [currentScreen, setCurrentScreen] = useState('auth'); // 'auth' | 'dashboard' | 'quotations' | 'approvals' | 'fulfillment' | 'subscriptions' | 'invoices' | 'dealhealth' | 'reports'
   const [currentUser, setCurrentUser] = useState({
     name: 'Alex Morgan',
     email: 'alex.morgan@firm-capital.com',
@@ -139,7 +145,7 @@ export default function App() {
     showToast('Signed out successfully.');
   };
 
-  // Route to Dashboard or Quotations based on currentScreen
+  // Route Views
   if (currentScreen === 'dashboard') {
     return (
       <Dashboard 
@@ -153,6 +159,66 @@ export default function App() {
   if (currentScreen === 'quotations') {
     return (
       <Quotations 
+        user={currentUser} 
+        onNavigate={(screen) => setCurrentScreen(screen)}
+        onLogout={handleLogout} 
+      />
+    );
+  }
+
+  if (currentScreen === 'approvals') {
+    return (
+      <Approvals 
+        user={currentUser} 
+        onNavigate={(screen) => setCurrentScreen(screen)}
+        onLogout={handleLogout} 
+      />
+    );
+  }
+
+  if (currentScreen === 'fulfillment') {
+    return (
+      <Fulfillment 
+        user={currentUser} 
+        onNavigate={(screen) => setCurrentScreen(screen)}
+        onLogout={handleLogout} 
+      />
+    );
+  }
+
+  if (currentScreen === 'subscriptions') {
+    return (
+      <Subscriptions 
+        user={currentUser} 
+        onNavigate={(screen) => setCurrentScreen(screen)}
+        onLogout={handleLogout} 
+      />
+    );
+  }
+
+  if (currentScreen === 'invoices') {
+    return (
+      <Invoices 
+        user={currentUser} 
+        onNavigate={(screen) => setCurrentScreen(screen)}
+        onLogout={handleLogout} 
+      />
+    );
+  }
+
+  if (currentScreen === 'dealhealth') {
+    return (
+      <DealHealth 
+        user={currentUser} 
+        onNavigate={(screen) => setCurrentScreen(screen)}
+        onLogout={handleLogout} 
+      />
+    );
+  }
+
+  if (currentScreen === 'reports') {
+    return (
+      <Reports 
         user={currentUser} 
         onNavigate={(screen) => setCurrentScreen(screen)}
         onLogout={handleLogout} 
