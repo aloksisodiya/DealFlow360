@@ -43,7 +43,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
       sku: 'HW-LP14-M3',
       category: 'Hardware',
       avatar: 'LP',
-      avatarColor: 'blue',
+      avatarColor: 'purple',
       variants: '3(size)',
       price: 1200,
       priceFormatted: '$1,200',
@@ -77,7 +77,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
       sku: 'HW-ACC-DS04',
       category: 'Hardware',
       avatar: 'DS',
-      avatarColor: 'blue',
+      avatarColor: 'purple',
       variants: '3(color)',
       price: 180,
       priceFormatted: '$180',
@@ -204,7 +204,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
     }
 
     const initials = newProdName.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase() || 'PD';
-    const color = newProdCat === 'Hardware' ? 'blue' : newProdCat === 'Services' ? 'green' : 'purple';
+    const color = newProdCat === 'Hardware' ? 'purple' : newProdCat === 'Services' ? 'green' : 'plum';
     const priceStr = newProdCat === 'Subscription' ? `$${newProdPrice}/month` : `$${Number(newProdPrice).toLocaleString()}`;
 
     const newItem = {
@@ -306,7 +306,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
             <div>
               <div className="cat-kpi-header">
                 <span className="cat-kpi-title">TOTAL PRODUCTS</span>
-                <div className="cat-kpi-icon blue">
+                <div className="cat-kpi-icon plum">
                   <Box size={16} />
                 </div>
               </div>
@@ -325,7 +325,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
             <div>
               <div className="cat-kpi-header">
                 <span className="cat-kpi-title">PRICELISTS</span>
-                <div className="cat-kpi-icon cyan">
+                <div className="cat-kpi-icon teal">
                   <Tag size={16} />
                 </div>
               </div>
@@ -662,7 +662,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
           <div className="modal-content" style={{ maxWidth: '580px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Box size={20} color="#0284c7" />
+                <Box size={20} color="#714b67" />
                 <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
                   Create New Product SKU
                 </h3>
@@ -778,7 +778,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
           <div className="modal-content" style={{ maxWidth: '540px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Sliders size={18} color="#0284c7" />
+                <Sliders size={18} color="#714b67" />
                 <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
                   Manage Pricelists &amp; Currency Tiers
                 </h3>
@@ -823,7 +823,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
           <div className="modal-content" style={{ maxWidth: '560px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Edit3 size={18} color="#0284c7" />
+                <Edit3 size={18} color="#714b67" />
                 <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
                   Edit Product Specs — {selectedProduct.sku}
                 </h3>

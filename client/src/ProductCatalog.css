@@ -1,4 +1,4 @@
-/* Product Catalog Page Styles */
+/* Product Catalog Page Styles - Refined to DealFlow360 Plum/Purple Color Theme */
 .catalog-container {
   display: flex;
   flex-direction: column;
@@ -27,7 +27,7 @@
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #64748b;
+  color: #714b67;
   margin-bottom: 4px;
 }
 
@@ -94,17 +94,17 @@
 }
 
 .btn-cat-outline:hover {
-  background-color: #f8fafc;
-  border-color: #94a3b8;
-  color: #0f172a;
+  background-color: #faf5f8;
+  border-color: #714b67;
+  color: #54324c;
 }
 
 .btn-new-product {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background-color: #0284c7;
-  background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%);
+  background-color: #54324c;
+  background: linear-gradient(180deg, #5e3755 0%, #4a2842 100%);
   color: #ffffff;
   border: none;
   border-radius: 8px;
@@ -113,14 +113,14 @@
   font-weight: 600;
   cursor: pointer;
   font-family: var(--font-main);
-  box-shadow: 0 1px 3px rgba(2, 132, 199, 0.25);
+  box-shadow: 0 1px 3px rgba(84, 50, 76, 0.25);
   transition: all 0.15s ease;
   white-space: nowrap;
 }
 
 .btn-new-product:hover {
-  background: linear-gradient(180deg, #0369a1 0%, #075985 100%);
-  box-shadow: 0 3px 8px rgba(2, 132, 199, 0.35);
+  background: linear-gradient(180deg, #6d3f63 0%, #54324c 100%);
+  box-shadow: 0 3px 8px rgba(84, 50, 76, 0.35);
   transform: translateY(-1px);
 }
 
@@ -141,6 +141,12 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.cat-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(84, 50, 76, 0.06);
 }
 
 .cat-kpi-header {
@@ -167,9 +173,9 @@
   justify-content: center;
 }
 
-.cat-kpi-icon.blue { background-color: #f0f9ff; color: #0284c7; }
-.cat-kpi-icon.cyan { background-color: #f0fdfa; color: #0d9488; }
-.cat-kpi-icon.purple { background-color: #faf5f8; color: #714b67; }
+.cat-kpi-icon.plum { background-color: #faf5f8; color: #714b67; border: 1px solid #dfc2d6; }
+.cat-kpi-icon.teal { background-color: #f0fdfa; color: #0d9488; border: 1px solid #ccfbf1; }
+.cat-kpi-icon.purple { background-color: #faf5f8; color: #714b67; border: 1px solid #dfc2d6; }
 
 .cat-kpi-metric-row {
   display: flex;
@@ -200,9 +206,9 @@
 }
 
 .cat-kpi-badge.purple {
-  background-color: #ede9fe;
-  color: #6d28d9;
-  border: 1px solid #ddd6fe;
+  background-color: #faf5f8;
+  color: #714b67;
+  border: 1px solid #dfc2d6;
 }
 
 .cat-kpi-sub-text {
@@ -254,18 +260,19 @@
 
 .btn-cat-tab:hover:not(.active) {
   border-color: #714b67;
-  color: #0f172a;
+  color: #54324c;
+  background-color: #faf5f8;
 }
 
 .btn-cat-tab.active {
-  background-color: #0f172a;
-  border-color: #0f172a;
+  background-color: #54324c;
+  border-color: #54324c;
   color: #ffffff;
 }
 
 .tab-badge-num {
   font-size: 11px;
-  background-color: #334155;
+  background-color: #3e2237;
   color: #ffffff;
   padding: 1px 6px;
   border-radius: 9999px;
@@ -305,10 +312,12 @@
   border-radius: 7px;
   outline: none;
   color: #0f172a;
+  transition: border-color 0.15s ease;
 }
 
 .catalog-search-input:focus {
   border-color: #714b67;
+  box-shadow: 0 0 0 2px rgba(113, 75, 103, 0.1);
 }
 
 .catalog-select-pill {
@@ -323,6 +332,7 @@
   color: #334155;
   font-weight: 600;
   cursor: pointer;
+  transition: border-color 0.15s ease;
 }
 
 .catalog-select-pill:focus {
@@ -401,9 +411,10 @@
   flex-shrink: 0;
 }
 
-.product-avatar.blue { background-color: #e0f2fe; color: #0284c7; }
-.product-avatar.green { background-color: #dcfce7; color: #15803d; }
-.product-avatar.purple { background-color: #f3e8ff; color: #7e22ce; }
+.product-avatar.plum { background-color: #faf5f8; color: #714b67; border: 1px solid #dfc2d6; }
+.product-avatar.green { background-color: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+.product-avatar.purple { background-color: #faf5f8; color: #714b67; border: 1px solid #dfc2d6; }
+.product-avatar.blue { background-color: #faf5f8; color: #714b67; border: 1px solid #dfc2d6; }
 
 .product-name-bold {
   font-weight: 700;
@@ -462,8 +473,8 @@
 }
 
 .cat-action-btn:hover {
-  color: #0f172a;
-  background-color: #f1f5f9;
+  color: #714b67;
+  background-color: #faf5f8;
 }
 
 /* Table Footer / Pagination */
