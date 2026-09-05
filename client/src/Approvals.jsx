@@ -1,32 +1,19 @@
 import React, { useState } from 'react';
 import { 
   Search, 
-  Upload, 
   Plus, 
-  CheckCircle2, 
-  AlertTriangle, 
   Filter, 
   MoreVertical, 
   ArrowRight, 
-  Info, 
   Check, 
   X, 
-  FileText, 
-  User, 
-  LogOut, 
-  Settings, 
-  Globe, 
-  HelpCircle,
-  Download,
-  RotateCcw,
-  ShieldCheck,
-  Send,
-  MessageSquare
+  Download, 
+  RotateCcw 
 } from 'lucide-react';
+import Navbar from './Navbar';
 import './Approvals.css';
 
 export default function Approvals({ user, onNavigate, onLogout }) {
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [activeStatusFilter, setActiveStatusFilter] = useState('all'); // 'all' | 'pending' | 'returned' | 'approved'
   const [riskFilter, setRiskFilter] = useState('all'); // 'all' | 'HIGH' | 'MEDIUM' | 'LOW'
   const [searchQuery, setSearchQuery] = useState('');
@@ -47,7 +34,7 @@ export default function Approvals({ user, onNavigate, onLogout }) {
   const [newDiscount, setNewDiscount] = useState('');
   const [newStage, setNewStage] = useState('Sales Manager');
 
-  // Approval Records
+  // Approval Records matching mockup
   const [records, setRecords] = useState([
     {
       id: 'Q-1042',
@@ -242,150 +229,14 @@ export default function Approvals({ user, onNavigate, onLogout }) {
         </div>
       )}
 
-      {/* Main Top Header */}
-      <header className="dash-header">
-        <div className="dash-header-inner">
-          <div className="dash-header-left">
-            {/* Logo and Brand Title */}
-            <div className="dash-brand" onClick={() => onNavigate('dashboard')}>
-              <img src="/logo.png" alt="DealFlow360 Logo" className="dash-logo" />
-              <span className="dash-brand-name">
-                <span className="dash-brand-dark">DealFlow</span>
-                <span className="dash-brand-purple">360</span>
-              </span>
-            </div>
-
-            {/* Navigation Tabs */}
-            <nav className="dash-nav-tabs" role="tablist">
-              <button
-                className="nav-tab-item"
-                onClick={() => onNavigate('dashboard')}
-              >
-                <span>Dashboard</span>
-              </button>
-
-              <button
-                className="nav-tab-item"
-                onClick={() => onNavigate('quotations')}
-              >
-                <span>Quotations</span>
-              </button>
-
-              <button
-                className="nav-tab-item active"
-                onClick={() => onNavigate('approvals')}
-              >
-                <span>Approvals</span>
-              </button>
-
-              <button
-                className="nav-tab-item"
-                onClick={() => showToast('Opening Fulfillment module')}
-              >
-                <span>Fulfillment</span>
-              </button>
-
-              <button
-                className="nav-tab-item"
-                onClick={() => showToast('Opening Subscriptions module')}
-              >
-                <span>Subscriptions</span>
-              </button>
-
-              <button
-                className="nav-tab-item"
-                onClick={() => showToast('Opening Invoices module')}
-              >
-                <span>Invoices</span>
-              </button>
-
-              <button
-                className="nav-tab-item"
-                onClick={() => showToast('Deal Health check: 3 flagged deals')}
-              >
-                <span>Deal Health</span>
-                <span className="pulse-dot" style={{ width: '6px', height: '6px', marginLeft: '4px' }}></span>
-              </button>
-
-              <button
-                className="nav-tab-item"
-                onClick={() => showToast('Opening Reports')}
-              >
-                <span>Reports</span>
-              </button>
-
-              <button
-                className="nav-tab-item"
-                onClick={() => showToast('Opening Product Catalog')}
-              >
-                <span>Product</span>
-              </button>
-            </nav>
-          </div>
-
-          {/* Header Right Actions */}
-          <div className="dash-header-right">
-            <button 
-              className="btn-dash-link"
-              onClick={() => showToast('DealFlow360 Priority Support Desk')}
-            >
-              Support
-            </button>
-            <button 
-              className="btn-dash-contact"
-              onClick={() => showToast('Opening enterprise sales desk')}
-            >
-              Contact Sales
-            </button>
-            <button 
-              className="btn-icon-circle"
-              title="Regional Settings"
-              onClick={() => showToast('Global Region: US-East')}
-            >
-              <Globe size={16} />
-            </button>
-
-            {/* User Avatar */}
-            <div className="user-avatar-wrapper">
-              <button 
-                className="user-avatar-btn"
-                onClick={() => setUserMenuOpen(!userMenuOpen)}
-                title="Account Menu"
-              >
-                {user?.initials || 'AM'}
-              </button>
-
-              {userMenuOpen && (
-                <div className="user-dropdown-menu">
-                  <div className="user-dropdown-header">
-                    <div className="user-dropdown-name">{user?.name || 'Alex Morgan'}</div>
-                    <div className="user-dropdown-email">{user?.email || 'alex.morgan@firm-capital.com'}</div>
-                  </div>
-                  <button 
-                    className="dropdown-item" 
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      onNavigate('dashboard');
-                    }}
-                  >
-                    <span>Dashboard</span>
-                  </button>
-                  <button 
-                    className="dropdown-item logout" 
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      if (onLogout) onLogout();
-                    }}
-                  >
-                    <LogOut size={14} />
-                    <span>Sign Out</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      {/* Universal Constant Header */}
+      <Navbar 
+        activePage="approvals" 
+        user={user} 
+        onNavigate={onNavigate} 
+        onLogout={onLogout}
+        onToast={showToast}
+      />
 
       {/* Main Approvals Area */}
       <main className="approvals-main">

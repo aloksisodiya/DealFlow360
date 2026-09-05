@@ -4,31 +4,17 @@ import {
   LayoutGrid, 
   List, 
   Plus, 
-  CheckCircle2, 
-  AlertTriangle, 
-  Eye, 
   Check, 
   X, 
-  Clock, 
   ArrowRight, 
-  Globe, 
-  HelpCircle,
-  FileText,
-  User,
-  Filter,
-  DollarSign,
-  Building2,
-  Calendar,
-  Send,
-  SlidersHorizontal,
-  ChevronRight
+  Send 
 } from 'lucide-react';
+import Navbar from './Navbar';
 import './Quotations.css';
 
 export default function Quotations({ user, onNavigate, onLogout }) {
   const [viewMode, setViewMode] = useState('board'); // 'board' | 'table'
   const [searchQuery, setSearchQuery] = useState('');
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState(null);
   const [isNewQuoteOpen, setIsNewQuoteOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
@@ -182,131 +168,14 @@ export default function Quotations({ user, onNavigate, onLogout }) {
         </div>
       )}
 
-      {/* Main Top Header */}
-      <header className="dash-header">
-        <div className="dash-header-inner">
-          <div className="dash-header-left">
-            {/* Logo and Brand Title */}
-            <div className="dash-brand" onClick={() => onNavigate('dashboard')}>
-              <img src="/logo.png" alt="DealFlow360 Logo" className="dash-logo" />
-              <span className="dash-brand-name">
-                <span className="dash-brand-dark">DealFlow</span>
-                <span className="dash-brand-purple">360</span>
-              </span>
-            </div>
-
-            {/* Navigation Tabs */}
-            <nav className="dash-nav-tabs" role="tablist">
-              <button
-                className="nav-tab-item"
-                onClick={() => onNavigate('dashboard')}
-              >
-                <span>Dashboard</span>
-              </button>
-
-              <button
-                className="nav-tab-item active"
-                onClick={() => onNavigate('quotations')}
-              >
-                <span>Quotations</span>
-              </button>
-
-              <button
-                className="nav-tab-item"
-                onClick={() => onNavigate('approvals')}
-              >
-                <span>Approvals</span>
-              </button>
-
-              <button
-                className="nav-tab-item"
-                onClick={() => showToast('Opening Fulfillment')}
-              >
-                <span>Fulfillment</span>
-              </button>
-
-              <button
-                className="nav-tab-item"
-                onClick={() => showToast('Opening Subscriptions')}
-              >
-                <span>Subscriptions</span>
-              </button>
-
-              <button
-                className="nav-tab-item"
-                onClick={() => showToast('Opening Invoices')}
-              >
-                <span>Invoices</span>
-              </button>
-            </nav>
-          </div>
-
-          {/* Header Right Actions */}
-          <div className="dash-header-right">
-            <button 
-              className="btn-dash-link"
-              onClick={() => showToast('Connecting to DealFlow360 support desk')}
-            >
-              Support
-            </button>
-            <button 
-              className="btn-dash-contact"
-              onClick={() => showToast('Opening enterprise sales contact')}
-            >
-              Contact Sales
-            </button>
-            <button 
-              className="btn-icon-circle"
-              title="Help & Info"
-              onClick={() => showToast('DealFlow360 Quotations Engine v2.4.0')}
-            >
-              <HelpCircle size={16} />
-            </button>
-
-            {/* User Avatar with Full Name */}
-            <div className="user-avatar-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <button 
-                className="user-avatar-btn"
-                onClick={() => setUserMenuOpen(!userMenuOpen)}
-                title="Account Menu"
-              >
-                {user?.initials || 'AM'}
-              </button>
-              <span style={{ fontSize: '13.5px', fontWeight: 600, color: '#334155', cursor: 'pointer' }} onClick={() => setUserMenuOpen(!userMenuOpen)}>
-                {user?.name || 'Alex Morgan'}
-              </span>
-
-              {userMenuOpen && (
-                <div className="user-dropdown-menu">
-                  <div className="user-dropdown-header">
-                    <div className="user-dropdown-name">{user?.name || 'Alex Morgan'}</div>
-                    <div className="user-dropdown-email">{user?.email || 'alex.morgan@firm-capital.com'}</div>
-                  </div>
-                  <button 
-                    className="dropdown-item" 
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      onNavigate('dashboard');
-                    }}
-                  >
-                    <LayoutGrid size={14} />
-                    <span>Go to Dashboard</span>
-                  </button>
-                  <button 
-                    className="dropdown-item logout" 
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      if (onLogout) onLogout();
-                    }}
-                  >
-                    <span>Sign Out</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      {/* Universal Constant Header */}
+      <Navbar 
+        activePage="quotations" 
+        user={user} 
+        onNavigate={onNavigate} 
+        onLogout={onLogout}
+        onToast={showToast}
+      />
 
       {/* Main Quotations Area */}
       <main className="quote-main">

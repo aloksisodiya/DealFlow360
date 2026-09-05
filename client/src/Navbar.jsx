@@ -1,0 +1,250 @@
+import React, { useState } from 'react';
+import { 
+  Home, 
+  Globe, 
+  HelpCircle, 
+  LogOut, 
+  Settings, 
+  LayoutGrid, 
+  FileText, 
+  CheckSquare, 
+  X 
+} from 'lucide-react';
+import './Navbar.css';
+
+export default function Navbar({ activePage, user, onNavigate, onLogout, onToast }) {
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [activeModal, setActiveModal] = useState(null); // 'contact' | 'support'
+
+  const notify = (msg) => {
+    if (onToast) onToast(msg);
+  };
+
+  return (
+    <>
+      <header className="app-nav-header">
+        <div className="app-nav-inner">
+          <div className="app-nav-left">
+            {/* Logo and Brand Title */}
+            <div 
+              className="app-nav-brand" 
+              onClick={() => onNavigate && onNavigate('dashboard')}
+            >
+              <img src="/logo.png" alt="DealFlow360 Logo" className="app-nav-logo" />
+              <span className="app-nav-brand-name">
+                <span className="app-nav-brand-dark">DealFlow</span>
+                <span className="app-nav-brand-purple">360</span>
+              </span>
+            </div>
+
+            {/* Standardized Navigation Tabs Across All Pages */}
+            <nav className="app-nav-tabs" role="tablist">
+              <button
+                className={`nav-tab-button ${activePage === 'dashboard' ? 'active' : ''}`}
+                onClick={() => onNavigate && onNavigate('dashboard')}
+              >
+                <Home size={15} className="tab-icon" />
+                <span>Dashboard</span>
+              </button>
+
+              <button
+                className={`nav-tab-button ${activePage === 'quotations' ? 'active' : ''}`}
+                onClick={() => onNavigate && onNavigate('quotations')}
+              >
+                <span>Quotations</span>
+              </button>
+
+              <button
+                className={`nav-tab-button ${activePage === 'approvals' ? 'active' : ''}`}
+                onClick={() => onNavigate && onNavigate('approvals')}
+              >
+                <span>Approvals</span>
+              </button>
+
+              <button
+                className={`nav-tab-button ${activePage === 'fulfillment' ? 'active' : ''}`}
+                onClick={() => notify('Opening Fulfillment module')}
+              >
+                <span>Fulfillment</span>
+              </button>
+
+              <button
+                className={`nav-tab-button ${activePage === 'subscriptions' ? 'active' : ''}`}
+                onClick={() => notify('Opening Subscriptions module')}
+              >
+                <span>Subscriptions</span>
+              </button>
+
+              <button
+                className={`nav-tab-button ${activePage === 'invoices' ? 'active' : ''}`}
+                onClick={() => notify('Opening Invoices module')}
+              >
+                <span>Invoices</span>
+              </button>
+
+              <button
+                className={`nav-tab-button ${activePage === 'dealhealth' ? 'active' : ''}`}
+                onClick={() => notify('Deal Health: 3 deals flagged for review')}
+              >
+                <span>Deal Health</span>
+                <span className="nav-tab-badge">3</span>
+              </button>
+
+              <button
+                className={`nav-tab-button ${activePage === 'reports' ? 'active' : ''}`}
+                onClick={() => notify('Opening Analytics & Reports')}
+              >
+                <span>Reports</span>
+              </button>
+
+              <button
+                className={`nav-tab-button ${activePage === 'product' ? 'active' : ''}`}
+                onClick={() => notify('Opening Product Catalog')}
+              >
+                <span>Product</span>
+              </button>
+            </nav>
+          </div>
+
+          {/* Header Right Actions */}
+          <div className="app-nav-right">
+            <button 
+              className="btn-nav-link"
+              onClick={() => setActiveModal('support')}
+            >
+              Support
+            </button>
+            <button 
+              className="btn-nav-contact"
+              onClick={() => setActiveModal('contact')}
+            >
+              Contact Sales
+            </button>
+            <button 
+              className="btn-nav-icon-circle"
+              title="Global Regional Settings"
+              onClick={() => notify('Region: US East (N. Virginia)')}
+            >
+              <Globe size={16} />
+            </button>
+
+            {/* User Avatar with Name and Dropdown */}
+            <div className="nav-avatar-wrapper">
+              <button 
+                className="nav-avatar-btn"
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                title="Account Menu"
+              >
+                {user?.initials || 'AM'}
+              </button>
+              <span 
+                className="nav-user-label" 
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+              >
+                {user?.name || 'Alex Morgan'}
+              </span>
+
+              {userMenuOpen && (
+                <div className="nav-dropdown-menu">
+                  <div className="nav-dropdown-header">
+                    <div className="nav-dropdown-name">{user?.name || 'Alex Morgan'}</div>
+                    <div className="nav-dropdown-email">{user?.email || 'alex.morgan@firm-capital.com'}</div>
+                  </div>
+                  <button 
+                    className="nav-dropdown-item" 
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      if (onNavigate) onNavigate('dashboard');
+                    }}
+                  >
+                    <Home size={14} />
+                    <span>Dashboard</span>
+                  </button>
+                  <button 
+                    className="nav-dropdown-item" 
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      if (onNavigate) onNavigate('quotations');
+                    }}
+                  >
+                    <FileText size={14} />
+                    <span>Quotations</span>
+                  </button>
+                  <button 
+                    className="nav-dropdown-item" 
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      if (onNavigate) onNavigate('approvals');
+                    }}
+                  >
+                    <CheckSquare size={14} />
+                    <span>Approvals</span>
+                  </button>
+                  <button 
+                    className="nav-dropdown-item logout" 
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      if (onLogout) onLogout();
+                    }}
+                  >
+                    <LogOut size={14} />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Support & Contact Modals */}
+      {activeModal && (
+        <div className="modal-overlay" onClick={() => setActiveModal(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
+                {activeModal === 'contact' ? 'Contact Enterprise Sales' : 'DealFlow360 Priority Support'}
+              </h3>
+              <button className="modal-close-btn" onClick={() => setActiveModal(null)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {activeModal === 'contact' ? (
+              <div>
+                <p style={{ fontSize: '13.5px', color: '#64748b', marginBottom: '14px' }}>
+                  Speak directly with our enterprise solutions team: sales@dealflow360.io or +1 (800) 555-DEAL.
+                </p>
+                <button 
+                  type="button" 
+                  className="btn-new-quote"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  onClick={() => {
+                    notify('Sales demo requested. An advisor will contact you.');
+                    setActiveModal(null);
+                  }}
+                >
+                  Request Consultation
+                </button>
+              </div>
+            ) : (
+              <div>
+                <p style={{ fontSize: '13.5px', color: '#64748b', marginBottom: '14px' }}>
+                  24/7 dedicated support desk: help@dealflow360.io (SLA: &lt; 15 mins for Enterprise tier).
+                </p>
+                <button 
+                  type="button" 
+                  className="btn-dash-secondary"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  onClick={() => setActiveModal(null)}
+                >
+                  Close
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
