@@ -1,7 +1,41 @@
 import db from "../config/db.js";
 
-export async function listInvoices({ status, search } = {}) {
+export async function listInvoices({ status, search, role, workEmail, adminId } = {}) {
+  const normRole = (role || "").toLowerCase();
+  const isCustomer = normRole.includes("customer") || normRole.includes("client");
+
   let query = db("invoices").orderBy("created_at", "desc");
+
+  if (isCustomer) {
+    let customerEmail = workEmail ? workEmail.trim().toLowerCase() : null;
+    let customerName = null;
+
+    if (adminId) {
+      const user = await db("admins").where({ id: adminId }).select("work_email", "profile").first();
+      if (user) {
+        if (!customerEmail && user.work_email) customerEmail = user.work_email.trim().toLowerCase();
+        try {
+          const prof = typeof user.profile === "string" ? JSON.parse(user.profile || "{}") : (user.profile || {});
+          customerName = prof?.name ? prof.name.trim().toLowerCase() : null;
+        } catch (e) {}
+      }
+    }
+
+    if (!customerEmail && !customerName) {
+      return [];
+    }
+
+    query = query.where(function() {
+      if (customerEmail) {
+        const handle = customerEmail.split('@')[0].toLowerCase();
+        this.whereRaw("LOWER(COALESCE(customer_email, '')) = ?", [customerEmail])
+            .orWhereRaw("LOWER(COALESCE(customer_name, '')) LIKE ?", [`%${handle}%`]);
+      }
+      if (customerName) {
+        this.orWhereRaw("LOWER(COALESCE(customer_name, '')) LIKE ?", [`%${customerName}%`]);
+      }
+    });
+  }
 
   if (status && status !== "All" && status !== "all") {
     query = query.where({ status });

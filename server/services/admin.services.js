@@ -41,16 +41,30 @@ export async function createManagedAccount({
   role,
   profile = {},
 }) {
+  const normalizedEmail = (workEmail || '').trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new Error("Work email address is required");
+  }
+
+  // Pre-check for existing account with the same email (case-insensitive)
+  const existing = await db("admins")
+    .whereRaw("LOWER(work_email) = ?", [normalizedEmail])
+    .first();
+
+  if (existing) {
+    throw new Error("An account with this email address already exists. Please log in instead.");
+  }
+
   const passwordHash = await bcrypt.hash(password, 12);
 
   try {
     const [admin] = await db("admins")
       .insert({
-        work_email: workEmail,
+        work_email: normalizedEmail,
         password_hash: passwordHash,
         must_change_password: true,
         is_active: true,
-        role,
+        role: role || "customer",
         profile: JSON.stringify(profile),
       })
       .returning([
@@ -65,7 +79,7 @@ export async function createManagedAccount({
     return toAdminResponse(admin);
   } catch (error) {
     if (error.code === "23505")
-      throw new Error("Work email is already registered");
+      throw new Error("An account with this email address already exists. Please log in instead.");
     throw error;
   }
 }
@@ -77,18 +91,21 @@ export async function signupAdmin() {
 }
 
 export async function loginAdmin(workEmail, password) {
-  const admin = await db("admins").where({ work_email: workEmail }).first();
+  const normalizedEmail = (workEmail || '').trim().toLowerCase();
+  const admin = await db("admins")
+    .whereRaw("LOWER(work_email) = ?", [normalizedEmail])
+    .first();
 
   if (
     !admin ||
-    !hasRoleEmailFormat(workEmail, admin.role) ||
+    !hasRoleEmailFormat(normalizedEmail, admin.role) ||
     !(await bcrypt.compare(password, admin.password_hash))
   ) {
     throw new Error("Invalid work email or password");
   }
 
   if (!admin.is_active) {
-    throw new Error("Admin account is inactive");
+    throw new Error("Account is inactive");
   }
 
   return {

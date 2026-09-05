@@ -3,7 +3,13 @@ import * as invoiceService from "../services/invoices.services.js";
 export async function getInvoices(req, res) {
   try {
     const { status, search } = req.query;
-    const invoices = await invoiceService.listInvoices({ status, search });
+    const invoices = await invoiceService.listInvoices({
+      status,
+      search,
+      role: req.auth?.role,
+      workEmail: req.auth?.workEmail,
+      adminId: req.auth?.adminId,
+    });
     return res.json({ success: true, data: invoices });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });

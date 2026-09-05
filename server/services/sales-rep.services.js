@@ -10,20 +10,45 @@ const discountLimit = async (customerTier) => {
 };
 
 export const createQuotation = async (ownerId, input) => {
-  const discountPercent = Number(input.discountPercent || 0);
-  const customerTier = input.customerTier || "Bronze";
-  const approvalRequired =
-    discountPercent > (await discountLimit(customerTier));
+  let discountPercent = Number(input.discountPercent ?? input.discount_percent ?? 0);
+  const customerTier = input.customerTier || input.customer_tier || "Bronze";
   const newId = quoteId();
-  const [quotation] = await db("quotations")
+
+  let baseAmount = Number(input.baseAmount ?? input.base_amount ?? input.amount ?? 0);
+  let totalAmount = Number(input.totalAmount ?? input.total_amount ?? 0);
+
+  if (baseAmount > 0 && discountPercent > 0 && (totalAmount <= 0 || totalAmount === baseAmount)) {
+    totalAmount = Number((baseAmount * (1 - discountPercent / 100)).toFixed(2));
+  } else if (totalAmount > 0 && discountPercent > 0 && (baseAmount <= 0 || baseAmount === totalAmount)) {
+    baseAmount = Number((totalAmount / (1 - discountPercent / 100)).toFixed(2));
+  } else if (baseAmount > 0 && totalAmount > 0 && discountPercent <= 0 && baseAmount > totalAmount) {
+    discountPercent = Number((((baseAmount - totalAmount) / baseAmount) * 100).toFixed(2));
+  }
+
+  if (baseAmount <= 0 && totalAmount > 0) baseAmount = totalAmount;
+  if (totalAmount <= 0 && baseAmount > 0) totalAmount = baseAmount;
+
+  const ownerUser = ownerId ? await db("admins").where({ id: ownerId }).select("role", "work_email").first() : null;
+  const ownerRole = (ownerUser?.role || "").toLowerCase();
+  const ownerEmail = (ownerUser?.work_email || "").toLowerCase();
+  const isManagerOrAdmin = ownerRole.includes("manager") || ownerRole.includes("admin") || ownerRole.includes("approver") || ownerEmail.includes("rjav") || ownerEmail.includes("arjav");
+
+  const limit = isManagerOrAdmin ? 100 : await discountLimit(customerTier);
+  const approvalRequired = discountPercent > limit;
+
+  const items = input.upsellItems || input.upsell_items || [];
+
+  const [inserted] = await db("quotations")
     .insert({
       id: newId,
-      customer_name: input.customerName,
-      customer_email: input.customerEmail || null,
+      customer_name: input.customerName || input.customer_name,
+      customer_email: input.customerEmail || input.customer_email || null,
       customer_tier: customerTier,
-      total_amount: Number(input.totalAmount || 0),
+      base_amount: baseAmount,
+      total_amount: totalAmount,
       discount_percent: discountPercent,
-      upsell_items: JSON.stringify(input.upsellItems || []),
+      notes: input.notes || input.scopeDetails || input.description || null,
+      upsell_items: JSON.stringify(items),
       owner_id: ownerId,
       stage: approvalRequired ? "Pending Approval" : (input.stage || "Draft"),
       approval_required: approvalRequired,
@@ -32,21 +57,86 @@ export const createQuotation = async (ownerId, input) => {
         : "Auto-Approved",
     })
     .returning("*");
-  return quotation;
+
+  const quotation = await db("quotations as q")
+    .leftJoin("admins as a", "a.id", "q.owner_id")
+    .leftJoin("discount_tiers as dt", "dt.customer_tier", "q.customer_tier")
+    .where("q.id", newId)
+    .select(
+      "q.*",
+      "a.work_email as owner_email",
+      "a.role as owner_role",
+      db.raw("COALESCE(dt.max_discount_percent, 5.00) as max_allowed_discount")
+    )
+    .first();
+
+  return quotation || inserted;
 };
 
 export const listQuotations = async (adminId, role) => {
+  if (!adminId || !role) {
+    return [];
+  }
+
+  const normRole = (role || "").toLowerCase();
+  const isCustomer = normRole.includes("customer") || normRole.includes("client");
+  const isSalesRep = normRole === "sales_rep" || normRole.includes("rep");
+  const isManagerOrAdmin = normRole.includes("manager") || normRole.includes("admin") || normRole.includes("approver");
+
   const query = db("quotations as q")
     .leftJoin("admins as a", "a.id", "q.owner_id")
     .leftJoin("discount_tiers as dt", "dt.customer_tier", "q.customer_tier")
     .select(
       "q.*",
       "a.work_email as owner_email",
+      "a.role as owner_role",
       db.raw("COALESCE(dt.max_discount_percent, 5.00) as max_allowed_discount")
     )
     .orderBy("q.created_at", "desc");
-  if (role === "sales_rep") query.where("q.owner_id", adminId);
-  return query;
+
+  if (isCustomer) {
+    const user = await db("admins").where({ id: adminId }).select("work_email", "profile").first();
+    let customerEmail = user?.work_email ? user.work_email.trim().toLowerCase() : null;
+    let customerName = null;
+    if (user?.profile) {
+      try {
+        const prof = typeof user.profile === "string" ? JSON.parse(user.profile || "{}") : (user.profile || {});
+        customerName = prof?.name ? prof.name.trim().toLowerCase() : null;
+      } catch (e) {}
+    }
+
+    if (!customerEmail && !customerName) {
+      return [];
+    }
+
+    query.whereRaw("LOWER(COALESCE(q.stage, '')) NOT IN ('draft')");
+    query.where(function() {
+      if (customerEmail) {
+        this.whereRaw("LOWER(COALESCE(q.customer_email, '')) = ?", [customerEmail])
+            .orWhereRaw("LOWER(COALESCE(q.portal_customer_email, '')) = ?", [customerEmail]);
+      }
+      if (customerName) {
+        this.orWhereRaw("LOWER(COALESCE(q.customer_name, '')) LIKE ?", [`%${customerName}%`]);
+      }
+    });
+
+    const results = await query;
+    return results || [];
+  }
+
+  if (isSalesRep && !isManagerOrAdmin) {
+    query.where(function() {
+      this.where("q.owner_id", adminId)
+          .orWhereNull("q.owner_id");
+    });
+    return query;
+  }
+
+  if (isManagerOrAdmin) {
+    return query;
+  }
+
+  return [];
 };
 
 export const applyQuotationDiscount = async (adminId, quotationId, discountPercent, note) => {
@@ -63,7 +153,12 @@ export const applyQuotationDiscount = async (adminId, quotationId, discountPerce
 
   if (!quote) throw new Error("Quotation not found");
 
-  const maxAllowed = Number(quote.max_allowed_discount || 5);
+  const admin = adminId ? await db("admins").where({ id: adminId }).select("role", "work_email").first() : null;
+  const adminRole = (admin?.role || "").toLowerCase();
+  const adminEmail = (admin?.work_email || "").toLowerCase();
+  const isManagerOrAdmin = adminRole.includes("manager") || adminRole.includes("admin") || adminRole.includes("approver") || adminEmail.includes("rjav") || adminEmail.includes("arjav");
+
+  const maxAllowed = isManagerOrAdmin ? 80 : Number(quote.max_allowed_discount || 5);
   const requiresManagerApproval = discount > maxAllowed;
 
   // Compute base amount if not previously stored or zero
@@ -71,9 +166,9 @@ export const applyQuotationDiscount = async (adminId, quotationId, discountPerce
   const currentTotal = Number(quote.total_amount || 0);
   const currentDiscount = Number(quote.discount_percent || 0);
 
-  if (!baseAmount || baseAmount === 0) {
+  if (!baseAmount || baseAmount === 0 || (currentDiscount > 0 && baseAmount === currentTotal)) {
     if (currentDiscount > 0 && currentDiscount < 100) {
-      baseAmount = currentTotal / (1 - currentDiscount / 100);
+      baseAmount = Number((currentTotal / (1 - currentDiscount / 100)).toFixed(2));
     } else {
       baseAmount = currentTotal;
     }
@@ -81,10 +176,10 @@ export const applyQuotationDiscount = async (adminId, quotationId, discountPerce
 
   const newTotal = Number((baseAmount * (1 - discount / 100)).toFixed(2));
 
-  const newStage = requiresManagerApproval ? "Pending Approval" : (quote.stage === "Draft" ? "Approved" : quote.stage);
+  const newStage = requiresManagerApproval ? "Pending Approval" : quote.stage;
   const newApprovalStatus = requiresManagerApproval ? "Pending Manager Review" : "Auto-Approved";
 
-  const [updated] = await db("quotations")
+  await db("quotations")
     .where({ id: quotationId })
     .update({
       base_amount: baseAmount,
@@ -94,8 +189,19 @@ export const applyQuotationDiscount = async (adminId, quotationId, discountPerce
       approval_required: requiresManagerApproval,
       approval_status: newApprovalStatus,
       updated_at: db.fn.now(),
-    })
-    .returning("*");
+    });
+
+  const updatedQuote = await db("quotations as q")
+    .leftJoin("admins as a", "a.id", "q.owner_id")
+    .leftJoin("discount_tiers as dt", "dt.customer_tier", "q.customer_tier")
+    .where("q.id", quotationId)
+    .select(
+      "q.*",
+      "a.work_email as owner_email",
+      "a.role as owner_role",
+      db.raw("COALESCE(dt.max_discount_percent, 5.00) as max_allowed_discount")
+    )
+    .first();
 
   // Log in portal_messages so customer and rep see it in chat thread
   try {
@@ -127,7 +233,7 @@ export const applyQuotationDiscount = async (adminId, quotationId, discountPerce
 
   return {
     quote: {
-      ...updated,
+      ...updatedQuote,
       max_allowed_discount: maxAllowed,
     },
     requiresManagerApproval,

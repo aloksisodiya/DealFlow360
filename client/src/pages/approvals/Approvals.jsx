@@ -411,7 +411,7 @@ export default function Approvals({ user, onNavigate, onLogout }) {
           {/* Table Footer with Pagination */}
           <div className="table-pagination-footer">
             <div>
-              Showing <strong>1</strong> to <strong>{filteredRecords.length}</strong> of <strong>16</strong> approval records
+              Showing <strong>{filteredRecords.length > 0 ? 1 : 0}</strong> to <strong>{filteredRecords.length}</strong> of <strong>{records.length}</strong> approval records
             </div>
 
             <div className="pagination-controls">
@@ -423,11 +423,9 @@ export default function Approvals({ user, onNavigate, onLogout }) {
                 Previous
               </button>
               <button className="btn-page-number active">1</button>
-              <button className="btn-page-number" onClick={() => showToast('Viewing Page 2')}>2</button>
-              <button className="btn-page-number" onClick={() => showToast('Viewing Page 3')}>3</button>
               <button 
                 className="btn-page-nav"
-                onClick={() => showToast('Viewing next page records')}
+                disabled={true}
               >
                 Next
               </button>

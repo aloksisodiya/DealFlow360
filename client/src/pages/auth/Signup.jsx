@@ -80,7 +80,15 @@ export default function Signup({ onSignupSuccess, onSwitchToLogin, onOpenTerms, 
         if (onToast) onToast(`Account created successfully! Welcome, ${firstName}!`);
         onSignupSuccess(result.user);
       } else {
-        if (onToast) onToast(result.message || 'Registration failed.');
+        const isConflict = result.message?.toLowerCase().includes('already registered') || result.message?.toLowerCase().includes('conflict');
+        if (isConflict) {
+          if (onToast) onToast('An account with this email is already registered. Redirecting to Sign In...');
+          setTimeout(() => {
+            if (onSwitchToLogin) onSwitchToLogin();
+          }, 1500);
+        } else {
+          if (onToast) onToast(result.message || 'Registration failed.');
+        }
       }
     } catch {
       if (onToast) onToast('An unexpected error occurred during account creation.');

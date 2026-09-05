@@ -3,7 +3,13 @@ import * as subService from "../services/subscriptions.services.js";
 export async function getSubscriptions(req, res) {
   try {
     const { status, search } = req.query;
-    const subs = await subService.listSubscriptions({ status, search });
+    const subs = await subService.listSubscriptions({
+      status,
+      search,
+      role: req.auth?.role,
+      workEmail: req.auth?.workEmail,
+      adminId: req.auth?.adminId,
+    });
     return res.json({ success: true, data: subs });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });

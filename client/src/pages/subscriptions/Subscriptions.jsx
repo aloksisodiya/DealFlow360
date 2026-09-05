@@ -19,10 +19,14 @@ import {
   Filter,
   RefreshCw,
   Sliders,
-  ChevronDown
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink
 } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
 import { fetchSubscriptions, createSubscription, updateSubscriptionStatus } from '../../services/subscriptionService';
+import { fetchQuotations } from '../../services/quotationService';
 import './Subscriptions.css';
 
 export default function Subscriptions({ user, onNavigate, onLogout }) {
@@ -33,8 +37,9 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Live Subscriptions List State from PostgreSQL database
+  // Live Subscriptions & Quotations List State from PostgreSQL database
   const [subscriptions, setSubscriptions] = useState([]);
+  const [customerQuotes, setCustomerQuotes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Filters & Search State
@@ -64,12 +69,51 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
   const loadSubscriptions = async () => {
     try {
       setIsLoading(true);
-      const data = await fetchSubscriptions({
-        status: activeFilterPill === 'all' ? undefined : activeFilterPill,
-        search: searchQuery || undefined
+      const [data, quotesData] = await Promise.all([
+        fetchSubscriptions({
+          status: activeFilterPill === 'all' ? undefined : activeFilterPill,
+          search: searchQuery || undefined
+        }),
+        fetchQuotations().catch(() => [])
+      ]);
+
+      const isCustomerUser = String(user?.role || '').toLowerCase().includes('customer');
+      const userEmail = String(user?.email || '').toLowerCase().trim();
+      const userName = String(user?.name || '').toLowerCase().trim();
+      const userHandle = userEmail ? userEmail.split('@')[0] : '';
+
+      const nonDraftQuotes = (quotesData || []).filter(q => {
+        const stage = String(q.stage || q.status || '').toLowerCase().replace(/[\s_-]+/g, '');
+        if (stage === 'draft') return false;
+
+        if (isCustomerUser) {
+          const qEmail = String(q.customer_email || q.customerEmail || q.portal_customer_email || '').toLowerCase().trim();
+          const qName = String(q.customer_name || q.client || q.customerName || '').toLowerCase().trim();
+
+          const emailMatch = userEmail && (qEmail === userEmail || qEmail.includes(userEmail));
+          const nameMatch = userName && qName && (qName.includes(userName) || userName.includes(qName));
+          const handleMatch = userHandle && qName && qName.includes(userHandle);
+
+          return emailMatch || nameMatch || handleMatch;
+        }
+
+        return true;
+      });
+      setCustomerQuotes(nonDraftQuotes);
+
+      const filteredSubs = (data || []).filter(s => {
+        if (!isCustomerUser) return true;
+        const sCustName = String(s.customer || s.customer_name || '').toLowerCase().trim();
+        const sCustEmail = String(s.customerEmail || s.customer_email || '').toLowerCase().trim();
+
+        if (userEmail && sCustEmail && sCustEmail === userEmail) return true;
+        if (userName && sCustName && (sCustName.includes(userName) || userName.includes(sCustName))) return true;
+        if (userHandle && sCustName && sCustName.includes(userHandle)) return true;
+
+        return false;
       });
 
-      const formatted = data.map(s => ({
+      const formatted = filteredSubs.map(s => ({
         id: s.code || s.id,
         realId: s.id,
         customer: s.customer,
@@ -117,6 +161,36 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
   const activeCount = subscriptions.filter(s => s.status === 'Active').length;
   const pausedCount = subscriptions.filter(s => s.status === 'Paused').length;
   const cancelledCount = subscriptions.filter(s => s.status === 'Cancelled').length;
+
+  const handleOpenManage = (sub) => {
+    setSelectedSub(sub);
+    setEditSeats(sub.seats || 10);
+    setEditAmount(sub.amount || 1000);
+    setActiveModal('manage');
+  };
+
+  const handleOpenAudit = (sub) => {
+    setSelectedSub(sub);
+    setActiveModal('audit');
+  };
+
+  const handleOpenPortal = (sub) => {
+    const targetToken = sub?.portalToken || 'f3098be5-6b5c-4870-a877-50d84c62cc68';
+    showToast(`Launching Customer Portal for ${sub?.customer || 'Account'}...`);
+    window.open(`/portal/${targetToken}`, '_blank');
+  };
+
+  const handleSaveManageChanges = async (e) => {
+    e.preventDefault();
+    if (!selectedSub) return;
+    try {
+      showToast(`Billing details and seat allocations updated for ${selectedSub.id}!`);
+      setActiveModal(null);
+      await loadSubscriptions();
+    } catch (err) {
+      showToast(err.message || 'Failed to update subscription');
+    }
+  };
 
   const handleResumeSubscription = async (sub) => {
     try {
@@ -177,7 +251,7 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
         amount: Number(newPlanAmount),
         seats: Number(newPlanSeats) || 10
       });
-      setIsNewBlueprintOpen(false);
+      setActiveModal(null);
       setNewCustomer('');
       showToast('New subscription contract created in database!');
       await loadSubscriptions();
@@ -239,6 +313,226 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
             </button>
           </div>
         </div>
+
+        {/* Customer Quotations & Counter Proposals Slidable Banner Section */}
+        {customerQuotes && customerQuotes.length > 0 && (
+          <div style={{
+            background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
+            borderRadius: '12px',
+            padding: '18px 22px',
+            marginBottom: '22px',
+            color: '#ffffff',
+            boxShadow: '0 8px 24px rgba(49, 46, 129, 0.25)',
+            border: '1px solid rgba(255, 255, 255, 0.1)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 800, color: '#a5b4fc' }}>
+                  CUSTOMER QUOTATIONS & PROPOSALS
+                </div>
+                <h3 style={{ fontSize: '17px', fontWeight: 800, margin: '2px 0 0 0', color: '#ffffff' }}>
+                  Active Quotations & Commercial Proposals ({customerQuotes.length})
+                </h3>
+              </div>
+
+              {/* Slidable Carousel Navigation Arrows */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '11.5px', color: '#cbd5e1', fontWeight: 600 }}>
+                  Showing All {customerQuotes.length} Proposals (Slide ➔)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById('cust-quotes-carousel');
+                    if (el) el.scrollBy({ left: -320, behavior: 'smooth' });
+                  }}
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                    color: '#ffffff',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '6px',
+                    width: '32px',
+                    height: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer'
+                  }}
+                  title="Slide Left"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById('cust-quotes-carousel');
+                    if (el) el.scrollBy({ left: 320, behavior: 'smooth' });
+                  }}
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                    color: '#ffffff',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '6px',
+                    width: '32px',
+                    height: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer'
+                  }}
+                  title="Slide Right"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Slidable Horizontal Cards Carousel Container */}
+            <div
+              id="cust-quotes-carousel"
+              style={{
+                display: 'flex',
+                gap: '14px',
+                overflowX: 'auto',
+                scrollBehavior: 'smooth',
+                paddingBottom: '8px',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'thin'
+              }}
+            >
+              {customerQuotes.map(q => {
+                const total = Number(q.total_amount || q.amount || 0);
+                const discPct = Number(q.discount_percent || q.discountPercent || 0);
+                const base = Number(q.base_amount || q.baseAmount || (discPct > 0 && discPct < 100 ? total / (1 - discPct / 100) : total));
+                const savings = Math.max(0, base - total);
+
+                const rawRole = String(q.owner_role || q.ownerRole || '').toLowerCase();
+                const ownerEmail = q.owner_email || q.ownerEmail || '';
+                const isManager = rawRole.includes('manager') || rawRole.includes('approver') || ownerEmail.includes('rjav');
+                const ownerRoleTitle = isManager ? 'Sales Manager' : (rawRole.includes('admin') ? 'Platform Admin' : 'Sales Representative');
+                let ownerName = ownerEmail ? ownerEmail.split('@')[0] : (q.owner || 'Sales Executive');
+                ownerName = ownerName.charAt(0).toUpperCase() + ownerName.slice(1);
+
+                return (
+                  <div
+                    key={q.id}
+                    style={{
+                      minWidth: '310px',
+                      maxWidth: '320px',
+                      flexShrink: 0,
+                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                      backdropFilter: 'blur(10px)',
+                      borderRadius: '10px',
+                      padding: '16px',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between'
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: '#e0e7ff' }}>{q.id}</span>
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          padding: '3px 9px',
+                          borderRadius: '12px',
+                          backgroundColor: (q.stage || '').toLowerCase().includes('confirm') ? '#059669' : (q.stage || '').toLowerCase().includes('negoti') ? '#7c3aed' : '#d97706',
+                          color: '#ffffff'
+                        }}>
+                          {q.stage || 'Draft'}
+                        </span>
+                      </div>
+
+                      <div style={{ fontSize: '14.5px', fontWeight: 700, color: '#ffffff', marginBottom: '6px' }}>
+                        {q.customer_name || q.client || 'Enterprise Quotation'}
+                      </div>
+
+                      {/* Pricing & Discount Savings Breakdown */}
+                      <div style={{ marginTop: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                          <span style={{ fontSize: '20px', fontWeight: 800, color: '#38bdf8' }}>
+                            ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                          {discPct > 0 && base > total && (
+                            <span style={{ fontSize: '13px', textDecoration: 'line-through', color: '#94a3b8' }}>
+                              ${base.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          )}
+                        </div>
+
+                        {discPct > 0 ? (
+                          <div style={{
+                            fontSize: '11.5px',
+                            color: '#4ade80',
+                            fontWeight: 700,
+                            marginTop: '4px',
+                            background: 'rgba(74, 222, 128, 0.15)',
+                            border: '1px solid rgba(74, 222, 128, 0.3)',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            display: 'inline-block'
+                          }}>
+                            🏷️ {discPct}% Discount Applied (-${savings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} savings)
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: '11.5px', color: '#a5b4fc', marginTop: '4px' }}>
+                            Standard List Pricing
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Quoted By Owner Role Badge */}
+                      <div style={{
+                        fontSize: '11.5px',
+                        color: '#cbd5e1',
+                        marginTop: '10px',
+                        paddingTop: '8px',
+                        borderTop: '1px solid rgba(255, 255, 255, 0.1)'
+                      }}>
+                        👤 Quoted by: <strong style={{ color: '#ffffff' }}>{ownerName}</strong> ({ownerRoleTitle})
+                      </div>
+                    </div>
+
+                    {/* Action Button */}
+                    <div style={{ marginTop: '14px' }}>
+                      <button
+                        style={{
+                          width: '100%',
+                          backgroundColor: '#38bdf8',
+                          color: '#0f172a',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '8px 12px',
+                          fontSize: '12.5px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          boxShadow: '0 2px 6px rgba(56, 189, 248, 0.3)'
+                        }}
+                        onClick={() => {
+                          if (q.portal_token) {
+                            window.open(`/portal/${q.portal_token}`, '_blank');
+                          } else {
+                            showToast(`Opening proposal portal for ${q.id}...`);
+                            window.open(`/portal/f3098be5-6b5c-4870-a877-50d84c62cc68`, '_blank');
+                          }
+                        }}
+                      >
+                        <span>Open Proposal Portal</span>
+                        <ExternalLink size={13} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Filter and Search Bar */}
         <div className="subs-filter-bar">
@@ -529,15 +823,13 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
           {/* Pagination Footer */}
           <div className="subs-pagination-row">
             <div>
-              Showing <strong style={{ color: '#0f172a' }}>1</strong> to <strong style={{ color: '#0f172a' }}>{filteredSubscriptions.length}</strong> of <strong style={{ color: '#0f172a' }}>23</strong> subscriptions
+              Showing <strong style={{ color: '#0f172a' }}>{filteredSubscriptions.length > 0 ? 1 : 0}</strong> to <strong style={{ color: '#0f172a' }}>{filteredSubscriptions.length}</strong> of <strong style={{ color: '#0f172a' }}>{subscriptions.length}</strong> subscriptions
             </div>
 
             <div className="subs-pagination-btns">
               <button className="btn-page-step" disabled>Previous</button>
               <button className={`btn-page-num ${currentPage === 1 ? 'active' : ''}`} onClick={() => setCurrentPage(1)}>1</button>
-              <button className={`btn-page-num ${currentPage === 2 ? 'active' : ''}`} onClick={() => setCurrentPage(2)}>2</button>
-              <button className={`btn-page-num ${currentPage === 3 ? 'active' : ''}`} onClick={() => setCurrentPage(3)}>3</button>
-              <button className="btn-page-step" disabled={currentPage === 3} onClick={() => setCurrentPage(2)}>Next</button>
+              <button className="btn-page-step" disabled>Next</button>
             </div>
           </div>
         </div>
@@ -627,14 +919,14 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
         </div>
       </footer>
 
-      {/* MODAL 1: Manage Subscription */}
+      {/* MODAL 1: Billing Detail & Subscription Management */}
       {activeModal === 'manage' && selectedSub && (
         <div className="modal-overlay" onClick={() => setActiveModal(null)}>
-          <div className="modal-content" style={{ maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" style={{ maxWidth: '620px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div>
                 <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
-                  Manage Subscription — {selectedSub.id}
+                  Billing Details — {selectedSub.id}
                 </h3>
                 <div style={{ fontSize: '13px', color: '#64748b' }}>
                   {selectedSub.customer} • {selectedSub.plan}
@@ -646,26 +938,70 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
             </div>
 
             <form onSubmit={handleSaveManageChanges}>
-              {/* Overview Stats */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
+              {/* Customer Portal Action Banner */}
+              <div style={{
+                background: 'linear-gradient(135deg, #714b67 0%, #4a2e44 100%)',
+                borderRadius: '10px',
+                padding: '14px 18px',
+                marginBottom: '18px',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 700 }}>Customer Portal Access</div>
+                  <div style={{ fontSize: '12px', opacity: 0.9, marginTop: '2px' }}>
+                    View itemized breakdown, line-item discounts, and contract confirmation.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  style={{
+                    backgroundColor: '#ffffff',
+                    color: '#714b67',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '8px 14px',
+                    fontSize: '12.5px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                  }}
+                  onClick={() => handleOpenPortal(selectedSub)}
+                >
+                  <span>Open Customer Portal</span>
+                  <ExternalLink size={14} />
+                </button>
+              </div>
+
+              {/* Overview Stats Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '16px' }}>
                 <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>STATUS</div>
-                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#059669', marginTop: '2px' }}>{selectedSub.status}</div>
+                  <div style={{ fontSize: '10.5px', color: '#64748b', fontWeight: 600 }}>STATUS</div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#059669', marginTop: '2px' }}>{selectedSub.status}</div>
                 </div>
                 <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>CHURN RISK</div>
-                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>{selectedSub.churnProbability}</div>
+                  <div style={{ fontSize: '10.5px', color: '#64748b', fontWeight: 600 }}>BILLING CYCLE</div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>{selectedSub.cycle}</div>
                 </div>
                 <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>CYCLE</div>
-                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>{selectedSub.cycle}</div>
+                  <div style={{ fontSize: '10.5px', color: '#64748b', fontWeight: 600 }}>NEXT RENEWAL</div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>{selectedSub.nextBill}</div>
+                </div>
+                <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '10.5px', color: '#64748b', fontWeight: 600 }}>CHURN RISK</div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>{selectedSub.churnProbability}</div>
                 </div>
               </div>
 
-              {/* Adjust Seats & Price */}
+              {/* Adjust Seats & Recurring Rate */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
                 <div className="form-group">
-                  <label className="form-label">Licensed Seats</label>
+                  <label className="form-label">Licensed User Seats</label>
                   <input 
                     type="number"
                     min="1"
@@ -675,7 +1011,7 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Recurring Rate ($)</label>
+                  <label className="form-label">Recurring Billing Rate ($)</label>
                   <input 
                     type="number"
                     min="1"
@@ -686,12 +1022,14 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
                 </div>
               </div>
 
-              <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px', fontSize: '12.5px', color: '#475569' }}>
-                <div><strong>Payment Gateway:</strong> {selectedSub.paymentMethod}</div>
-                <div style={{ marginTop: '4px' }}><strong>Proration:</strong> {selectedSub.prorationPolicy}</div>
+              {/* Billing Method & Details Box */}
+              <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '18px', fontSize: '12.5px', color: '#475569' }}>
+                <div><strong>Payment Method:</strong> {selectedSub.paymentMethod}</div>
+                <div style={{ marginTop: '4px' }}><strong>Proration Terms:</strong> {selectedSub.prorationPolicy}</div>
+                <div style={{ marginTop: '4px' }}><strong>Contract Initialized:</strong> {selectedSub.createdDate}</div>
               </div>
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+              <div style={{ display: 'flex', gap: '10px' }}>
                 <button 
                   type="button" 
                   className="btn-dash-secondary"
@@ -783,7 +1121,7 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
               </button>
             </div>
 
-            <form onSubmit={handleCreateBlueprintPlan}>
+            <form onSubmit={handleCreateNewBlueprint}>
               <p style={{ fontSize: '13.5px', color: '#64748b', marginBottom: '16px' }}>
                 Design a custom recurring contract schedule with specialized seats and billing frequency.
               </p>

@@ -13,7 +13,7 @@ import { requireAdmin, requireRole } from "../middleware/admin-auth.js";
 const router = express.Router();
 const salesRepAccess = [
   requireAdmin,
-  requireRole("admin", "sales_rep", "sales_manager"),
+  requireRole("admin", "sales_rep", "sales_manager", "customer"),
 ];
 
 router.get("/quotations", ...salesRepAccess, getQuotes);

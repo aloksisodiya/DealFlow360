@@ -61,18 +61,29 @@ const DEFAULT_FALLBACK_DATA = {
  */
 export async function getDashboardMetricsFromDb() {
   try {
-    // Attempt querying PostgreSQL quotations table
-    const quotations = await db("quotations").select("*");
-    const activities = await db("recent_activities").select("*").orderBy("created_at", "desc").limit(10);
+    const quotations = await db("quotations").select("*").orderBy("updated_at", "desc");
+    const portalMessages = await db("portal_messages as pm")
+      .leftJoin("quotations as q", "q.id", "pm.quote_id")
+      .select("pm.*", "q.customer_name", "q.total_amount")
+      .orderBy("pm.created_at", "desc")
+      .limit(10);
     const alerts = await db("deal_health_alerts").where({ resolved: false });
 
     if (!quotations || quotations.length === 0) {
       return DEFAULT_FALLBACK_DATA;
     }
 
-    const pendingApprovalsList = quotations.filter(
-      (q) => q.stage === "Pending Approval" || q.approval_required || (q.approval_status && q.approval_status.includes("Pending"))
-    );
+    const pendingApprovalsList = quotations.filter((q) => {
+      const st = (q.stage || "").toLowerCase();
+      return (
+        q.stage === "Pending Approval" ||
+        st.includes("pending") ||
+        st.includes("re-approval") ||
+        st.includes("negoti") ||
+        q.approval_required ||
+        (q.approval_status && q.approval_status.includes("Pending"))
+      );
+    });
 
     const requireFinanceCount = quotations.filter(
       (q) => q.approval_status && q.approval_status.includes("Finance")
@@ -81,31 +92,91 @@ export async function getDashboardMetricsFromDb() {
     const totalPipelineValue = quotations.reduce((sum, q) => sum + Number(q.total_amount || 0), 0);
     const stalledDealsCount = quotations.filter((q) => (q.stalled_days && q.stalled_days >= 14) || q.stage === "At Risk").length;
 
+    // Filter customer-approved and customer-negotiated deals
+    const customerApprovedDeals = quotations.filter((q) => {
+      const st = (q.stage || "").toLowerCase();
+      return st.includes("confirm") || st.includes("approved");
+    });
+
+    const customerNegotiatedDeals = quotations.filter((q) => {
+      const st = (q.stage || "").toLowerCase();
+      return st.includes("negoti") || st.includes("re-approval") || st.includes("counter");
+    });
+
+    // Build real-time recent activity stream incorporating customer actions
+    const activities = [];
+
+    for (const q of quotations) {
+      const st = (q.stage || "").toLowerCase();
+      if (st.includes("confirm")) {
+        activities.push({
+          id: `act-confirm-${q.id}`,
+          title: `${q.customer_name} confirmed quotation`,
+          subtitle: `Quote #${q.id} for $${Number(q.total_amount || 0).toLocaleString()} approved & confirmed via Customer Portal`,
+          time_ago: "Recently",
+          badge_type: "Customer Approved",
+          badge_color: "success",
+          quote_id: q.id
+        });
+      } else if (st.includes("negoti") || st.includes("re-approval") || st.includes("counter")) {
+        activities.push({
+          id: `act-neg-${q.id}`,
+          title: `${q.customer_name} requested counter negotiation`,
+          subtitle: `Quote #${q.id} ($${Number(q.total_amount || 0).toLocaleString()}) — ${q.discount_percent || 0}% discount requested`,
+          time_ago: "Recently",
+          badge_type: "Customer Negotiating",
+          badge_color: "warning",
+          quote_id: q.id
+        });
+      }
+    }
+
+    for (const msg of portalMessages) {
+      if (msg.sender === "Customer") {
+        activities.push({
+          id: `act-msg-${msg.id}`,
+          title: `Message from ${msg.customer_name || "Customer"}`,
+          subtitle: `Quote #${msg.quote_id}: "${msg.message.length > 55 ? msg.message.slice(0, 55) + "..." : msg.message}"`,
+          time_ago: "Recently",
+          badge_type: "Portal Message",
+          badge_color: "info",
+          quote_id: msg.quote_id
+        });
+      }
+    }
+
+    // Fallback default activities if no customer events recorded yet
+    if (activities.length === 0) {
+      activities.push(...DEFAULT_FALLBACK_DATA.recentActivities);
+    }
+
     return {
-      pipelineValue: totalPipelineValue > 0 ? totalPipelineValue : 482500,
-      pipelineFormatted: `$${(totalPipelineValue > 0 ? totalPipelineValue : 482500).toLocaleString()}`,
+      pipelineValue: totalPipelineValue,
+      pipelineFormatted: `$${totalPipelineValue.toLocaleString()}`,
+      customerApprovedCount: customerApprovedDeals.length,
+      customerNegotiatedCount: customerNegotiatedDeals.length,
       pendingApprovals: {
-        totalWaiting: Math.max(pendingApprovalsList.length, 4),
+        totalWaiting: pendingApprovalsList.length,
         avgResponseTimeHours: 3.2,
-        requireFinanceApprovalCount: Math.max(requireFinanceCount, 2),
-        badgeText: "2 require Finance approval"
+        requireFinanceApprovalCount: requireFinanceCount,
+        badgeText: `${requireFinanceCount} require Finance approval`
       },
       openQuotations: {
-        activeDealsCount: Math.max(quotations.length, 12),
-        totalPipelineValue: totalPipelineValue > 0 ? totalPipelineValue : 482500,
-        nearingClosingDateCount: 3,
-        badgeText: "3 nearing closing date"
+        activeDealsCount: quotations.length,
+        totalPipelineValue: totalPipelineValue,
+        nearingClosingDateCount: customerNegotiatedDeals.length,
+        badgeText: `${customerNegotiatedDeals.length} under customer negotiation`
       },
       atRiskDeals: {
-        flaggedByDealHealth: Math.max(alerts.length, 3),
+        flaggedByDealHealth: alerts.length,
         stalledDaysThreshold: 14,
-        stalledCount: Math.max(stalledDealsCount, 3),
-        needsImmediateCheckinCount: Math.max(stalledDealsCount, 3),
+        stalledCount: stalledDealsCount,
+        needsImmediateCheckinCount: stalledDealsCount,
         badgeText: "Stalled > 14 days"
       },
-      pipelineSyncStatus: "Real-time pipeline sync",
+      pipelineSyncStatus: "Real-time customer portal sync",
       lastUpdated: "Just now",
-      recentActivities: activities.length > 0 ? activities : DEFAULT_FALLBACK_DATA.recentActivities
+      recentActivities: activities.slice(0, 10)
     };
   } catch (error) {
     console.warn("Database query failed, returning local default dataset:", error.message);
@@ -113,17 +184,9 @@ export async function getDashboardMetricsFromDb() {
   }
 }
 
-/**
- * Service to fetch recent activities from local database or fallback
- */
 export async function getRecentActivitiesFromDb() {
-  try {
-    const activities = await db("recent_activities").select("*").orderBy("id", "desc").limit(10);
-    if (activities && activities.length > 0) return activities;
-  } catch (error) {
-    console.warn("Database query for activities failed:", error.message);
-  }
-  return DEFAULT_FALLBACK_DATA.recentActivities;
+  const metrics = await getDashboardMetricsFromDb();
+  return metrics.recentActivities;
 }
 
 /**

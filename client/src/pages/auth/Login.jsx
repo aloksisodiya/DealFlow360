@@ -40,8 +40,9 @@ export default function Login({ onLoginSuccess, onForgotPassword, onOpenTerms, o
       } else {
         if (onToast) onToast(result.message || 'Invalid email or password.');
       }
-    } catch {
-      if (onToast) onToast('An unexpected authentication error occurred.');
+    } catch (err) {
+      console.error('[Login Error]', err);
+      if (onToast) onToast(err?.message || 'An unexpected authentication error occurred.');
     } finally {
       setIsLoading(false);
     }

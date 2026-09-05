@@ -11,6 +11,7 @@
 export function normalizeRole(role) {
   if (!role) return 'sales_rep';
   const r = role.toLowerCase().replace(/[\s_-]+/g, '');
+  if (r.includes('customer') || r.includes('client') || r.includes('consumer')) return 'customer';
   if (r.includes('admin') || r.includes('superadmin')) return 'admin';
   if (r.includes('manager') || r.includes('approver') || r.includes('lead')) return 'sales_manager';
   if (r.includes('finance') || r.includes('operations') || r.includes('billing')) return 'finance';
@@ -18,6 +19,13 @@ export function normalizeRole(role) {
 }
 
 export const ROLE_PERMISSIONS = {
+  // Customer:
+  // - Direct access to active subscriptions, recurring billing details, and customer portal
+  customer: [
+    'subscriptions',
+    'invoices'
+  ],
+
   // Sales Rep:
   // - Builds quotations, applies discounts, adds upsell items
   // - Tracks approval status and fulfillment progress
@@ -26,7 +34,8 @@ export const ROLE_PERMISSIONS = {
     'dashboard',
     'quotations',
     'approvals',
-    'fulfillment'
+    'fulfillment',
+    'product'
   ],
 
   // Sales Manager / Approver:
@@ -37,7 +46,8 @@ export const ROLE_PERMISSIONS = {
     'dashboard',
     'quotations',
     'approvals',
-    'dealhealth'
+    'dealhealth',
+    'product'
   ],
 
   // Finance / Operations User:
@@ -49,7 +59,8 @@ export const ROLE_PERMISSIONS = {
     'approvals',
     'fulfillment',
     'subscriptions',
-    'invoices'
+    'invoices',
+    'product'
   ],
 
   // Admin:
@@ -128,6 +139,8 @@ export function getRoleDisplayName(role) {
       return 'Sales Manager / Approver';
     case 'finance':
       return 'Finance & Operations';
+    case 'customer':
+      return 'Valued Customer Account';
     case 'sales_rep':
     default:
       return 'Sales Representative';

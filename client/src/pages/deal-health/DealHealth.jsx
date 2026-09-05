@@ -285,76 +285,85 @@ export default function DealHealth({ user, onNavigate, onLogout }) {
         </div>
 
         {/* 3 KPI Summary Cards */}
-        <div className="dealhealth-kpi-grid">
-          {/* Card 1: Stalled Deals */}
-          <div className="kpi-card">
-            <div>
-              <div className="kpi-card-header">
-                <div className="kpi-title-with-badge">
-                  <span className="kpi-title-label">Stalled Deals</span>
-                  <span className="kpi-badge yellow">Attention Required</span>
-                </div>
-                <div className="kpi-icon-circle yellow">
-                  <Clock size={18} />
-                </div>
-              </div>
-              <div className="kpi-metric-value">5 quotes</div>
-              <div className="kpi-metric-desc">
-                • Idle 7+ days without stage transition
-              </div>
-            </div>
-            <div className="kpi-bottom-row">
-              <span>Oldest: <strong>9 days idle (Zenith Co)</strong></span>
-              <span className="kpi-tag-sub yellow">+2 vs last week</span>
-            </div>
-          </div>
+        {(() => {
+          const stalledCount = anomalies.filter(a => a.issueCategory === 'stalled').length;
+          const discountCount = anomalies.filter(a => a.issueCategory === 'discount').length;
+          const deliveryCount = anomalies.filter(a => a.issueCategory === 'delivery').length;
+          const deliveryValue = anomalies.filter(a => a.issueCategory === 'delivery').reduce((acc, a) => acc + (a.dealValue || 0), 0);
 
-          {/* Card 2: Discount Anomalies */}
-          <div className="kpi-card">
-            <div>
-              <div className="kpi-card-header">
-                <div className="kpi-title-with-badge">
-                  <span className="kpi-title-label">Discount Anomalies</span>
-                  <span className="kpi-badge red">Margin Breach Risk</span>
+          return (
+            <div className="dealhealth-kpi-grid">
+              {/* Card 1: Stalled Deals */}
+              <div className="kpi-card">
+                <div>
+                  <div className="kpi-card-header">
+                    <div className="kpi-title-with-badge">
+                      <span className="kpi-title-label">Stalled Deals</span>
+                      <span className="kpi-badge yellow">Attention Required</span>
+                    </div>
+                    <div className="kpi-icon-circle yellow">
+                      <Clock size={18} />
+                    </div>
+                  </div>
+                  <div className="kpi-metric-value">{stalledCount} quotes</div>
+                  <div className="kpi-metric-desc">
+                    • Idle 7+ days without stage transition
+                  </div>
                 </div>
-                <div className="kpi-icon-circle red">
-                  <TrendingDown size={18} />
+                <div className="kpi-bottom-row">
+                  <span>Stalled quotes flagged</span>
+                  <span className="kpi-tag-sub yellow">Live Sync</span>
                 </div>
               </div>
-              <div className="kpi-metric-value">2 above</div>
-              <div className="kpi-metric-desc">
-                • Above rep historical discount average
-              </div>
-            </div>
-            <div className="kpi-bottom-row">
-              <span>Highest: <strong>22% discount (Delta LLC)</strong></span>
-              <span className="kpi-tag-sub red">Max Threshold: 15%</span>
-            </div>
-          </div>
 
-          {/* Card 3: Delivery Slippage */}
-          <div className="kpi-card">
-            <div>
-              <div className="kpi-card-header">
-                <div className="kpi-title-with-badge">
-                  <span className="kpi-title-label">Delivery Slippage</span>
-                  <span className="kpi-badge orange">Logistics Delay</span>
+              {/* Card 2: Discount Anomalies */}
+              <div className="kpi-card">
+                <div>
+                  <div className="kpi-card-header">
+                    <div className="kpi-title-with-badge">
+                      <span className="kpi-title-label">Discount Anomalies</span>
+                      <span className="kpi-badge red">Margin Breach Risk</span>
+                    </div>
+                    <div className="kpi-icon-circle red">
+                      <TrendingDown size={18} />
+                    </div>
+                  </div>
+                  <div className="kpi-metric-value">{discountCount} flagged</div>
+                  <div className="kpi-metric-desc">
+                    • Above rep historical discount average
+                  </div>
                 </div>
-                <div className="kpi-icon-circle orange">
-                  <Calendar size={18} />
+                <div className="kpi-bottom-row">
+                  <span>Margin exceptions detected</span>
+                  <span className="kpi-tag-sub red">Live Sync</span>
                 </div>
               </div>
-              <div className="kpi-metric-value">3 promise</div>
-              <div className="kpi-metric-desc">
-                • 3 promise dates at risk of SLA miss
+
+              {/* Card 3: Delivery Slippage */}
+              <div className="kpi-card">
+                <div>
+                  <div className="kpi-card-header">
+                    <div className="kpi-title-with-badge">
+                      <span className="kpi-title-label">Delivery Slippage</span>
+                      <span className="kpi-badge orange">Logistics Delay</span>
+                    </div>
+                    <div className="kpi-icon-circle orange">
+                      <Calendar size={18} />
+                    </div>
+                  </div>
+                  <div className="kpi-metric-value">{deliveryCount} flagged</div>
+                  <div className="kpi-metric-desc">
+                    • Delivery dates at risk of SLA miss
+                  </div>
+                </div>
+                <div className="kpi-bottom-row">
+                  <span>Affected Value: <strong>${deliveryValue.toLocaleString()}</strong></span>
+                  <span style={{ color: '#64748b' }}>Live Sync</span>
+                </div>
               </div>
             </div>
-            <div className="kpi-bottom-row">
-              <span>Affected Value: <strong>$186,000</strong></span>
-              <span style={{ color: '#64748b' }}>Avg delay: 4.2d</span>
-            </div>
-          </div>
-        </div>
+          );
+        })()}
 
         {/* Dark Callout Banner: Anomaly Resolution Policy */}
         <div className="dealhealth-dark-banner">
@@ -377,7 +386,7 @@ export default function DealHealth({ user, onNavigate, onLogout }) {
               onClick={() => setActiveTab('all')}
             >
               <span>All Anomalies</span>
-              <span className={`tab-badge-count ${activeTab === 'all' ? '' : 'gray'}`}>10</span>
+              <span className={`tab-badge-count ${activeTab === 'all' ? '' : 'gray'}`}>{anomalies.length}</span>
             </button>
 
             <button 
@@ -385,7 +394,7 @@ export default function DealHealth({ user, onNavigate, onLogout }) {
               onClick={() => setActiveTab('stalled')}
             >
               <span>Stalled Deals</span>
-              <span className={`tab-badge-count ${activeTab === 'stalled' ? '' : 'gray'}`}>5</span>
+              <span className={`tab-badge-count ${activeTab === 'stalled' ? '' : 'gray'}`}>{anomalies.filter(a => a.issueCategory === 'stalled').length}</span>
             </button>
 
             <button 
@@ -393,7 +402,7 @@ export default function DealHealth({ user, onNavigate, onLogout }) {
               onClick={() => setActiveTab('discount')}
             >
               <span>Discount Breaches</span>
-              <span className={`tab-badge-count ${activeTab === 'discount' ? '' : 'red'}`}>2</span>
+              <span className={`tab-badge-count ${activeTab === 'discount' ? '' : 'red'}`}>{anomalies.filter(a => a.issueCategory === 'discount').length}</span>
             </button>
 
             <button 
@@ -401,7 +410,7 @@ export default function DealHealth({ user, onNavigate, onLogout }) {
               onClick={() => setActiveTab('delivery')}
             >
               <span>Delivery Slippage</span>
-              <span className={`tab-badge-count ${activeTab === 'delivery' ? '' : 'amber'}`}>3</span>
+              <span className={`tab-badge-count ${activeTab === 'delivery' ? '' : 'amber'}`}>{anomalies.filter(a => a.issueCategory === 'delivery').length}</span>
             </button>
           </div>
 
@@ -678,13 +687,11 @@ export default function DealHealth({ user, onNavigate, onLogout }) {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#64748b' }}>
-              <span>Showing <strong>1-4</strong> of <strong>10</strong> flagged items</span>
+              <span>Showing <strong>{filteredAnomalies.length > 0 ? 1 : 0}-{filteredAnomalies.length}</strong> of <strong>{anomalies.length}</strong> flagged items</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <button className="btn-page-step" disabled>&lt;</button>
                 <button className="btn-page-num active">1</button>
-                <button className="btn-page-num">2</button>
-                <button className="btn-page-num">3</button>
-                <button className="btn-page-step">&gt;</button>
+                <button className="btn-page-step" disabled>&gt;</button>
               </div>
             </div>
           </div>

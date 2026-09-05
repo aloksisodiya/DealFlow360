@@ -1,7 +1,40 @@
 import db from "../config/db.js";
 
-export async function listSubscriptions({ status, search } = {}) {
+export async function listSubscriptions({ status, search, role, workEmail, adminId } = {}) {
+  const normRole = (role || "").toLowerCase();
+  const isCustomer = normRole.includes("customer") || normRole.includes("client");
+
   let query = db("subscriptions").orderBy("created_at", "desc");
+
+  if (isCustomer) {
+    let customerEmail = workEmail ? workEmail.trim().toLowerCase() : null;
+    let customerName = null;
+
+    if (adminId) {
+      const user = await db("admins").where({ id: adminId }).select("work_email", "profile").first();
+      if (user) {
+        if (!customerEmail && user.work_email) customerEmail = user.work_email.trim().toLowerCase();
+        try {
+          const prof = typeof user.profile === "string" ? JSON.parse(user.profile || "{}") : (user.profile || {});
+          customerName = prof?.name ? prof.name.trim().toLowerCase() : null;
+        } catch (e) {}
+      }
+    }
+
+    if (!customerEmail && !customerName) {
+      return [];
+    }
+
+    query = query.where(function() {
+      if (customerEmail) {
+        const handle = customerEmail.split('@')[0].toLowerCase();
+        this.whereRaw("LOWER(COALESCE(customer_name, '')) LIKE ?", [`%${handle}%`]);
+      }
+      if (customerName) {
+        this.orWhereRaw("LOWER(COALESCE(customer_name, '')) LIKE ?", [`%${customerName}%`]);
+      }
+    });
+  }
 
   if (status && status !== "All" && status !== "all") {
     query = query.where({ status });
@@ -21,6 +54,7 @@ export async function listSubscriptions({ status, search } = {}) {
     id: s.id,
     code: s.subscription_code,
     customer: s.customer_name,
+    customerEmail: s.customer_email,
     tier: s.tier,
     plan: s.plan_name,
     amount: Number(s.amount),

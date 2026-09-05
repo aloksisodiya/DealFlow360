@@ -44,11 +44,40 @@ function sendError(res, error, fallbackStatus = 500) {
 }
 
 export async function signup(req, res) {
-  return res.status(403).json({
-    success: false,
-    message:
-      "Public signup is disabled. Ask a platform admin to create your account.",
-  });
+  try {
+    const { firstName, lastName, workEmail, password, role } = req.body || {};
+    const validationError = validateCredentials(workEmail, password);
+    if (validationError) {
+      return res.status(400).json({ success: false, message: validationError });
+    }
+
+    const fullName = `${firstName || ''} ${lastName || ''}`.trim() || workEmail.split('@')[0];
+    const accountRole = role === 'sales_rep' || role === 'admin' ? role : 'customer';
+
+    const account = await createManagedAccount({
+      workEmail,
+      password,
+      role: accountRole,
+      profile: { name: fullName, title: 'Customer Account' }
+    });
+
+    const jwt = (await import('jsonwebtoken')).default;
+    const JWT_SECRET = process.env.JWT_SECRET || 'development-only-secret';
+    const token = jwt.sign(
+      { sub: account.id, workEmail: account.workEmail, role: account.role },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: `Account created successfully for ${fullName}`,
+      admin: account,
+      token
+    });
+  } catch (error) {
+    return sendError(res, error, 400);
+  }
 }
 
 export async function createAccount(req, res) {

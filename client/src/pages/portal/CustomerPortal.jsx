@@ -178,11 +178,37 @@ export default function CustomerPortal({ token }) {
     return "stage-draft";
   };
 
+  const handleBackToSubscriptions = () => {
+    window.location.href = window.location.origin;
+  };
+
   if (loading) {
     return (
       <div className="portal-root">
         <header className="portal-header">
-          <div className="portal-logo">DealFlow<span>360</span></div>
+          <div className="portal-header-inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <button
+              className="btn-back-subscriptions"
+              onClick={handleBackToSubscriptions}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                backgroundColor: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '6px',
+                padding: '6px 12px',
+                fontSize: '13px',
+                fontWeight: 600,
+                color: '#714b67',
+                cursor: 'pointer',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+              }}
+            >
+              <span>← Back to Subscriptions</span>
+            </button>
+            <div className="portal-logo">DealFlow<span>360</span></div>
+          </div>
         </header>
         <div className="portal-loading">
           <div className="portal-spinner" />
@@ -196,7 +222,29 @@ export default function CustomerPortal({ token }) {
     return (
       <div className="portal-root">
         <header className="portal-header">
-          <div className="portal-logo">DealFlow<span>360</span></div>
+          <div className="portal-header-inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <button
+              className="btn-back-subscriptions"
+              onClick={handleBackToSubscriptions}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                backgroundColor: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '6px',
+                padding: '6px 12px',
+                fontSize: '13px',
+                fontWeight: 600,
+                color: '#714b67',
+                cursor: 'pointer',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+              }}
+            >
+              <span>← Back to Subscriptions</span>
+            </button>
+            <div className="portal-logo">DealFlow<span>360</span></div>
+          </div>
         </header>
         <div className="portal-main">
           <div className="portal-error">
@@ -223,10 +271,34 @@ export default function CustomerPortal({ token }) {
 
       {/* Universal DealFlow360 Styled Header */}
       <header className="portal-header">
-        <div className="portal-header-inner">
-          <div className="portal-brand">
-            <span className="portal-brand-dark">DealFlow</span>
-            <span className="portal-brand-purple">360</span>
+        <div className="portal-header-inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <button
+              className="btn-back-subscriptions"
+              onClick={handleBackToSubscriptions}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                backgroundColor: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '6px',
+                padding: '6px 12px',
+                fontSize: '13px',
+                fontWeight: 600,
+                color: '#714b67',
+                cursor: 'pointer',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                transition: 'all 0.2s ease'
+              }}
+              title="Return to Subscriptions Dashboard"
+            >
+              <span>← Back to Subscriptions</span>
+            </button>
+            <div className="portal-brand" onClick={handleBackToSubscriptions} style={{ cursor: 'pointer' }}>
+              <span className="portal-brand-dark">DealFlow</span>
+              <span className="portal-brand-purple">360</span>
+            </div>
           </div>
           <div className="portal-header-badge">
             <span className="pulse-dot" />
@@ -245,15 +317,25 @@ export default function CustomerPortal({ token }) {
               <div className="portal-quote-client">{quotation?.customerName}</div>
             </div>
             <div className="portal-quote-amount">
-              <div className="portal-quote-amount-label">Total Quoted Value</div>
+              <div className="portal-quote-amount-label">Net Payable Total (After Discount)</div>
               <div className="portal-quote-amount-value">
-                ${Number(quotation?.totalAmount || 0).toLocaleString()}
+                ${Number(quotation?.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
-              {quotation?.discountPercent > 0 && (
-                <div className="portal-quote-discount">
-                  {quotation.discountPercent}% discount applied
-                </div>
-              )}
+              {Number(quotation?.discountPercent) > 0 && (() => {
+                const total = Number(quotation?.totalAmount || 0);
+                const discPct = Number(quotation?.discountPercent || 0);
+                const base = Number(quotation?.baseAmount || (discPct < 100 ? total / (1 - discPct / 100) : total));
+                const savings = Math.max(0, base - total);
+
+                return (
+                  <div className="portal-quote-discount" style={{ marginTop: '4px', fontSize: '12.5px', color: '#15803d' }}>
+                    <span style={{ textDecoration: 'line-through', color: '#64748b', marginRight: '6px' }}>
+                      ${base.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                    <strong>{discPct}% discount applied (-${savings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</strong>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -281,7 +363,9 @@ export default function CustomerPortal({ token }) {
               </div>
               <div>
                 <div className="portal-rep-name">{quotation.ownerName}</div>
-                <div className="portal-rep-label">Your Dedicated Sales Representative</div>
+                <div className="portal-rep-label">
+                  Your Dedicated {quotation.ownerRole || (String(quotation.ownerName || '').toLowerCase().includes('rjav') || String(quotation.ownerEmail || '').toLowerCase().includes('rjav') ? 'Sales Manager' : 'Sales Representative')}
+                </div>
               </div>
             </div>
           )}

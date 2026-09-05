@@ -5,6 +5,8 @@
  * Synced with PostgreSQL database accounts and provides session persistence across page refreshes.
  */
 
+import { normalizeRole } from '../utils/rbac';
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ||
   (typeof window !== 'undefined' && window.location.hostname
     ? `http://${window.location.hostname}:3000/api`
@@ -126,32 +128,42 @@ export async function loginUser(workEmail, password) {
 
     if (response.ok && data.success) {
       const adminData = data.admin || data.data?.admin || {};
-      const profile = typeof adminData.profile === 'string' ? JSON.parse(adminData.profile) : adminData.profile || {};
       const token = data.token || data.data?.token || '';
-      
-      const displayName = profile.name || 
-        adminData.workEmail?.split('@')[0]?.replace(/[._]/g, ' ') || 
-        'Enterprise User';
+      let profile = {};
+      try {
+        profile = typeof adminData.profile === 'string' ? JSON.parse(adminData.profile) : (adminData.profile || {});
+      } catch {
+        profile = {};
+      }
 
-      const initials = displayName
+      const emailAddress = adminData.workEmail || adminData.work_email || workEmail || '';
+      const rawName = profile?.name || '';
+      const displayName = rawName || (emailAddress ? emailAddress.split('@')[0].replace(/[._]/g, ' ') : 'Enterprise User');
+
+      const initials = (displayName || 'EU')
         .split(' ')
+        .filter(Boolean)
         .map(p => p.charAt(0))
         .join('')
         .slice(0, 2)
         .toUpperCase() || 'EU';
 
+      const normRole = normalizeRole(adminData.role || 'customer');
+      const isCustomer = normRole === 'customer';
+      const targetScreen = isCustomer ? 'subscriptions' : 'dashboard';
+
       const userObj = {
-        id: adminData.id,
+        id: adminData.id || 1,
         name: displayName,
-        email: adminData.workEmail || workEmail,
-        role: adminData.role || 'admin',
-        title: profile.title || 'Institutional Member',
+        email: emailAddress,
+        role: normRole,
+        title: (profile && typeof profile === 'object' && profile.title) ? profile.title : (isCustomer ? 'Valued Customer' : 'Institutional Member'),
         token: token,
         initials: initials
       };
 
-      // Persist authenticated session
-      saveSession(userObj, 'dashboard');
+      // Persist authenticated session with role-specific target screen
+      saveSession(userObj, targetScreen);
 
       return {
         success: true,
@@ -264,21 +276,46 @@ export async function resetPasswordWithCode({ email, code, newPassword }) {
  */
 export async function registerUser({ firstName, lastName, workEmail, password }) {
   const fullName = `${firstName} ${lastName}`.trim();
-  const initials = `${firstName[0] || 'D'}${lastName[0] || 'F'}`.toUpperCase();
+  const initials = `${firstName[0] || 'C'}${lastName[0] || 'A'}`.toUpperCase();
 
-  const userObj = {
-    name: fullName,
-    email: workEmail,
-    role: 'sales_rep',
-    token: 'demo-signup-token',
-    initials: initials
-  };
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ firstName, lastName, workEmail, password, role: 'customer' })
+    });
 
-  saveSession(userObj, 'dashboard');
+    const data = await response.json();
 
-  return {
-    success: true,
-    user: userObj,
-    message: `Account created for ${fullName}`
-  };
+    if (response.ok && data.success) {
+      const adminData = data.admin || {};
+      const userObj = {
+        id: adminData.id,
+        name: fullName,
+        email: adminData.workEmail || workEmail,
+        role: 'customer',
+        token: data.token || 'customer-session-token',
+        initials: initials
+      };
+
+      saveSession(userObj, 'subscriptions');
+
+      return {
+        success: true,
+        user: userObj,
+        message: data.message || `Customer account created for ${fullName}!`
+      };
+    }
+
+    return {
+      success: false,
+      message: data.message || 'Failed to create account.'
+    };
+  } catch (err) {
+    console.error('Registration API error:', err);
+    return {
+      success: false,
+      message: 'Server connection error. Please verify backend is running.'
+    };
+  }
 }

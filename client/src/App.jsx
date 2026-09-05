@@ -12,7 +12,7 @@ import Reports from './pages/reports/Reports';
 import ProductCatalog from './pages/products/ProductCatalog';
 import AdminPanel from './pages/admin/AdminPanel';
 import CustomerPortal from './pages/portal/CustomerPortal';
-import { hasAccess } from './utils/rbac';
+import { hasAccess, normalizeRole } from './utils/rbac';
 import { 
   getStoredUser, 
   getStoredScreen, 
@@ -69,9 +69,11 @@ export default function App() {
   };
 
   const handleLoginSuccess = (user) => {
+    const isCustomer = normalizeRole(user?.role) === 'customer';
+    const targetScreen = isCustomer ? 'subscriptions' : 'dashboard';
     setCurrentUser(user);
-    setCurrentScreen('dashboard');
-    saveSession(user, 'dashboard');
+    setCurrentScreen(targetScreen);
+    saveSession(user, targetScreen);
   };
 
   const handleLogout = () => {
@@ -100,8 +102,9 @@ export default function App() {
       onToast: showToast
     };
 
-    // If user is trying to view an unauthorized screen, fallback to Dashboard
-    const activeScreenKey = hasAccess(currentUser, currentScreen) ? currentScreen : 'dashboard';
+    // If user is trying to view an unauthorized screen, fallback to subscriptions for customers or dashboard
+    const fallbackScreen = normalizeRole(currentUser?.role) === 'customer' ? 'subscriptions' : 'dashboard';
+    const activeScreenKey = hasAccess(currentUser, currentScreen) ? currentScreen : fallbackScreen;
 
     switch (activeScreenKey) {
       case 'dashboard':
@@ -125,7 +128,7 @@ export default function App() {
       case 'admin':
         return <AdminPanel {...commonProps} />;
       default:
-        return <Dashboard {...commonProps} />;
+        return <Subscriptions {...commonProps} />;
     }
   };
 

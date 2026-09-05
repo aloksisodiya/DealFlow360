@@ -19,39 +19,15 @@ export const createQuote = async (req, res) => {
     const quotation = await createQuotation(req.auth.adminId, req.body);
     let portalUrl = null;
     let portalToken = null;
-    let emailSent = false;
-    let emailError = null;
 
     const customerEmail = req.body?.customerEmail?.trim();
-    if (customerEmail && req.body?.sendPortalEmail) {
+    if (customerEmail) {
       try {
         portalToken = await generatePortalToken(quotation.id, customerEmail);
         const portalBase = process.env.PORTAL_BASE_URL || "http://localhost:5173";
         portalUrl = `${portalBase}/portal/${portalToken}`;
-
-        const db = (await import("../config/db.js")).default;
-        const owner = await db("admins")
-          .where({ id: req.auth.adminId })
-          .select("work_email", "profile")
-          .first();
-
-        const ownerProfile = typeof owner?.profile === "string"
-          ? JSON.parse(owner.profile || "{}")
-          : (owner?.profile || {});
-        const repName = ownerProfile.name || owner?.work_email?.split("@")[0] || "Your Sales Representative";
-
-        await sendPortalInviteEmail({
-          toEmail: customerEmail,
-          customerName: quotation.customer_name,
-          quoteId: quotation.id,
-          totalAmount: quotation.total_amount,
-          portalUrl,
-          salesRepName: repName,
-        });
-        emailSent = true;
       } catch (err) {
-        console.error("[createQuote] Email dispatch warning:", err.message);
-        emailError = err.message;
+        console.warn("[createQuote] Token generation warning:", err.message);
       }
     }
 
@@ -60,8 +36,7 @@ export const createQuote = async (req, res) => {
       data: quotation,
       portalUrl,
       portalToken,
-      emailSent,
-      emailError,
+      emailSent: false,
     });
   } catch (error) {
     return res.status(400).json({ success: false, message: error.message });

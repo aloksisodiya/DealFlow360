@@ -231,12 +231,12 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
                 </div>
               </div>
               <div className="cat-kpi-metric-row">
-                <span className="cat-kpi-metric">128</span>
+                <span className="cat-kpi-metric">{products.length}</span>
                 <span className="cat-kpi-badge green">active</span>
               </div>
             </div>
             <div className="cat-kpi-footer-row">
-              • 6 archived products in repository
+              • Database catalog items
             </div>
           </div>
 
@@ -255,7 +255,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
               </div>
             </div>
             <div className="cat-kpi-footer-row">
-              • 2 Currencies configured: USD ($), EUR (€)
+              • Currencies configured: USD ($), EUR (€)
             </div>
           </div>
 
@@ -269,12 +269,12 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
                 </div>
               </div>
               <div className="cat-kpi-metric-row">
-                <span className="cat-kpi-metric">340 SKUs</span>
+                <span className="cat-kpi-metric">{products.length} SKUs</span>
                 <span className="cat-kpi-badge purple">Configured</span>
               </div>
             </div>
             <div className="cat-kpi-footer-row">
-              • Across all active hardware &amp; service lines
+              • Across active hardware &amp; service lines
             </div>
           </div>
         </div>
@@ -287,7 +287,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
               onClick={() => setActiveCategory('All')}
             >
               <span>All Products</span>
-              <span className="tab-badge-num">128</span>
+              <span className="tab-badge-num">{products.length}</span>
             </button>
 
             <button 
@@ -358,7 +358,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
         <div className="catalog-table-card">
           <div className="catalog-table-header">
             <div>
-              <strong>Products</strong> Showing 4 of 128 items
+              <strong>Products</strong> Showing {filteredProducts.length} of {products.length} items
             </div>
             <div>
               Sorted by: <strong>Default Hierarchy</strong>
@@ -504,17 +504,13 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
           {/* Table Footer / Pagination */}
           <div className="catalog-pagination-row">
             <div>
-              Showing <strong>1</strong> to <strong>4</strong> of <strong>128</strong> products
+              Showing <strong>{filteredProducts.length > 0 ? 1 : 0}</strong> to <strong>{filteredProducts.length}</strong> of <strong>{products.length}</strong> products
             </div>
 
             <div className="cat-pagination-btns">
               <button className="btn-page-step" disabled>Previous</button>
               <button className={`btn-page-num ${currentPage === 1 ? 'active' : ''}`} onClick={() => setCurrentPage(1)}>1</button>
-              <button className={`btn-page-num ${currentPage === 2 ? 'active' : ''}`} onClick={() => setCurrentPage(2)}>2</button>
-              <button className={`btn-page-num ${currentPage === 3 ? 'active' : ''}`} onClick={() => setCurrentPage(3)}>3</button>
-              <span style={{ padding: '0 4px', color: '#94a3b8' }}>...</span>
-              <button className="btn-page-num" onClick={() => setCurrentPage(32)}>32</button>
-              <button className="btn-page-step" onClick={() => setCurrentPage(2)}>Next</button>
+              <button className="btn-page-step" disabled>Next</button>
             </div>
           </div>
         </div>

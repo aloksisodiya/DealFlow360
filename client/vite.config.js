@@ -7,6 +7,6 @@ export default defineConfig({
   server: {
     host: true, // Listen on all local IPs including 127.0.0.1 and localhost
     port: 5173,
-    strictPort: true
+    strictPort: false
   }
 })

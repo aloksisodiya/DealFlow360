@@ -19,6 +19,8 @@ import {
   ArrowUpRight
 } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
+import { normalizeRole } from '../../utils/rbac';
+import { fetchProducts } from '../../services/productService';
 import { 
   fetchQuotations, 
   createQuotation, 
@@ -36,6 +38,17 @@ import './Quotations.css';
  * Multi-stage quotation tracker with Kanban Board, Table View, and New Quote generation
  * synced in real-time with PostgreSQL database.
  */
+const DEFAULT_PRODUCTS = [
+  { id: 'prod-1', name: 'Enterprise Server Rack X1', sku: 'SKU-SRV-X100', price: 12500, category: 'Hardware' },
+  { id: 'lap-prod-1', name: 'MacBook Pro 16" M3 Max (36GB / 1TB)', sku: 'SKU-LAP-MBP16', price: 3499, category: 'Laptops' },
+  { id: 'lap-prod-2', name: 'Dell XPS 16 OLED Touch (Intel i9 / 32GB / 1TB)', sku: 'SKU-LAP-XPS16', price: 2899, category: 'Laptops' },
+  { id: 'lap-prod-3', name: 'Lenovo ThinkPad X1 Carbon Gen 12', sku: 'SKU-LAP-TPX1', price: 2199, category: 'Laptops' },
+  { id: 'prod-2', name: 'Setup & Onboarding Service', sku: 'SKU-SRV-ONBOARD', price: 4500, category: 'Services' },
+  { id: 'prod-3', name: 'Cloud Telemetry Hub v4', sku: 'SKU-SFT-TEL4', price: 2400, category: 'Software' },
+  { id: 'prod-4', name: 'Smart Optical Transceiver 100G', sku: 'SKU-NET-OPT100', price: 850, category: 'Networking' },
+  { id: 'prod-5', name: '24/7 Mission-Critical SLA Support', sku: 'SKU-SVC-SLA24', price: 1800, category: 'Services' }
+];
+
 export default function Quotations({ user, onNavigate, onLogout }) {
   const [viewMode, setViewMode] = useState('board');
   const [searchQuery, setSearchQuery] = useState('');
@@ -48,6 +61,11 @@ export default function Quotations({ user, onNavigate, onLogout }) {
   const [quotes, setQuotes] = useState([]);
 
   // Form State for New Quotation
+  const [availableProducts, setAvailableProducts] = useState(DEFAULT_PRODUCTS);
+  const [quoteItems, setQuoteItems] = useState([]); // Multi-product line items
+  const [selectedProductId, setSelectedProductId] = useState('');
+  const [selectedProductQty, setSelectedProductQty] = useState(1);
+  const [selectedProductUnitPrice, setSelectedProductUnitPrice] = useState(0);
   const [newClient, setNewClient] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newAmount, setNewAmount] = useState('');
@@ -55,7 +73,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
   const [newTier, setNewTier] = useState('Bronze');
   const [newDiscount, setNewDiscount] = useState(0);
   const [newStage, setNewStage] = useState('draft');
-  const [sendImmediateEmail, setSendImmediateEmail] = useState(true);
+  const [sendImmediateEmail, setSendImmediateEmail] = useState(false);
   const [isCreatingQuote, setIsCreatingQuote] = useState(false);
 
   // Portal send state for selected quote
@@ -80,30 +98,182 @@ export default function Quotations({ user, onNavigate, onLogout }) {
     }, 4000);
   };
 
-  const handleCopyLink = (url) => {
-    if (!url) return;
-    navigator.clipboard?.writeText(url);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2500);
-    showToast('Portal link copied to clipboard!');
+  const normalizeQuote = (q) => {
+    if (!q) return null;
+    const rawStage = String(q.stage || q.status || 'draft').toLowerCase().replace(/[\s_-]+/g, '');
+    const hasNegotiationReq = Boolean(q.negotiation_request || q.negotiationRequest);
+    const stageMatchesNegotiation = 
+      rawStage.includes('negotiat') || 
+      rawStage.includes('counter') || 
+      rawStage.includes('reapproval') || 
+      rawStage.includes('re-approval');
+
+    let stage = 'draft';
+    if (hasNegotiationReq || stageMatchesNegotiation) {
+      stage = 'negotiation';
+    } else if (rawStage.includes('pending')) {
+      stage = 'pending';
+    } else if (rawStage.includes('approved') || rawStage.includes('confirmed')) {
+      stage = 'approved';
+    }
+
+    const discountPercent = Number(q.discount_percent ?? q.discountPercent ?? 0);
+    const amount = Number(q.total_amount ?? q.amount ?? q.totalAmount ?? 0);
+    let baseAmount = Number(q.base_amount ?? q.baseAmount ?? 0);
+    if (baseAmount <= 0 || (discountPercent > 0 && baseAmount === amount)) {
+      if (discountPercent > 0 && discountPercent < 100) {
+        baseAmount = Number((amount / (1 - discountPercent / 100)).toFixed(2));
+      } else {
+        baseAmount = amount;
+      }
+    }
+
+    let productItems = [];
+    if (Array.isArray(q.upsell_items)) {
+      productItems = q.upsell_items;
+    } else if (typeof q.upsell_items === 'string') {
+      try {
+        productItems = JSON.parse(q.upsell_items || '[]');
+      } catch (e) {
+        productItems = [];
+      }
+    } else if (Array.isArray(q.upsellItems)) {
+      productItems = q.upsellItems;
+    }
+
+    const productNames = productItems.length > 0
+      ? productItems.map(i => `${i.name || i.product_name || 'Product'}${i.quantity > 1 ? ` (${i.quantity}x)` : ''}`).join(', ')
+      : (q.notes || q.desc || 'Custom Enterprise Package');
+
+    const ownerEmail = q.owner_email || q.ownerEmail || q.owner || 'Sales Rep';
+    let ownerName = String(ownerEmail).split('@')[0];
+    ownerName = ownerName.charAt(0).toUpperCase() + ownerName.slice(1);
+    const ownerInitials = ownerName.slice(0, 2).toUpperCase();
+
+    const rawRole = String(q.owner_role || q.ownerRole || '').toLowerCase();
+    const ownerEmailStr = String(ownerEmail).toLowerCase();
+    const ownerNameStr = String(ownerName).toLowerCase();
+    const isManager = rawRole.includes('manager') || rawRole.includes('approver') || rawRole.includes('admin') || ownerEmailStr.includes('rjav') || ownerEmailStr.includes('arjav') || ownerNameStr.includes('rjav') || ownerNameStr.includes('arjav');
+    const ownerRole = isManager ? 'Sales Manager' : 'Sales Representative';
+
+    let formattedDate = 'Recent';
+    if (q.created_at || q.created) {
+      try {
+        const d = new Date(q.created_at || q.created);
+        if (!isNaN(d.getTime())) {
+          formattedDate = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+      } catch (e) {}
+    }
+
+    const alertText = q.negotiation_request || q.negotiationRequest 
+      ? `💬 Customer Request: ${q.negotiation_request || q.negotiationRequest}`
+      : (stage === 'negotiation' ? '💬 Customer counter proposal received' : (q.alert || null));
+
+    return {
+      ...q,
+      id: q.id || `Q-${Math.random().toString().slice(2, 8)}`,
+      client: q.customer_name || q.client || q.customerName || 'Valued Client',
+      amount,
+      baseAmount,
+      desc: q.notes || q.desc || productNames,
+      stage,
+      rawStage: q.stage,
+      alert: alertText,
+      customerTier: q.customer_tier || q.customerTier || 'Bronze',
+      discountPercent,
+      owner: ownerName,
+      ownerRole,
+      ownerInitials,
+      ownerClass: 'owner-avatar-purple',
+      created: formattedDate,
+      productItems,
+      productNames,
+      maxAllowedDiscount: Number(q.max_allowed_discount ?? q.maxAllowedDiscount ?? (isManager ? 80 : 5))
+    };
+  };
+
+  const loadQuotations = async (isSilent = false) => {
+    if (!isSilent) setIsLoading(true);
+    try {
+      const data = await fetchQuotations();
+      if (Array.isArray(data)) {
+        setQuotes(data.map(normalizeQuote).filter(Boolean));
+      }
+    } catch (err) {
+      console.error("Failed to load quotations:", err);
+    } finally {
+      if (!isSilent) setIsLoading(false);
+    }
+  };
+
+  const loadProducts = async () => {
+    try {
+      const dbProducts = await fetchProducts();
+      if (Array.isArray(dbProducts) && dbProducts.length > 0) {
+        setAvailableProducts(dbProducts);
+      }
+    } catch (err) {
+      console.error("Failed to load products from API:", err);
+    }
+  };
+
+  useEffect(() => {
+    loadQuotations();
+    loadProducts();
+
+    // Live sync polling every 3 seconds for quotations
+    const intervalId = setInterval(() => {
+      loadQuotations(true);
+    }, 3000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  // Poll active quote messages if quote detail modal is open
+  useEffect(() => {
+    if (!selectedQuote?.id) return;
+    const msgInterval = setInterval(async () => {
+      try {
+        const msgs = await fetchQuoteMessages(selectedQuote.id);
+        setQuoteMessages(msgs || []);
+      } catch (e) {}
+    }, 3000);
+    return () => clearInterval(msgInterval);
+  }, [selectedQuote?.id]);
+
+  useEffect(() => {
+    if (isNewQuoteOpen) {
+      loadProducts();
+    }
+  }, [isNewQuoteOpen]);
+
+  const handleSelectQuote = async (quote) => {
+    const normalized = normalizeQuote(quote);
+    setSelectedQuote(normalized);
+    setRepDiscountPct(normalized.discountPercent || 0);
+    setPortalEmail(normalized.customer_email || normalized.customerEmail || '');
+    setPortalSent(null);
+    setCopiedLink(false);
+    try {
+      const msgs = await fetchQuoteMessages(normalized.id);
+      setQuoteMessages(msgs || []);
+    } catch (e) {
+      setQuoteMessages([]);
+    }
   };
 
   const handleApplyDiscount = async () => {
-    if (!selectedQuote || applyingDiscount) return;
+    if (!selectedQuote) return;
     setApplyingDiscount(true);
     try {
-      const res = await applyQuotationDiscount(selectedQuote.id, repDiscountPct);
-      showToast(res.message || `Discount of ${repDiscountPct}% submitted!`);
-      setSelectedQuote(prev => ({
-        ...prev,
-        discountPercent: repDiscountPct,
-        amount: res.newTotal || prev.amount,
-        stage: res.requiresManagerApproval ? 'pending' : (prev.stage === 'draft' ? 'approved' : prev.stage),
-        alert: res.requiresManagerApproval ? 'Status: Pending Manager Review' : 'Status: Auto-Approved',
-      }));
+      const res = await applyQuotationDiscount(selectedQuote.id, repDiscountPct, "Sales rep counter discount");
+      showToast(res.message || `Discount of ${repDiscountPct}% applied successfully!`);
+      if (res.quote) {
+        const updated = normalizeQuote(res.quote);
+        setSelectedQuote(updated);
+      }
       await loadQuotations();
-      const msgs = await fetchQuoteMessages(selectedQuote.id);
-      setQuoteMessages(msgs);
     } catch (err) {
       showToast(err.message || 'Failed to apply discount');
     } finally {
@@ -112,14 +282,21 @@ export default function Quotations({ user, onNavigate, onLogout }) {
   };
 
   const handleSendPortal = async () => {
-    if (!portalEmail || !selectedQuote || sendingPortal) return;
+    if (!selectedQuote) return;
+    const targetEmail = (portalEmail || selectedQuote.customerEmail || selectedQuote.customer_email || '').trim();
+    if (!targetEmail) {
+      showToast('Please enter customer email address.');
+      return;
+    }
     setSendingPortal(true);
     try {
-      const result = await sendPortalLink(selectedQuote.id, portalEmail.trim());
-      const pUrl = result.portalUrl || `${window.location.origin}/portal/${result.token}`;
-      setPortalSent({ url: pUrl, email: portalEmail.trim() });
-      showToast(result.message || `Portal link sent to ${portalEmail}!`);
-      await loadQuotations();
+      const res = await sendPortalLink(selectedQuote.id, targetEmail);
+      if (res.portalUrl) {
+        setPortalSent({ url: res.portalUrl, email: targetEmail });
+        showToast(`Quotation portal link sent to ${targetEmail}!`);
+      } else {
+        showToast(res.message || 'Portal link generated.');
+      }
     } catch (err) {
       showToast(err.message || 'Failed to send portal link');
     } finally {
@@ -127,15 +304,23 @@ export default function Quotations({ user, onNavigate, onLogout }) {
     }
   };
 
+  const handleCopyLink = (url) => {
+    if (!url) return;
+    navigator.clipboard.writeText(url);
+    setCopiedLink(true);
+    showToast('Portal link copied to clipboard!');
+    setTimeout(() => setCopiedLink(false), 3000);
+  };
+
   const handleSendReply = async () => {
-    if (!repReplyText.trim() || !selectedQuote || sendingRepReply) return;
+    if (!selectedQuote || !repReplyText.trim()) return;
     setSendingRepReply(true);
     try {
       await sendSalesRepReply(selectedQuote.id, repReplyText.trim());
+      showToast('Reply sent to customer!');
       setRepReplyText('');
       const msgs = await fetchQuoteMessages(selectedQuote.id);
-      setQuoteMessages(msgs);
-      showToast('Reply sent to customer portal!');
+      setQuoteMessages(msgs || []);
     } catch (err) {
       showToast(err.message || 'Failed to send reply');
     } finally {
@@ -143,126 +328,134 @@ export default function Quotations({ user, onNavigate, onLogout }) {
     }
   };
 
-  const loadQuotations = async (showLoading = true) => {
-    try {
-      if (showLoading) setIsLoading(true);
-      const data = await fetchQuotations();
-      const mapped = data.map(q => {
-        let stageName = 'draft';
-        const st = (q.stage || '').toLowerCase();
-        if (st.includes('pending')) stageName = 'pending';
-        else if (st.includes('approved')) stageName = 'approved';
-        else if (st.includes('negotiation')) stageName = 'negotiation';
-        else if (st.includes('confirmed') || st.includes('closed')) stageName = 'confirmed';
-
-        const cEmail = q.customer_email || q.portal_customer_email || '';
-        const pUrl = q.portal_token ? `${window.location.origin}/portal/${q.portal_token}` : null;
-        const discPct = Number(q.discount_percent || 0);
-        const curAmount = Number(q.total_amount || 0);
-        const maxLimit = Number(q.max_allowed_discount || (q.customer_tier === 'Gold' ? 15 : q.customer_tier === 'Silver' ? 10 : q.customer_tier === 'Enterprise' ? 25 : 5));
-        const baseAmt = Number(q.base_amount || 0) || (discPct > 0 && discPct < 100 ? curAmount / (1 - discPct / 100) : curAmount);
-
-        return {
-          id: q.id,
-          client: q.customer_name || 'Enterprise Client',
-          customerEmail: cEmail,
-          portalToken: q.portal_token || null,
-          portalUrl: pUrl,
-          amount: curAmount,
-          baseAmount: baseAmt,
-          stage: stageName,
-          rawStage: q.stage,
-          customerTier: q.customer_tier || 'Bronze',
-          discountPercent: discPct,
-          maxAllowedDiscount: maxLimit,
-          desc: q.negotiation_request || `${q.customer_tier || 'Bronze'} Tier deal with ${discPct}% discount.`,
-          created: 'Active in DB',
-          owner: q.owner_email ? q.owner_email.split('@')[0] : (user?.name || 'Sales Rep'),
-          ownerInitials: q.owner_email ? q.owner_email.slice(0, 2).toUpperCase() : 'SR',
-          ownerClass: 'am',
-          badge: q.approval_required ? 'Approval Required' : null,
-          alert: q.approval_status ? `Status: ${q.approval_status}` : null
-        };
-      });
-      setQuotes(mapped);
-    } catch {
-      if (showLoading) showToast('Failed to load quotations from database');
-    } finally {
-      if (showLoading) setIsLoading(false);
+  const handleProductSelect = (prodId) => {
+    setSelectedProductId(prodId);
+    const prod = availableProducts.find(p => String(p.id) === String(prodId));
+    if (prod) {
+      const price = Number(prod.price || 0);
+      setSelectedProductUnitPrice(price);
     }
   };
 
-  useEffect(() => {
-    loadQuotations(true);
-    // Real-time live sync for quotation stages across browser tabs
-    const interval = setInterval(() => {
-      loadQuotations(false);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    if (selectedQuote) {
-      setPortalEmail(selectedQuote.customerEmail || '');
-      setRepDiscountPct(selectedQuote.discountPercent || 0);
-      if (selectedQuote.portalUrl) {
-        setPortalSent({ url: selectedQuote.portalUrl, email: selectedQuote.customerEmail || 'Customer' });
-      } else {
-        setPortalSent(null);
-      }
-      fetchQuoteMessages(selectedQuote.id)
-        .then(msgs => setQuoteMessages(msgs))
-        .catch(() => setQuoteMessages([]));
-
-      // Live 3s polling for customer messages when viewing this quotation
-      const msgInterval = setInterval(() => {
-        fetchQuoteMessages(selectedQuote.id)
-          .then(msgs => setQuoteMessages(msgs))
-          .catch(() => {});
-      }, 3000);
-
-      return () => clearInterval(msgInterval);
-    } else {
-      setQuoteMessages([]);
-      setPortalSent(null);
-      setPortalEmail('');
-      setRepReplyText('');
-      setRepDiscountPct(0);
+  const handleAddProductToQuote = () => {
+    if (!selectedProductId) {
+      showToast('Please select a product from the catalog.');
+      return;
     }
-  }, [selectedQuote]);
+    const prod = availableProducts.find(p => String(p.id) === String(selectedProductId));
+    if (!prod) return;
+
+    const unitPrice = Number(selectedProductUnitPrice || prod.price || 0);
+    const qty = Number(selectedProductQty || 1);
+    const itemTotal = unitPrice * qty;
+
+    const newItem = {
+      id: `item-${Date.now()}-${Math.random().toString().slice(-4)}`,
+      productId: prod.id,
+      name: prod.name,
+      sku: prod.sku,
+      category: prod.category || 'Hardware',
+      quantity: qty,
+      unitPrice: unitPrice,
+      totalPrice: itemTotal,
+      inStock: true,
+      warehouseAvailability: 'Main Warehouse (In Stock)'
+    };
+
+    const updatedItems = [...quoteItems, newItem];
+    setQuoteItems(updatedItems);
+
+    // Auto-update newAmount as sum of all line item totals
+    const newBaseSum = updatedItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    setNewAmount(newBaseSum);
+
+    // Reset current product selector fields
+    setSelectedProductId('');
+    setSelectedProductQty(1);
+    setSelectedProductUnitPrice(0);
+    showToast(`Added "${prod.name}" to quotation!`);
+  };
+
+  const handleRemoveQuoteItem = (itemId) => {
+    const updated = quoteItems.filter(i => i.id !== itemId);
+    setQuoteItems(updated);
+    const newBaseSum = updated.reduce((sum, item) => sum + item.totalPrice, 0);
+    setNewAmount(newBaseSum);
+  };
 
   const handleCreateNewQuote = async (e) => {
     e.preventDefault();
-    if (!newClient || !newAmount) {
-      showToast('Please fill in client name and estimated amount.');
+    if (!newClient) {
+      showToast('Please enter client/company name.');
       return;
     }
 
     setIsCreatingQuote(true);
     try {
+      let lineItems = [...quoteItems];
+      let baseTotal = parseFloat(newAmount) || 0;
+
+      // Fallback: If user selected product in dropdown without clicking Add Product button
+      if (lineItems.length === 0 && selectedProductId) {
+        const prod = availableProducts.find(p => String(p.id) === String(selectedProductId));
+        if (prod) {
+          const unitP = Number(selectedProductUnitPrice || prod.price || 0);
+          const qCount = Number(selectedProductQty || 1);
+          baseTotal = unitP * qCount;
+          lineItems = [{
+            id: `item-${prod.id}`,
+            name: prod.name,
+            sku: prod.sku,
+            category: prod.category || 'Hardware',
+            quantity: qCount,
+            unitPrice: unitP,
+            totalPrice: baseTotal,
+            inStock: true
+          }];
+        }
+      }
+
+      if (lineItems.length === 0 && baseTotal <= 0) {
+        showToast('Please add at least one product or set list price.');
+        setIsCreatingQuote(false);
+        return;
+      }
+
+      const discPct = Number(newDiscount) || 0;
+      const discountDollar = baseTotal * (discPct / 100);
+      const netTotal = Number((baseTotal - discountDollar).toFixed(2));
+
+      const productNamesSummary = lineItems.map(i => `${i.name}${i.quantity > 1 ? ` (${i.quantity}x)` : ''}`).join(', ');
+      const finalNotes = newDesc.trim() || productNamesSummary || 'Custom Enterprise Package';
+
       const res = await createQuotation({
         customerName: newClient.trim(),
         customerEmail: newEmail.trim() || undefined,
-        sendPortalEmail: sendImmediateEmail && !!newEmail.trim(),
+        sendPortalEmail: false, // Do not send auto email
         customerTier: newTier,
-        totalAmount: parseFloat(newAmount) || 10000,
-        discountPercent: Number(newDiscount) || 0,
+        baseAmount: baseTotal,
+        totalAmount: netTotal,
+        discountPercent: discPct,
         stage: newStage,
+        notes: finalNotes,
+        upsellItems: lineItems,
       });
 
-      if (res.emailSent) {
-        showToast(`Quotation created and portal link emailed to ${newEmail}!`);
-      } else if (res.portalUrl) {
-        showToast(`Quotation created with portal link generated!`);
-      } else {
-        showToast(`Quotation created for ${newClient} in PostgreSQL!`);
-      }
+      const isDraftStage = String(newStage).toLowerCase() === 'draft';
+      showToast(isDraftStage
+        ? `Draft quotation created for ${newClient}! (Saved in your Drafts, not sent to customer)`
+        : `Quotation submitted for ${newClient}! (Published to Customer Portal & Approval list)`
+      );
 
       setIsNewQuoteOpen(false);
       setNewClient('');
       setNewEmail('');
       setNewAmount('');
       setNewDesc('');
+      setQuoteItems([]);
+      setSelectedProductId('');
+      setSelectedProductQty(1);
+      setSelectedProductUnitPrice(0);
       setNewDiscount(0);
       setNewStage('draft');
       await loadQuotations();
@@ -273,16 +466,20 @@ export default function Quotations({ user, onNavigate, onLogout }) {
     }
   };
 
-  // Filter quotes based on search query
-  const filteredQuotes = quotes.filter(q => 
-    q.client.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    q.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    q.desc.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter quotes safely against null/undefined properties
+  const filteredQuotes = quotes.filter(q => {
+    const query = (searchQuery || '').toLowerCase();
+    return (
+      (q.client || '').toLowerCase().includes(query) ||
+      (q.id || '').toLowerCase().includes(query) ||
+      (q.desc || '').toLowerCase().includes(query) ||
+      (q.productNames || '').toLowerCase().includes(query)
+    );
+  });
 
   const draftQuotes = filteredQuotes.filter(q => q.stage === 'draft');
   const pendingQuotes = filteredQuotes.filter(q => q.stage === 'pending');
-  const approvedQuotes = filteredQuotes.filter(q => q.stage === 'approved');
+  const approvedQuotes = filteredQuotes.filter(q => q.stage === 'approved' || q.stage === 'confirmed');
   const negotiationQuotes = filteredQuotes.filter(q => q.stage === 'negotiation');
 
   const selectedBasePrice = selectedQuote
@@ -366,58 +563,70 @@ export default function Quotations({ user, onNavigate, onLogout }) {
               </button>
             </div>
 
-            <button
-              className="btn-new-quote"
-              onClick={() => setIsNewQuoteOpen(true)}
-            >
-              <Plus size={16} />
-              <span>New Quotation</span>
-            </button>
+            {normalizeRole(user?.role) !== 'customer' && (
+              <button
+                className="btn-new-quote"
+                onClick={() => setIsNewQuoteOpen(true)}
+              >
+                <Plus size={16} />
+                <span>New Quotation</span>
+              </button>
+            )}
           </div>
         </div>
 
         {/* 5 KPI Metric Summary Pill Cards */}
-        <div className="quote-metrics-bar">
-          <div className="metric-pill-card">
-            <div className="metric-pill-info">
-              <span className="metric-pill-label">Draft Total</span>
-              <span className="metric-pill-value gray">$15,600</span>
-            </div>
-            <span className="metric-dot gray"></span>
-          </div>
+        {(() => {
+          const draftSum = draftQuotes.reduce((a, b) => a + (b.amount || 0), 0);
+          const pendingSum = pendingQuotes.reduce((a, b) => a + (b.amount || 0), 0);
+          const approvedSum = approvedQuotes.reduce((a, b) => a + (b.amount || 0), 0);
+          const negotiationSum = negotiationQuotes.reduce((a, b) => a + (b.amount || 0), 0);
+          const confirmedSum = filteredQuotes.filter(q => q.stage === 'confirmed').reduce((a, b) => a + (b.amount || 0), 0);
 
-          <div className="metric-pill-card">
-            <div className="metric-pill-info">
-              <span className="metric-pill-label">Pending Value</span>
-              <span className="metric-pill-value amber">$28,900</span>
-            </div>
-            <span className="metric-dot amber"></span>
-          </div>
+          return (
+            <div className="quote-metrics-bar">
+              <div className="metric-pill-card">
+                <div className="metric-pill-info">
+                  <span className="metric-pill-label">Draft Total</span>
+                  <span className="metric-pill-value gray">${draftSum.toLocaleString()}</span>
+                </div>
+                <span className="metric-dot gray"></span>
+              </div>
 
-          <div className="metric-pill-card">
-            <div className="metric-pill-info">
-              <span className="metric-pill-label">Approved Value</span>
-              <span className="metric-pill-value blue">$9,750</span>
-            </div>
-            <span className="metric-dot blue"></span>
-          </div>
+              <div className="metric-pill-card">
+                <div className="metric-pill-info">
+                  <span className="metric-pill-label">Pending Value</span>
+                  <span className="metric-pill-value amber">${pendingSum.toLocaleString()}</span>
+                </div>
+                <span className="metric-dot amber"></span>
+              </div>
 
-          <div className="metric-pill-card">
-            <div className="metric-pill-info">
-              <span className="metric-pill-label">In Negotiation</span>
-              <span className="metric-pill-value purple">$15,300</span>
-            </div>
-            <span className="metric-dot purple"></span>
-          </div>
+              <div className="metric-pill-card">
+                <div className="metric-pill-info">
+                  <span className="metric-pill-label">Approved Value</span>
+                  <span className="metric-pill-value blue">${approvedSum.toLocaleString()}</span>
+                </div>
+                <span className="metric-dot blue"></span>
+              </div>
 
-          <div className="metric-pill-card">
-            <div className="metric-pill-info">
-              <span className="metric-pill-label">Confirmed Value</span>
-              <span className="metric-pill-value green">$41,000</span>
+              <div className="metric-pill-card">
+                <div className="metric-pill-info">
+                  <span className="metric-pill-label">In Negotiation</span>
+                  <span className="metric-pill-value purple">${negotiationSum.toLocaleString()}</span>
+                </div>
+                <span className="metric-dot purple"></span>
+              </div>
+
+              <div className="metric-pill-card">
+                <div className="metric-pill-info">
+                  <span className="metric-pill-label">Confirmed Value</span>
+                  <span className="metric-pill-value green">${confirmedSum.toLocaleString()}</span>
+                </div>
+                <span className="metric-dot green"></span>
+              </div>
             </div>
-            <span className="metric-dot green"></span>
-          </div>
-        </div>
+          );
+        })()}
 
         {/* KANBAN BOARD VIEW */}
         {viewMode === 'board' && (
@@ -445,7 +654,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                   <div 
                     key={quote.id} 
                     className="kanban-deal-card"
-                    onClick={() => setSelectedQuote(quote)}
+                    onClick={() => handleSelectQuote(quote)}
                   >
                     <div className="card-top-row">
                       <span className="card-quote-code">{quote.id}</span>
@@ -497,7 +706,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                   <div 
                     key={quote.id} 
                     className="kanban-deal-card pending-stripe"
-                    onClick={() => setSelectedQuote(quote)}
+                    onClick={() => handleSelectQuote(quote)}
                   >
                     <div className="card-top-row">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -553,7 +762,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                   <div 
                     key={quote.id} 
                     className="kanban-deal-card approved-stripe"
-                    onClick={() => setSelectedQuote(quote)}
+                    onClick={() => handleSelectQuote(quote)}
                   >
                     <div className="card-top-row">
                       <span className="card-quote-code">{quote.id}</span>
@@ -607,7 +816,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                   <div 
                     key={quote.id} 
                     className="kanban-deal-card negotiation-stripe"
-                    onClick={() => setSelectedQuote(quote)}
+                    onClick={() => handleSelectQuote(quote)}
                   >
                     <div className="card-top-row">
                       <span className="card-quote-code">{quote.id}</span>
@@ -619,14 +828,16 @@ export default function Quotations({ user, onNavigate, onLogout }) {
 
                     {quote.alert && (
                       <div className="card-alert-box purple">
-                        👁️ {quote.alert}
+                        {quote.alert}
                       </div>
                     )}
 
                     <div className="card-bottom-row">
-                      <span style={{ fontSize: '11.5px', color: '#475569', fontWeight: 500 }}>
-                        {quote.created}
-                      </span>
+                      <span>● {quote.created}</span>
+                      <div className="card-owner-badge">
+                        <span className={`owner-avatar-mini ${quote.ownerClass}`}>{quote.ownerInitials}</span>
+                        <span className="owner-name">{quote.owner}</span>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -657,7 +868,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
               </thead>
               <tbody>
                 {filteredQuotes.map(quote => (
-                  <tr key={quote.id} onClick={() => setSelectedQuote(quote)}>
+                  <tr key={quote.id} onClick={() => handleSelectQuote(quote)}>
                     <td style={{ fontWeight: 700, color: '#714b67' }}>{quote.id}</td>
                     <td style={{ fontWeight: 700 }}>{quote.client}</td>
                     <td style={{ maxWidth: '300px', fontSize: '12.5px', color: '#64748b' }}>{quote.desc}</td>
@@ -702,7 +913,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
           </div>
 
           <div className="bottom-pipeline-stat">
-            Showing <strong>{filteredQuotes.length} total quotations</strong> across <strong>5 stages</strong>  •  Total Pipeline: <strong>$107,350</strong>
+            Showing <strong>{filteredQuotes.length} total quotations</strong>  •  Total Pipeline: <strong>${filteredQuotes.reduce((acc, q) => acc + (q.amount || 0), 0).toLocaleString()}</strong>
           </div>
         </div>
 
@@ -737,6 +948,30 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                 </div>
               )}
             </div>
+
+            {/* Itemized Products Breakdown Table */}
+            {selectedQuote.productItems && selectedQuote.productItems.length > 0 && (
+              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>📦 Quotation Products Breakdown ({selectedQuote.productItems.length})</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {selectedQuote.productItems.map((item, idx) => (
+                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '8px 10px', borderRadius: '6px', fontSize: '12.5px' }}>
+                      <div>
+                        <strong style={{ color: '#0f172a' }}>{item.name}</strong>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>
+                          SKU: {item.sku || 'N/A'} • {item.quantity || 1}x @ ${Number(item.unitPrice || 0).toLocaleString()}
+                        </div>
+                      </div>
+                      <strong style={{ color: '#059669', fontSize: '13px' }}>
+                        ${Number(item.totalPrice || ((item.unitPrice || 0) * (item.quantity || 1))).toLocaleString()}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {selectedQuote.alert && (
               <div style={{ padding: '10px 12px', borderRadius: '8px', background: '#faf5f8', border: '1px solid #e9d5e3', color: '#54324c', fontSize: '12.5px', marginBottom: '14px', fontWeight: 500 }}>
@@ -1169,9 +1404,160 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              {/* Multi-Product Selector from Admin Catalog */}
+              <div style={{
+                backgroundColor: '#f8fafc',
+                border: '1px solid #cbd5e1',
+                borderRadius: '10px',
+                padding: '14px',
+                marginBottom: '16px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label className="form-label" style={{ fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                    📦 Select Product from Catalog
+                  </label>
+                  <span style={{ fontSize: '11px', color: '#64748b', background: '#e2e8f0', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                    {availableProducts.length} Items Available
+                  </span>
+                </div>
+                
+                {/* Full-width Product Selector Dropdown */}
+                <div style={{ marginBottom: '10px' }}>
+                  <select
+                    className="form-input"
+                    value={selectedProductId}
+                    onChange={(e) => handleProductSelect(e.target.value)}
+                    style={{
+                      width: '100%',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      height: '42px',
+                      fontSize: '13px',
+                      borderColor: selectedProductId ? '#714b67' : '#cbd5e1',
+                      backgroundColor: '#ffffff'
+                    }}
+                  >
+                    <option value="">-- Choose Product from Catalog ({availableProducts.length} available) --</option>
+                    {availableProducts.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        [{p.sku || 'SKU'}] {p.name} — ${Number(p.price || 0).toLocaleString()} ({p.category || 'Hardware'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Quantity, Unit Price, and Add Button Row */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr', gap: '8px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '3px' }}>
+                      Quantity
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      className="form-input"
+                      placeholder="Qty"
+                      value={selectedProductQty}
+                      onChange={(e) => setSelectedProductQty(Math.max(1, Number(e.target.value)))}
+                      style={{ height: '38px', width: '100%' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '3px' }}>
+                      Unit Price ($)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="form-input"
+                      placeholder="Price ($)"
+                      value={selectedProductUnitPrice}
+                      onChange={(e) => setSelectedProductUnitPrice(Number(e.target.value))}
+                      style={{ height: '38px', width: '100%' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={handleAddProductToQuote}
+                      disabled={!selectedProductId}
+                      style={{
+                        width: '100%',
+                        height: '38px',
+                        borderRadius: '6px',
+                        border: selectedProductId ? 'none' : '1px solid #cbd5e1',
+                        backgroundColor: selectedProductId ? '#714b67' : '#e2e8f0',
+                        color: selectedProductId ? '#ffffff' : '#64748b',
+                        fontSize: '12.5px',
+                        fontWeight: 700,
+                        cursor: selectedProductId ? 'pointer' : 'not-allowed',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        boxShadow: selectedProductId ? '0 2px 4px rgba(113, 75, 103, 0.25)' : 'none',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <Plus size={15} />
+                      <span>Add Product</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Added Products Table */}
+                {quoteItems && quoteItems.length > 0 && (
+                  <div style={{ marginTop: '12px', borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                      Selected Products ({quoteItems.length}):
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {quoteItems.map((item) => (
+                        <div key={item.id} style={{
+                          backgroundColor: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '6px',
+                          padding: '8px 10px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          fontSize: '12.5px'
+                        }}>
+                          <div>
+                            <strong style={{ color: '#0f172a' }}>{item.name}</strong>
+                            <span style={{ fontSize: '11.5px', color: '#64748b', marginLeft: '6px' }}>
+                              [{item.sku}] — {item.quantity}x @ ${item.unitPrice.toLocaleString()}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <strong style={{ color: '#059669' }}>${item.totalPrice.toLocaleString()}</strong>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveQuoteItem(item.id)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#ef4444',
+                                cursor: 'pointer',
+                                padding: '2px'
+                              }}
+                              title="Remove item"
+                            >
+                              <X size={15} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                 <div className="form-group">
-                  <label className="form-label">Contract Value ($ USD) *</label>
+                  <label className="form-label">Base List Total ($ USD) *</label>
                   <input
                     type="number"
                     className="form-input"
@@ -1195,6 +1581,35 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                   />
                 </div>
               </div>
+
+              {/* Live Calculation Preview Box */}
+              {Number(newAmount) > 0 && (
+                <div style={{
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '12px 14px',
+                  marginBottom: '14px',
+                  fontSize: '13px',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: '#64748b' }}>Base List Price:</span>
+                    <strong style={{ color: '#0f172a' }}>${Number(newAmount).toLocaleString()}</strong>
+                  </div>
+                  {Number(newDiscount) > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', color: '#e11d48' }}>
+                      <span>Discount ({newDiscount}% deduction):</span>
+                      <strong>-${(Number(newAmount) * (Number(newDiscount) / 100)).toLocaleString()}</strong>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '6px', fontSize: '14px', fontWeight: 800 }}>
+                    <span style={{ color: '#714b67' }}>Consumer Portal Total (After Deduction):</span>
+                    <span style={{ color: '#059669' }}>
+                      ${(Number(newAmount) * (1 - Number(newDiscount) / 100)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div className="form-group">
@@ -1220,8 +1635,8 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                     onChange={(e) => setNewStage(e.target.value)}
                     style={{ cursor: 'pointer' }}
                   >
-                    <option value="draft">Draft</option>
-                    <option value="pending">Pending Approval</option>
+                    <option value="draft">Draft (Saved in Rep/Manager Drafts only)</option>
+                    <option value="pending">Pending Final Approval (Publish to Customer Portal)</option>
                     <option value="approved">Approved</option>
                     <option value="negotiation">Negotiation</option>
                   </select>

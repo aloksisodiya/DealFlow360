@@ -5,12 +5,10 @@ import {
   AlertTriangle, 
   Plus, 
   CheckSquare, 
-  Zap, 
   Check, 
-  Edit3, 
-  Package, 
   ArrowRight, 
-  X 
+  X,
+  MessageSquare
 } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
 import { fetchDashboardMetrics } from '../../services/dashboardService';
@@ -118,8 +116,8 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
           </div>
         </div>
 
-        {/* 3 KPI Cards Grid */}
-        <div className="kpi-grid">
+        {/* 4 KPI Cards Grid */}
+        <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
           {/* Card 1: Pending Approvals */}
           <div className="kpi-card pending-approvals">
             <div className="kpi-card-body">
@@ -129,13 +127,13 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
                   <Clock size={18} />
                 </div>
               </div>
-              <div className="kpi-value-text">{metrics?.pendingApprovals?.totalWaiting || 4} quotations waiting</div>
+              <div className="kpi-value-text">{metrics?.pendingApprovals?.totalWaiting ?? 0} quotations waiting</div>
               <div>
-                <span className="kpi-sub-tag amber">Avg. response time: 3.2 hrs</span>
+                <span className="kpi-sub-tag amber">Live DB sync</span>
               </div>
             </div>
             <div className="kpi-card-footer">
-              <span>{metrics?.pendingApprovals?.requireFinanceApprovalCount || 2} require Finance review</span>
+              <span>{metrics?.pendingApprovals?.requireFinanceApprovalCount ?? 0} require Finance review</span>
               <button 
                 className="kpi-action-link"
                 onClick={() => onNavigate ? onNavigate('approvals') : setActiveModal('approvals')}
@@ -155,9 +153,9 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
                   <FileText size={18} />
                 </div>
               </div>
-              <div className="kpi-value-text">{metrics?.openQuotations?.activeDealsCount || 12} active deals</div>
+              <div className="kpi-value-text">{metrics?.openQuotations?.activeDealsCount ?? 0} active deals</div>
               <div>
-                <span className="kpi-sub-tag green">Pipeline Value: ${Number(metrics?.openQuotations?.totalPipelineValue || 482500).toLocaleString()}</span>
+                <span className="kpi-sub-tag green">Pipeline Value: ${Number(metrics?.openQuotations?.totalPipelineValue ?? 0).toLocaleString()}</span>
               </div>
             </div>
             <div className="kpi-card-footer">
@@ -172,7 +170,37 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
             </div>
           </div>
 
-          {/* Card 3: At-Risk Deals */}
+          {/* Card 3: Customer Portal Negotiations & Approvals */}
+          <div className="kpi-card" style={{ borderColor: '#e2e8f0' }}>
+            <div className="kpi-card-body">
+              <div className="kpi-header">
+                <span className="kpi-category-tag" style={{ color: '#714b67' }}>CUSTOMER PORTAL ACTIVITY</span>
+                <div className="kpi-icon-badge" style={{ backgroundColor: '#fdf4ff', color: '#a21caf' }}>
+                  <MessageSquare size={18} />
+                </div>
+              </div>
+              <div className="kpi-value-text" style={{ fontSize: '18px' }}>
+                {metrics?.customerApprovedCount ?? 0} Approved • {metrics?.customerNegotiatedCount ?? 0} Negotiating
+              </div>
+              <div>
+                <span className="kpi-sub-tag" style={{ backgroundColor: '#fdf4ff', color: '#a21caf' }}>
+                  Customer Counter Proposals & Confirmed Orders
+                </span>
+              </div>
+            </div>
+            <div className="kpi-card-footer">
+              <span>Real-time portal stream</span>
+              <button 
+                className="kpi-action-link"
+                onClick={() => onNavigate && onNavigate('quotations')}
+              >
+                <span>Manage</span>
+                <ArrowRight size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* Card 4: At-Risk Deals */}
           <div className="kpi-card at-risk-deals">
             <div className="kpi-card-body">
               <div className="kpi-header">
@@ -181,7 +209,7 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
                   <AlertTriangle size={18} />
                 </div>
               </div>
-              <div className="kpi-value-text">{metrics?.atRiskDeals?.flaggedByDealHealth || 3} flagged anomalies</div>
+              <div className="kpi-value-text">{metrics?.atRiskDeals?.flaggedByDealHealth ?? 0} flagged anomalies</div>
               <div>
                 <span className="kpi-sub-tag red">Active risk policies</span>
               </div>
@@ -218,59 +246,94 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
           </button>
         </div>
 
-        {/* Recent Activity Card */}
-        <div className="activity-card">
-          <div className="activity-card-header">
-            <div className="activity-title-left">
-              <Zap size={18} color="#714b67" />
-              <span>Recent Activity (PostgreSQL Database)</span>
+        {/* Customer Portal Activity & Recent Timeline Card */}
+        {metrics?.recentActivities && metrics.recentActivities.length > 0 && (
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '12px',
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+            padding: '20px',
+            marginTop: '20px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
+                  Live Customer Negotiations & Portal Stream
+                </h3>
+                <p style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>
+                  Customer-approved quotations, counter discount proposals, and negotiation messages
+                </p>
+              </div>
+              <button 
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#714b67',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+                onClick={() => onNavigate && onNavigate('quotations')}
+              >
+                <span>View All Quotations</span>
+                <ArrowRight size={14} />
+              </button>
             </div>
-            <span className="activity-updated-time">Real-time sync</span>
-          </div>
 
-          <div className="activity-list">
-            {(metrics?.recentActivities || []).map((act, index) => {
-              const badgeType = (act.badge_type || '').toLowerCase();
-              const badgeColor = (act.badge_color || '').toLowerCase();
-              const isWarning = badgeColor === 'warning' || badgeType.includes('review') || badgeType.includes('discount');
-              const isInfo = badgeColor === 'info' || badgeType.includes('sync') || badgeType.includes('inventory');
-
-              return (
-                <div className="activity-item" key={act.id || index}>
-                  <div className="activity-item-left">
-                    <div className={`activity-badge-icon ${act.badge_color || (isWarning ? 'warning' : isInfo ? 'info' : 'success')}`}>
-                      {isWarning ? <Clock size={18} /> : isInfo ? <Package size={18} /> : <Check size={18} />}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {metrics.recentActivities.map((act, idx) => (
+                <div key={act.id || idx} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 14px',
+                  backgroundColor: '#f8fafc',
+                  borderRadius: '8px',
+                  border: '1px solid #f1f5f9'
+                }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a' }}>{act.title}</span>
+                      <span style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        backgroundColor: act.badge_color === 'success' ? '#dcfce7' : act.badge_color === 'warning' ? '#fef3c7' : '#e0e7ff',
+                        color: act.badge_color === 'success' ? '#15803d' : act.badge_color === 'warning' ? '#b45309' : '#3730a3'
+                      }}>
+                        {act.badge_type}
+                      </span>
                     </div>
-                    <div className="activity-text-content">
-                      <div className="activity-headline">
-                        {act.title}
-                      </div>
-                      <div className="activity-description">
-                        {act.subtitle}
-                      </div>
-                    </div>
+                    <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: '3px' }}>{act.subtitle}</div>
                   </div>
 
-                  <div className="activity-item-right">
-                    <span className={`status-pill ${act.badge_color === 'success' ? 'approved' : act.badge_color === 'warning' ? 'review' : 'sync'}`}>
-                      {act.badge_type}
-                    </span>
-                    <span className="activity-timestamp">{act.time_ago}</span>
-                  </div>
+                  <button 
+                    style={{
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      padding: '6px 12px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: '#334155',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => onNavigate && onNavigate('quotations')}
+                  >
+                    View Details
+                  </button>
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
+        )}
 
-          <div className="activity-card-footer">
-            <button 
-              className="view-all-pipeline-btn"
-              onClick={() => onNavigate && onNavigate('quotations')}
-            >
-              View all pipeline transactions →
-            </button>
-          </div>
-        </div>
+
       </main>
 
       {/* Interactive Modals */}

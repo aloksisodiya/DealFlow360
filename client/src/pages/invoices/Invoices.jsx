@@ -40,7 +40,26 @@ export default function Invoices({ user, onNavigate, onLogout }) {
     try {
       setIsLoading(true);
       const data = await fetchInvoices();
-      setInvoices(data);
+
+      const isCustomerUser = String(user?.role || '').toLowerCase().includes('customer');
+      const userEmail = String(user?.email || '').toLowerCase().trim();
+      const userName = String(user?.name || '').toLowerCase().trim();
+      const userHandle = userEmail ? userEmail.split('@')[0] : '';
+
+      const filteredInvoices = (data || []).filter(inv => {
+        if (!isCustomerUser) return true;
+
+        const invCustName = String(inv.customerName || inv.customer_name || '').toLowerCase().trim();
+        const invCustEmail = String(inv.customerEmail || inv.customer_email || '').toLowerCase().trim();
+
+        if (userEmail && invCustEmail && invCustEmail === userEmail) return true;
+        if (userName && invCustName && (invCustName.includes(userName) || userName.includes(invCustName))) return true;
+        if (userHandle && invCustName && invCustName.includes(userHandle)) return true;
+
+        return false;
+      });
+
+      setInvoices(filteredInvoices);
     } catch (err) {
       showToast('Failed to load invoices from database');
     } finally {
@@ -184,239 +203,283 @@ export default function Invoices({ user, onNavigate, onLogout }) {
           <div className="invoices-breadcrumb-group">
             <div className="invoices-kicker-row">
               <span>INVOICES • BILLING ENGINE •</span>
-              <span className="badge-active-record">ACTIVE RECORD</span>
+              <span className="badge-active-record">ACCOUNTS RECEIVABLE</span>
             </div>
-            <h1 className="invoices-title">Invoice Detail: INV-1042 (Acme Corp)</h1>
+            <h1 className="invoices-title">
+              {invoiceBatches.length > 0
+                ? `Invoice Detail: ${invoiceBatches[0].id} (${invoices[0]?.customerName || 'Account'})`
+                : 'Invoices & Billing Statements'}
+            </h1>
             <p className="invoices-subtitle">
-              Opened by clicking a row on the Invoices list
+              {invoiceBatches.length > 0
+                ? `Active billing statements and payment settlement history for ${invoices[0]?.customerName}`
+                : 'View and manage your account billing history and payment statements.'}
             </p>
           </div>
 
-          <div className="invoices-actions-group">
-            <button 
-              className="btn-inv-outline"
-              onClick={handleDownloadSummary}
-            >
-              <Download size={15} />
-              <span>Download Summary</span>
-            </button>
+          {invoiceBatches.length > 0 && (
+            <div className="invoices-actions-group">
+              <button 
+                className="btn-inv-outline"
+                onClick={handleDownloadSummary}
+              >
+                <Download size={15} />
+                <span>Download Summary</span>
+              </button>
 
-            <button 
-              className="btn-record-payment"
-              onClick={() => setActiveModal('recordPayment')}
-            >
-              <CreditCard size={15} />
-              <span>Record Payment</span>
-            </button>
-          </div>
+              <button 
+                className="btn-record-payment"
+                onClick={() => setActiveModal('recordPayment')}
+              >
+                <CreditCard size={15} />
+                <span>Record Payment</span>
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* SECTION 1: Stepper Progress Pipeline */}
-        <div className="invoices-stepper-card">
-          <div className="stepper-header-row">
-            <div className="stepper-title-kicker">ORDER & FULFILLMENT PIPELINE</div>
-            <div className="stepper-stage-indicator">
-              Stage 3 of 4: <span className="stepper-stage-bold">
-                {stepperState.paid ? 'Settled & Reconciled' : 'Awaiting Payment Settlement'}
-              </span>
+        {invoiceBatches.length === 0 ? (
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '16px',
+            border: '1px solid #e2e8f0',
+            padding: '56px 24px',
+            textAlign: 'center',
+            margin: '24px 0',
+            boxShadow: '0 4px 12px rgba(15, 23, 42, 0.03)'
+          }}>
+            <div style={{
+              width: '60px',
+              height: '60px',
+              borderRadius: '50%',
+              background: '#faf5f8',
+              color: '#714b67',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 18px auto'
+            }}>
+              <FileText size={30} />
             </div>
+            <h3 style={{ fontSize: '19px', fontWeight: 800, color: '#0f172a', marginBottom: '8px' }}>
+              No Invoices Generated Yet
+            </h3>
+            <p style={{ fontSize: '14px', color: '#64748b', maxWidth: '440px', margin: '0 auto 24px auto', lineHeight: 1.5 }}>
+              You currently have no active subscriptions or invoices on your account. Invoices will automatically appear here once a subscription or proposal is active.
+            </p>
           </div>
-
-          <div className="stepper-progress-bar">
-            {/* Step 1: Order Confirmed */}
-            <div className="stepper-step completed">
-              <div className="stepper-node-icon">
-                <Check size={18} />
+        ) : (
+          <>
+            {/* SECTION 1: Stepper Progress Pipeline */}
+            <div className="invoices-stepper-card">
+              <div className="stepper-header-row">
+                <div className="stepper-title-kicker">ORDER & FULFILLMENT PIPELINE</div>
+                <div className="stepper-stage-indicator">
+                  Stage 3 of 4: <span className="stepper-stage-bold">
+                    {stepperState.paid ? 'Settled & Reconciled' : 'Awaiting Payment Settlement'}
+                  </span>
+                </div>
               </div>
-              <div className="stepper-node-label">Order Confirmed</div>
-              <div className="stepper-node-date">Aug 28, 2025</div>
-            </div>
 
-            {/* Line 1 -> 2 */}
-            <div className="stepper-connector-line active" style={{ left: '25%', width: '25%' }}></div>
+              <div className="stepper-progress-bar">
+                {/* Step 1: Order Confirmed */}
+                <div className="stepper-step completed">
+                  <div className="stepper-node-icon">
+                    <Check size={18} />
+                  </div>
+                  <div className="stepper-node-label">Order Confirmed</div>
+                  <div className="stepper-node-date">{invoices[0]?.issueDate || 'Recent'}</div>
+                </div>
 
-            {/* Step 2: Shipped */}
-            <div className="stepper-step completed">
-              <div className="stepper-node-icon">
-                <Check size={18} />
-              </div>
-              <div className="stepper-node-label">Shipped</div>
-              <div className="stepper-node-date">Sep 02, 2025</div>
-            </div>
+                {/* Line 1 -> 2 */}
+                <div className="stepper-connector-line active" style={{ left: '25%', width: '25%' }}></div>
 
-            {/* Line 2 -> 3 */}
-            <div className="stepper-connector-line active" style={{ left: '50%', width: '25%' }}></div>
+                {/* Step 2: Shipped */}
+                <div className="stepper-step completed">
+                  <div className="stepper-node-icon">
+                    <Check size={18} />
+                  </div>
+                  <div className="stepper-node-label">Provisioned</div>
+                  <div className="stepper-node-date">{invoices[0]?.issueDate || 'Active'}</div>
+                </div>
 
-            {/* Step 3: Invoiced */}
-            <div className={`stepper-step ${stepperState.paid ? 'completed' : 'current'}`}>
-              <div className="stepper-node-icon">
-                {stepperState.paid ? <Check size={18} /> : <FileText size={18} />}
-              </div>
-              <div className="stepper-node-label">Invoiced</div>
-              <div className="stepper-node-date">Sep 03, 2025 (Current)</div>
-            </div>
+                {/* Line 2 -> 3 */}
+                <div className="stepper-connector-line active" style={{ left: '50%', width: '25%' }}></div>
 
-            {/* Line 3 -> 4 */}
-            <div className={`stepper-connector-line ${stepperState.paid ? 'active' : 'inactive'}`} style={{ left: '75%', width: '25%' }}></div>
+                {/* Step 3: Invoiced */}
+                <div className={`stepper-step ${stepperState.paid ? 'completed' : 'current'}`}>
+                  <div className="stepper-node-icon">
+                    {stepperState.paid ? <Check size={18} /> : <FileText size={18} />}
+                  </div>
+                  <div className="stepper-node-label">Invoiced</div>
+                  <div className="stepper-node-date">{invoices[0]?.issueDate || 'Current'}</div>
+                </div>
 
-            {/* Step 4: Paid */}
-            <div className={`stepper-step ${stepperState.paid ? 'completed' : 'pending'}`}>
-              <div className="stepper-node-icon">
-                {stepperState.paid ? <Check size={18} /> : <Clock size={18} />}
-              </div>
-              <div className="stepper-node-label">Paid</div>
-              <div className="stepper-node-date">
-                {stepperState.paid ? 'Settlement Complete' : 'Pending Settlement'}
-              </div>
-            </div>
-          </div>
-        </div>
+                {/* Line 3 -> 4 */}
+                <div className={`stepper-connector-line ${stepperState.paid ? 'active' : 'inactive'}`} style={{ left: '75%', width: '25%' }}></div>
 
-        {/* SECTION 2: Linked Invoice Line Batches Card */}
-        <div className="invoices-batch-card">
-          <div className="batch-card-header">
-            <div>
-              <div className="batch-title-main">Linked Invoice Line Batches</div>
-              <div className="batch-title-sub">
-                Invoices generated for dispatch order #ORD-8942 and associated cloud licenses
-              </div>
-            </div>
-
-            <div className="batch-pills-right">
-              {outstandingCount > 0 && (
-                <span className="batch-pill-outstanding">
-                  {outstandingCount} Outstanding Invoice
-                </span>
-              )}
-              <span className="batch-pill-settled">
-                {settledCount} Settled
-              </span>
-            </div>
-          </div>
-
-          <div className="table-responsive">
-            <table className="invoices-table">
-              <thead>
-                <tr>
-                  <th>INVOICE #</th>
-                  <th>DESCRIPTION / BILLING CATEGORY</th>
-                  <th>AMOUNT</th>
-                  <th>STATUS</th>
-                  <th>DUE DATE</th>
-                  <th style={{ textAlign: 'right' }}>ACTIONS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoiceBatches.map(batch => (
-                  <tr key={batch.id}>
-                    {/* Invoice ID */}
-                    <td>
-                      <div className="inv-number-cell">
-                        <span className={`inv-dot ${batch.dotColor}`}></span>
-                        <span className="inv-number-bold">{batch.id}</span>
-                        <span className={`inv-badge-type ${batch.badge.toLowerCase()}`}>
-                          {batch.badge}
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Description */}
-                    <td>
-                      <div className="inv-desc-main">{batch.title}</div>
-                      <div className="inv-desc-sub">{batch.subtitle}</div>
-                    </td>
-
-                    {/* Amount */}
-                    <td className="inv-amount-cell">
-                      ${batch.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-
-                    {/* Status */}
-                    <td>
-                      <span className={`inv-status-pill ${batch.status.toLowerCase()}`}>
-                        <span className={`inv-dot ${batch.status === 'Paid' ? 'green' : 'amber'}`}></span>
-                        <span>{batch.status}</span>
-                      </span>
-                    </td>
-
-                    {/* Due Date */}
-                    <td style={{ color: '#475569', fontWeight: 500 }}>
-                      {batch.dueDate}
-                    </td>
-
-                    {/* Actions */}
-                    <td style={{ textAlign: 'right' }}>
-                      <div className="inv-actions-cell">
-                        {batch.status === 'Unpaid' ? (
-                          <>
-                            <button 
-                              className="btn-pay-now-link"
-                              onClick={() => {
-                                setPaymentAmount(batch.amount);
-                                setActiveModal('recordPayment');
-                              }}
-                            >
-                              Pay Now
-                            </button>
-                            <span style={{ color: '#cbd5e1' }}>|</span>
-                            <button 
-                              className="btn-view-slip-link"
-                              onClick={() => setActiveModal('viewSlip')}
-                            >
-                              View Slip
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button 
-                              className="btn-view-slip-link"
-                              style={{ fontWeight: 600, color: '#0f172a' }}
-                              onClick={() => setActiveModal('viewSlip')}
-                            >
-                              Receipt
-                            </button>
-                            <span style={{ color: '#cbd5e1' }}>|</span>
-                            <button 
-                              className="btn-view-slip-link"
-                              onClick={() => setActiveModal('receiptLog')}
-                            >
-                              Log
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Table Summary Footer */}
-          <div className="inv-summary-footer-row">
-            <div className="inv-account-details-left">
-              <div><strong>Account:</strong> Acme Corp (Billing ID: #ACM-9901)</div>
-              <div><strong>Tax Reg:</strong> US-EIN 94-8839210 • Net 30 Terms Apply</div>
-            </div>
-
-            <div className="inv-totals-box-right">
-              <div className="inv-totals-sub-row">
-                <span>Subtotal (Invoiced items):</span>
-                <span>${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              </div>
-              <div className="inv-totals-sub-row credit">
-                <span>Settled Credit (INV-1043):</span>
-                <span>-${settledCredit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              </div>
-              <div className="inv-totals-main-row">
-                <span className="inv-total-label">Total Outstanding:</span>
-                <span className="inv-total-amount">
-                  ${totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
+                {/* Step 4: Paid */}
+                <div className={`stepper-step ${stepperState.paid ? 'completed' : 'pending'}`}>
+                  <div className="stepper-node-icon">
+                    {stepperState.paid ? <Check size={18} /> : <Clock size={18} />}
+                  </div>
+                  <div className="stepper-node-label">Paid</div>
+                  <div className="stepper-node-date">
+                    {stepperState.paid ? 'Settlement Complete' : 'Pending Settlement'}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
+
+            {/* SECTION 2: Linked Invoice Line Batches Card */}
+            <div className="invoices-batch-card">
+              <div className="batch-card-header">
+                <div>
+                  <div className="batch-title-main">Linked Invoice Line Batches</div>
+                  <div className="batch-title-sub">
+                    Invoices generated for {invoices[0]?.customerName || 'account'} subscriptions and CPQ packages
+                  </div>
+                </div>
+
+                <div className="batch-pills-right">
+                  {outstandingCount > 0 && (
+                    <span className="batch-pill-outstanding">
+                      {outstandingCount} Outstanding Invoice
+                    </span>
+                  )}
+                  <span className="batch-pill-settled">
+                    {settledCount} Settled
+                  </span>
+                </div>
+              </div>
+
+              <div className="table-responsive">
+                <table className="invoices-table">
+                  <thead>
+                    <tr>
+                      <th>INVOICE #</th>
+                      <th>DESCRIPTION / BILLING CATEGORY</th>
+                      <th>AMOUNT</th>
+                      <th>STATUS</th>
+                      <th>DUE DATE</th>
+                      <th style={{ textAlign: 'right' }}>ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invoiceBatches.map(batch => (
+                      <tr key={batch.id}>
+                        {/* Invoice ID */}
+                        <td>
+                          <div className="inv-number-cell">
+                            <span className={`inv-dot ${batch.dotColor}`}></span>
+                            <span className="inv-number-bold">{batch.id}</span>
+                            <span className={`inv-badge-type ${batch.badge.toLowerCase()}`}>
+                              {batch.badge}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Description */}
+                        <td>
+                          <div className="inv-desc-main">{batch.title}</div>
+                          <div className="inv-desc-sub">{batch.subtitle}</div>
+                        </td>
+
+                        {/* Amount */}
+                        <td className="inv-amount-cell">
+                          ${batch.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+
+                        {/* Status */}
+                        <td>
+                          <span className={`inv-status-pill ${batch.status.toLowerCase()}`}>
+                            <span className={`inv-dot ${batch.status === 'Paid' ? 'green' : 'amber'}`}></span>
+                            <span>{batch.status}</span>
+                          </span>
+                        </td>
+
+                        {/* Due Date */}
+                        <td style={{ color: '#475569', fontWeight: 500 }}>
+                          {batch.dueDate}
+                        </td>
+
+                        {/* Actions */}
+                        <td style={{ textAlign: 'right' }}>
+                          <div className="inv-actions-cell">
+                            {batch.status === 'Unpaid' ? (
+                              <>
+                                <button 
+                                  className="btn-pay-now-link"
+                                  onClick={() => {
+                                    setPaymentAmount(batch.amount);
+                                    setActiveModal('recordPayment');
+                                  }}
+                                >
+                                  Pay Now
+                                </button>
+                                <span style={{ color: '#cbd5e1' }}>|</span>
+                                <button 
+                                  className="btn-view-slip-link"
+                                  onClick={() => setActiveModal('viewSlip')}
+                                >
+                                  View Slip
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button 
+                                  className="btn-view-slip-link"
+                                  style={{ fontWeight: 600, color: '#0f172a' }}
+                                  onClick={() => setActiveModal('viewSlip')}
+                                >
+                                  Receipt
+                                </button>
+                                <span style={{ color: '#cbd5e1' }}>|</span>
+                                <button 
+                                  className="btn-view-slip-link"
+                                  onClick={() => setActiveModal('receiptLog')}
+                                >
+                                  Log
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Table Summary Footer */}
+              <div className="inv-summary-footer-row">
+                <div className="inv-account-details-left">
+                  <div><strong>Account:</strong> {invoices[0]?.customerName || 'Account'} ({invoices[0]?.customerEmail || 'Billing Record'})</div>
+                  <div><strong>Billing Policy:</strong> Commercial Net 30 Terms Apply</div>
+                </div>
+
+                <div className="inv-totals-box-right">
+                  <div className="inv-totals-sub-row">
+                    <span>Subtotal (Invoiced items):</span>
+                    <span>${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  {settledCredit > 0 && (
+                    <div className="inv-totals-sub-row credit">
+                      <span>Settled Credit:</span>
+                      <span>-${settledCredit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
+                  <div className="inv-totals-main-row">
+                    <span className="inv-total-label">Total Outstanding:</span>
+                    <span className="inv-total-amount">
+                      ${totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* SECTION 3: Automated Fulfillment Guardrail Alert */}
         <div className="inv-guardrail-card">
