@@ -9,9 +9,7 @@ import {
   CheckCircle2, 
   X, 
   HelpCircle,
-  PhoneCall,
-  Lock,
-  Check
+  Lock
 } from 'lucide-react';
 import './App.css';
 
@@ -101,7 +99,7 @@ export default function App() {
       {toastMessage && (
         <div className="toast-container">
           <div className="toast">
-            <CheckCircle2 size={18} color="#38bdf8" />
+            <CheckCircle2 size={20} color="#38bdf8" />
             <span>{toastMessage}</span>
           </div>
         </div>
@@ -195,7 +193,7 @@ export default function App() {
                         autoComplete="email"
                       />
                       <span className="input-icon-static">
-                        <Mail size={16} />
+                        <Mail size={18} />
                       </span>
                     </div>
                   </div>
@@ -220,7 +218,7 @@ export default function App() {
                         onClick={() => setShowLoginPassword(!showLoginPassword)}
                         aria-label={showLoginPassword ? "Hide password" : "Show password"}
                       >
-                        {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
                     </div>
                   </div>
@@ -249,14 +247,14 @@ export default function App() {
                   {/* Submit Button */}
                   <button type="submit" className="btn-primary-submit">
                     <span>Sign in to DealFlow360</span>
-                    <ArrowRight size={16} />
+                    <ArrowRight size={18} />
                   </button>
                 </form>
 
                 {/* Security Trust Badge */}
                 <div className="security-badge-row">
                   <div className="security-badge-left">
-                    <ShieldCheck size={14} color="#0284c7" />
+                    <ShieldCheck size={16} color="#0284c7" />
                     <span>256-bit TLS & SOC2 Type II Certified</span>
                   </div>
                   <div className="security-badge-right">
@@ -322,7 +320,7 @@ export default function App() {
                         autoComplete="email"
                       />
                       <span className="input-icon-static">
-                        <Mail size={16} />
+                        <Mail size={18} />
                       </span>
                     </div>
                   </div>
@@ -347,7 +345,7 @@ export default function App() {
                         onClick={() => setShowSignupPassword(!showSignupPassword)}
                         aria-label={showSignupPassword ? "Hide password" : "Show password"}
                       >
-                        {showSignupPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        {showSignupPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
                     </div>
                   </div>
@@ -372,11 +370,11 @@ export default function App() {
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                         aria-label={showConfirmPassword ? "Hide password" : "Show password"}
                       >
-                        {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
                     </div>
                     <div className="password-hint">
-                      <Info size={13} />
+                      <Info size={15} />
                       <span>At least 8 characters with a number or symbol</span>
                     </div>
                   </div>
@@ -415,7 +413,7 @@ export default function App() {
                   {/* Submit Button */}
                   <button type="submit" className="btn-primary-submit">
                     <span>Create DealFlow360 Account</span>
-                    <ArrowRight size={16} />
+                    <ArrowRight size={18} />
                   </button>
                 </form>
 
@@ -438,7 +436,7 @@ export default function App() {
         <div className="modal-overlay" onClick={() => setActiveModal(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
+              <h3 style={{ fontSize: '20px', fontWeight: 700, color: '#0f172a' }}>
                 {activeModal === 'forgot' && 'Reset Password'}
                 {activeModal === 'contact' && 'Contact Enterprise Sales'}
                 {activeModal === 'support' && 'DealFlow360 Support'}
@@ -450,13 +448,13 @@ export default function App() {
                 className="modal-close-btn"
                 onClick={() => setActiveModal(null)}
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
 
             {activeModal === 'forgot' && (
               <form onSubmit={handleForgotPasswordSubmit}>
-                <p style={{ fontSize: '13.5px', color: '#64748b', marginBottom: '16px' }}>
+                <p style={{ fontSize: '14.5px', color: '#64748b', marginBottom: '18px' }}>
                   Enter your registered work email address and we will send you a link to reset your credentials.
                 </p>
                 <div className="form-group">
@@ -471,26 +469,26 @@ export default function App() {
                       required
                     />
                     <span className="input-icon-static">
-                      <Mail size={16} />
+                      <Mail size={18} />
                     </span>
                   </div>
                 </div>
-                <button type="submit" className="btn-primary-submit" style={{ marginTop: '10px' }}>
+                <button type="submit" className="btn-primary-submit" style={{ marginTop: '12px' }}>
                   <span>Send Reset Link</span>
-                  <ArrowRight size={16} />
+                  <ArrowRight size={18} />
                 </button>
               </form>
             )}
 
             {activeModal === 'contact' && (
               <div>
-                <p style={{ fontSize: '13.5px', color: '#64748b', marginBottom: '16px' }}>
+                <p style={{ fontSize: '14.5px', color: '#64748b', marginBottom: '18px' }}>
                   Speak directly with our investment banking and venture capital solutions team.
                 </p>
-                <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px', fontSize: '13px', color: '#334155' }}>
+                <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '18px', fontSize: '14px', color: '#334155' }}>
                   <div><strong>Email:</strong> sales@dealflow360.io</div>
-                  <div style={{ marginTop: '6px' }}><strong>Direct:</strong> +1 (800) 555-DEAL</div>
-                  <div style={{ marginTop: '6px' }}><strong>Hours:</strong> 24/7 Priority Desk for Institutional Clients</div>
+                  <div style={{ marginTop: '8px' }}><strong>Direct:</strong> +1 (800) 555-DEAL</div>
+                  <div style={{ marginTop: '8px' }}><strong>Hours:</strong> 24/7 Priority Desk for Institutional Clients</div>
                 </div>
                 <button 
                   type="button" 
@@ -507,13 +505,13 @@ export default function App() {
 
             {activeModal === 'support' && (
               <div>
-                <p style={{ fontSize: '13.5px', color: '#64748b', marginBottom: '16px' }}>
+                <p style={{ fontSize: '14.5px', color: '#64748b', marginBottom: '18px' }}>
                   Need assistance with your DealFlow360 account, workspace configuration, or SSO integration?
                 </p>
-                <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px', fontSize: '13px', color: '#334155' }}>
+                <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '18px', fontSize: '14px', color: '#334155' }}>
                   <div><strong>Help Center:</strong> support.dealflow360.io</div>
-                  <div style={{ marginTop: '6px' }}><strong>Email:</strong> help@dealflow360.io</div>
-                  <div style={{ marginTop: '6px' }}><strong>SLA:</strong> &lt; 15 min response time for enterprise tier</div>
+                  <div style={{ marginTop: '8px' }}><strong>Email:</strong> help@dealflow360.io</div>
+                  <div style={{ marginTop: '8px' }}><strong>SLA:</strong> &lt; 15 min response time for enterprise tier</div>
                 </div>
                 <button 
                   type="button" 
@@ -526,11 +524,11 @@ export default function App() {
             )}
 
             {(activeModal === 'terms' || activeModal === 'privacy' || activeModal === 'security') && (
-              <div style={{ fontSize: '13px', color: '#475569', lineHeight: 1.6, maxHeight: '260px', overflowY: 'auto' }}>
-                <p style={{ marginBottom: '10px' }}>
+              <div style={{ fontSize: '14px', color: '#475569', lineHeight: 1.65, maxHeight: '300px', overflowY: 'auto' }}>
+                <p style={{ marginBottom: '12px' }}>
                   DealFlow360 adheres to enterprise-grade compliance standards including SOC 2 Type II, GDPR, ISO 27001, and FINRA data protection guidelines.
                 </p>
-                <p style={{ marginBottom: '10px' }}>
+                <p style={{ marginBottom: '12px' }}>
                   All data in transit is encrypted using 256-bit TLS encryption, and data at rest is encrypted with customer-managed or enterprise KMS keys.
                 </p>
                 <p>
