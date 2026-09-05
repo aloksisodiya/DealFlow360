@@ -13,11 +13,13 @@ export async function seed(knex) {
       password_hash: passwordHash,
       must_change_password: true,
       is_active: true,
+      role: "admin",
     })
     .onConflict("work_email")
     .merge({
       password_hash: passwordHash,
       must_change_password: true,
       is_active: true,
+      role: "admin",
     });
 }
