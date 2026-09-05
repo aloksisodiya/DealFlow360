@@ -12,8 +12,17 @@ import {
   Lock
 } from 'lucide-react';
 import './App.css';
+import Dashboard from './Dashboard';
+import Quotations from './Quotations';
 
 export default function App() {
+  const [currentScreen, setCurrentScreen] = useState('auth'); // 'auth' | 'dashboard' | 'quotations'
+  const [currentUser, setCurrentUser] = useState({
+    name: 'Alex Morgan',
+    email: 'alex.morgan@firm-capital.com',
+    initials: 'AM'
+  });
+
   const [activeTab, setActiveTab] = useState('signin'); // 'signin' | 'signup'
   
   // Login form state
@@ -33,7 +42,7 @@ export default function App() {
   const [agreeTerms, setAgreeTerms] = useState(false);
 
   // Modals & Toast State
-  const [activeModal, setActiveModal] = useState(null); // 'forgot' | 'contact' | 'support' | 'terms' | 'privacy' | 'security'
+  const [activeModal, setActiveModal] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
   const [forgotEmail, setForgotEmail] = useState('');
 
@@ -54,7 +63,28 @@ export default function App() {
       showToast('Please enter your password.');
       return;
     }
-    showToast(`Signed in successfully as ${loginEmail}!`);
+
+    const emailName = loginEmail.split('@')[0];
+    const formattedName = emailName
+      .split(/[._-]/)
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ') || 'Alex Morgan';
+
+    const initials = formattedName
+      .split(' ')
+      .map(p => p.charAt(0))
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || 'AM';
+
+    setCurrentUser({
+      name: formattedName,
+      email: loginEmail,
+      initials: initials
+    });
+
+    setCurrentScreen('dashboard');
+    showToast(`Welcome back, ${formattedName}!`);
   };
 
   const handleSignupSubmit = (e) => {
@@ -79,7 +109,18 @@ export default function App() {
       showToast('Please agree to the Terms of Service and Privacy Policy.');
       return;
     }
-    showToast(`Account created successfully for ${firstName}! Redirecting...`);
+
+    const fullName = `${firstName} ${lastName}`;
+    const initials = `${firstName[0]}${lastName[0]}`.toUpperCase();
+
+    setCurrentUser({
+      name: fullName,
+      email: signupEmail,
+      initials: initials
+    });
+
+    setCurrentScreen('dashboard');
+    showToast(`Account created! Welcome to DealFlow360, ${firstName}!`);
   };
 
   const handleForgotPasswordSubmit = (e) => {
@@ -93,6 +134,33 @@ export default function App() {
     setForgotEmail('');
   };
 
+  const handleLogout = () => {
+    setCurrentScreen('auth');
+    showToast('Signed out successfully.');
+  };
+
+  // Route to Dashboard or Quotations based on currentScreen
+  if (currentScreen === 'dashboard') {
+    return (
+      <Dashboard 
+        user={currentUser} 
+        onNavigate={(screen) => setCurrentScreen(screen)}
+        onLogout={handleLogout} 
+      />
+    );
+  }
+
+  if (currentScreen === 'quotations') {
+    return (
+      <Quotations 
+        user={currentUser} 
+        onNavigate={(screen) => setCurrentScreen(screen)}
+        onLogout={handleLogout} 
+      />
+    );
+  }
+
+  // Auth Screen
   return (
     <div className="app-container">
       {/* Toast Notification */}
