@@ -10,10 +10,20 @@ import {
   Send,
   Mail,
   ExternalLink,
-  Loader2
+  Loader2,
+  Copy,
+  MessageSquare,
+  CheckCircle2
 } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
-import { fetchQuotations, createQuotation, requestNegotiation, sendPortalLink } from '../../services/quotationService';
+import { 
+  fetchQuotations, 
+  createQuotation, 
+  requestNegotiation, 
+  sendPortalLink,
+  fetchQuoteMessages,
+  sendSalesRepReply
+} from '../../services/quotationService';
 import './Quotations.css';
 
 /**
@@ -35,35 +45,70 @@ export default function Quotations({ user, onNavigate, onLogout }) {
 
   // Form State for New Quotation
   const [newClient, setNewClient] = useState('');
+  const [newEmail, setNewEmail] = useState('');
   const [newAmount, setNewAmount] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newTier, setNewTier] = useState('Bronze');
   const [newDiscount, setNewDiscount] = useState(0);
   const [newStage, setNewStage] = useState('draft');
+  const [sendImmediateEmail, setSendImmediateEmail] = useState(true);
+  const [isCreatingQuote, setIsCreatingQuote] = useState(false);
 
-  // Portal send state
+  // Portal send state for selected quote
   const [portalEmail, setPortalEmail] = useState('');
   const [sendingPortal, setSendingPortal] = useState(false);
   const [portalSent, setPortalSent] = useState(null); // { url, email }
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  // Negotiation messages state
+  const [quoteMessages, setQuoteMessages] = useState([]);
+  const [repReplyText, setRepReplyText] = useState('');
+  const [sendingRepReply, setSendingRepReply] = useState(false);
 
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => {
-      setToastMessage(null), 4000;
-    });
+      setToastMessage(null);
+    }, 4000);
+  };
+
+  const handleCopyLink = (url) => {
+    if (!url) return;
+    navigator.clipboard?.writeText(url);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2500);
+    showToast('Portal link copied to clipboard!');
   };
 
   const handleSendPortal = async () => {
     if (!portalEmail || !selectedQuote || sendingPortal) return;
     setSendingPortal(true);
     try {
-      const result = await sendPortalLink(selectedQuote.id, portalEmail);
-      setPortalSent({ url: result.portalUrl, email: portalEmail });
-      showToast(`Portal link sent to ${portalEmail}!`);
+      const result = await sendPortalLink(selectedQuote.id, portalEmail.trim());
+      const pUrl = result.portalUrl || `${window.location.origin}/portal/${result.token}`;
+      setPortalSent({ url: pUrl, email: portalEmail.trim() });
+      showToast(result.message || `Portal link sent to ${portalEmail}!`);
+      await loadQuotations();
     } catch (err) {
       showToast(err.message || 'Failed to send portal link');
     } finally {
       setSendingPortal(false);
+    }
+  };
+
+  const handleSendReply = async () => {
+    if (!repReplyText.trim() || !selectedQuote || sendingRepReply) return;
+    setSendingRepReply(true);
+    try {
+      await sendSalesRepReply(selectedQuote.id, repReplyText.trim());
+      setRepReplyText('');
+      const msgs = await fetchQuoteMessages(selectedQuote.id);
+      setQuoteMessages(msgs);
+      showToast('Reply sent to customer portal!');
+    } catch (err) {
+      showToast(err.message || 'Failed to send reply');
+    } finally {
+      setSendingRepReply(false);
     }
   };
 
@@ -79,11 +124,20 @@ export default function Quotations({ user, onNavigate, onLogout }) {
         else if (st.includes('negotiation')) stageName = 'negotiation';
         else if (st.includes('confirmed') || st.includes('closed')) stageName = 'confirmed';
 
+        const cEmail = q.customer_email || q.portal_customer_email || '';
+        const pUrl = q.portal_token ? `${window.location.origin}/portal/${q.portal_token}` : null;
+
         return {
           id: q.id,
           client: q.customer_name || 'Enterprise Client',
+          customerEmail: cEmail,
+          portalToken: q.portal_token || null,
+          portalUrl: pUrl,
           amount: Number(q.total_amount || 0),
           stage: stageName,
+          rawStage: q.stage,
+          customerTier: q.customer_tier || 'Bronze',
+          discountPercent: Number(q.discount_percent || 0),
           desc: q.negotiation_request || `${q.customer_tier || 'Bronze'} Tier deal with ${q.discount_percent || 0}% discount.`,
           created: 'Active in DB',
           owner: q.owner_email ? q.owner_email.split('@')[0] : (user?.name || 'Sales Rep'),
@@ -105,6 +159,25 @@ export default function Quotations({ user, onNavigate, onLogout }) {
     loadQuotations();
   }, []);
 
+  useEffect(() => {
+    if (selectedQuote) {
+      setPortalEmail(selectedQuote.customerEmail || '');
+      if (selectedQuote.portalUrl) {
+        setPortalSent({ url: selectedQuote.portalUrl, email: selectedQuote.customerEmail || 'Customer' });
+      } else {
+        setPortalSent(null);
+      }
+      fetchQuoteMessages(selectedQuote.id)
+        .then(msgs => setQuoteMessages(msgs))
+        .catch(() => setQuoteMessages([]));
+    } else {
+      setQuoteMessages([]);
+      setPortalSent(null);
+      setPortalEmail('');
+      setRepReplyText('');
+    }
+  }, [selectedQuote]);
+
   const handleCreateNewQuote = async (e) => {
     e.preventDefault();
     if (!newClient || !newAmount) {
@@ -112,24 +185,38 @@ export default function Quotations({ user, onNavigate, onLogout }) {
       return;
     }
 
+    setIsCreatingQuote(true);
     try {
-      await createQuotation({
+      const res = await createQuotation({
         customerName: newClient.trim(),
+        customerEmail: newEmail.trim() || undefined,
+        sendPortalEmail: sendImmediateEmail && !!newEmail.trim(),
         customerTier: newTier,
         totalAmount: parseFloat(newAmount) || 10000,
         discountPercent: Number(newDiscount) || 0,
         stage: newStage,
       });
 
-      showToast(`Quotation created for ${newClient} in PostgreSQL!`);
+      if (res.emailSent) {
+        showToast(`Quotation created and portal link emailed to ${newEmail}!`);
+      } else if (res.portalUrl) {
+        showToast(`Quotation created with portal link generated!`);
+      } else {
+        showToast(`Quotation created for ${newClient} in PostgreSQL!`);
+      }
+
       setIsNewQuoteOpen(false);
       setNewClient('');
+      setNewEmail('');
       setNewAmount('');
       setNewDesc('');
+      setNewDiscount(0);
       setNewStage('draft');
       await loadQuotations();
     } catch (err) {
       showToast(err.message || 'Failed to create quotation');
+    } finally {
+      setIsCreatingQuote(false);
     }
   };
 
@@ -562,7 +649,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
       {selectedQuote && (
         <div className="modal-overlay" onClick={() => { setSelectedQuote(null); setPortalEmail(''); setPortalSent(null); }}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '480px' }}>
+            style={{ maxWidth: '540px' }}>
             <div className="modal-header">
               <div>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: '#714b67' }}>{selectedQuote.id}</span>
@@ -573,7 +660,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
               </button>
             </div>
 
-            <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
+            <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <span style={{ fontSize: '13px', color: '#64748b' }}>Total Quoted Value</span>
                 <span style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>${selectedQuote.amount.toLocaleString()}</span>
@@ -581,56 +668,171 @@ export default function Quotations({ user, onNavigate, onLogout }) {
               <div style={{ fontSize: '13px', color: '#475569' }}>
                 <strong>Scope:</strong> {selectedQuote.desc}
               </div>
+              {selectedQuote.customerTier && (
+                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                  Tier: <strong>{selectedQuote.customerTier}</strong> • Discount: <strong>{selectedQuote.discountPercent}%</strong>
+                </div>
+              )}
             </div>
 
             {selectedQuote.alert && (
-              <div style={{ padding: '10px 12px', borderRadius: '8px', background: '#faf5f8', border: '1px solid #e9d5e3', color: '#54324c', fontSize: '12.5px', marginBottom: '16px', fontWeight: 500 }}>
+              <div style={{ padding: '10px 12px', borderRadius: '8px', background: '#faf5f8', border: '1px solid #e9d5e3', color: '#54324c', fontSize: '12.5px', marginBottom: '14px', fontWeight: 500 }}>
                 ℹ️ {selectedQuote.alert}
               </div>
             )}
 
             {/* Send Portal Link Section */}
-            <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '10px', padding: '16px', marginBottom: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '10px' }}>
-                <Mail size={15} color="#0284c7" />
-                <span style={{ fontWeight: 700, fontSize: '13px', color: '#0284c7' }}>Send Portal Link to Customer</span>
+            <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '10px', padding: '16px', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                  <Mail size={15} color="#0284c7" />
+                  <span style={{ fontWeight: 700, fontSize: '13px', color: '#0284c7' }}>Direct Customer Quotation Link</span>
+                </div>
+                {portalSent && (
+                  <span style={{ fontSize: '11px', background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                    Active Portal Link
+                  </span>
+                )}
               </div>
+
               {portalSent ? (
                 <div>
-                  <div style={{ fontSize: '12.5px', color: '#059669', fontWeight: 600, marginBottom: '6px' }}>
-                    ✓ Sent to {portalSent.email}
+                  <div style={{ fontSize: '12.5px', color: '#059669', fontWeight: 600, marginBottom: '8px' }}>
+                    ✓ Ready for customer: {portalSent.email || selectedQuote.customerEmail || 'Customer'}
                   </div>
-                  <a
-                    href={portalSent.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#0284c7', wordBreak: 'break-all' }}
-                  >
-                    <ExternalLink size={12} /> {portalSent.url}
-                  </a>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                    <input
+                      type="text"
+                      readOnly
+                      value={portalSent.url}
+                      className="form-input"
+                      style={{ fontSize: '12px', color: '#0369a1', background: '#fff', height: '36px' }}
+                    />
+                    <button
+                      type="button"
+                      className="btn-dash-secondary"
+                      onClick={() => handleCopyLink(portalSent.url)}
+                      title="Copy link"
+                      style={{ height: '36px', padding: '0 12px', gap: '4px' }}
+                    >
+                      {copiedLink ? <CheckCircle2 size={13} color="#16a34a" /> : <Copy size={13} />}
+                      <span>{copiedLink ? 'Copied' : 'Copy'}</span>
+                    </button>
+                    <a
+                      href={portalSent.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-new-quote"
+                      style={{ height: '36px', padding: '0 12px', gap: '5px', textDecoration: 'none', display: 'flex', alignItems: 'center' }}
+                    >
+                      <ExternalLink size={13} />
+                      <span>Open</span>
+                    </a>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="email"
+                      className="form-input"
+                      placeholder="Resend to another email..."
+                      value={portalEmail}
+                      onChange={(e) => setPortalEmail(e.target.value)}
+                      style={{ flex: 1, height: '34px', fontSize: '12px' }}
+                    />
+                    <button
+                      type="button"
+                      className="btn-dash-secondary"
+                      onClick={handleSendPortal}
+                      disabled={sendingPortal || !portalEmail}
+                      style={{ height: '34px', padding: '0 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
+                    >
+                      {sendingPortal ? <Loader2 size={12} /> : <Send size={12} />}
+                      <span>Resend Email</span>
+                    </button>
+                  </div>
                 </div>
               ) : (
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    type="email"
-                    className="form-input"
-                    placeholder="customer@company.com"
-                    value={portalEmail}
-                    onChange={(e) => setPortalEmail(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendPortal()}
-                    style={{ flex: 1, height: '38px' }}
-                  />
-                  <button
-                    className="btn-new-quote"
-                    onClick={handleSendPortal}
-                    disabled={sendingPortal || !portalEmail}
-                    style={{ height: '38px', padding: '0 14px', gap: '6px', whiteSpace: 'nowrap' }}
-                  >
-                    {sendingPortal ? <Loader2 size={13} /> : <Send size={13} />}
-                    <span>{sendingPortal ? 'Sending…' : 'Send Link'}</span>
-                  </button>
+                <div>
+                  <p style={{ fontSize: '12px', color: '#475569', margin: '0 0 8px' }}>
+                    Enter customer's Gmail or company email to mail them their personalized negotiation & one-click confirmation link:
+                  </p>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="email"
+                      className="form-input"
+                      placeholder="customer@gmail.com"
+                      value={portalEmail}
+                      onChange={(e) => setPortalEmail(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSendPortal()}
+                      style={{ flex: 1, height: '38px' }}
+                    />
+                    <button
+                      type="button"
+                      className="btn-new-quote"
+                      onClick={handleSendPortal}
+                      disabled={sendingPortal || !portalEmail}
+                      style={{ height: '38px', padding: '0 14px', gap: '6px', whiteSpace: 'nowrap' }}
+                    >
+                      {sendingPortal ? <Loader2 size={13} /> : <Send size={13} />}
+                      <span>{sendingPortal ? 'Sending…' : 'Send to Customer'}</span>
+                    </button>
+                  </div>
                 </div>
               )}
+            </div>
+
+            {/* Negotiation & Questions Thread */}
+            <div style={{ background: '#faf5f8', border: '1px solid #e9d5e3', borderRadius: '10px', padding: '14px', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '8px' }}>
+                <MessageSquare size={14} color="#714b67" />
+                <span style={{ fontWeight: 700, fontSize: '13px', color: '#54324c' }}>Customer Negotiation & Chat</span>
+                <span style={{ fontSize: '11px', color: '#64748b' }}>({quoteMessages.length} messages)</span>
+              </div>
+
+              <div style={{ maxHeight: '140px', overflowY: 'auto', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px', marginBottom: '8px' }}>
+                {quoteMessages.length === 0 ? (
+                  <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0, textAlign: 'center', fontStyle: 'italic' }}>
+                    No customer messages yet. Questions and counter proposals from the customer portal will appear here.
+                  </p>
+                ) : (
+                  quoteMessages.map((m) => (
+                    <div key={m.id} style={{
+                      marginBottom: '8px',
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      background: m.sender === 'Customer' ? '#f0fdf4' : '#faf5f8',
+                      borderLeft: m.sender === 'Customer' ? '3px solid #22c55e' : '3px solid #714b67',
+                      fontSize: '12px'
+                    }}>
+                      <div style={{ fontWeight: 700, color: m.sender === 'Customer' ? '#166534' : '#54324c', fontSize: '11px', marginBottom: '2px' }}>
+                        {m.sender === 'Customer' ? 'Customer' : 'Sales Representative (You)'}
+                      </div>
+                      <div style={{ color: '#334155' }}>{m.message}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Reply to customer's inquiry or negotiation..."
+                  value={repReplyText}
+                  onChange={(e) => setRepReplyText(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSendReply()}
+                  style={{ flex: 1, height: '34px', fontSize: '12px' }}
+                />
+                <button
+                  type="button"
+                  className="btn-dash-secondary"
+                  onClick={handleSendReply}
+                  disabled={sendingRepReply || !repReplyText.trim()}
+                  style={{ height: '34px', padding: '0 12px', fontSize: '12px', whiteSpace: 'nowrap', gap: '4px' }}
+                >
+                  {sendingRepReply ? <Loader2 size={12} /> : <Send size={12} />}
+                  <span>Reply</span>
+                </button>
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
@@ -650,7 +852,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
       {/* Create New Quotation Modal */}
       {isNewQuoteOpen && (
         <div className="modal-overlay" onClick={() => setIsNewQuoteOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
             <div className="modal-header">
               <h3 style={{ fontSize: '19px', fontWeight: 800, color: '#0f172a' }}>
                 Create New Quotation
@@ -662,11 +864,11 @@ export default function Quotations({ user, onNavigate, onLogout }) {
 
             <form onSubmit={handleCreateNewQuote}>
               <div className="form-group">
-                <label className="form-label">Client Name</label>
+                <label className="form-label">Client / Company Name *</label>
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="e.g. Acme Corp"
+                  placeholder="e.g. Acme Corp / Sarah Connor"
                   value={newClient}
                   onChange={(e) => setNewClient(e.target.value)}
                   required
@@ -674,15 +876,73 @@ export default function Quotations({ user, onNavigate, onLogout }) {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Contract Value ($ USD)</label>
+                <label className="form-label">Customer Email (for Direct Quotation Link)</label>
                 <input
-                  type="number"
+                  type="email"
                   className="form-input"
-                  placeholder="e.g. 15,000"
-                  value={newAmount}
-                  onChange={(e) => setNewAmount(e.target.value)}
-                  required
+                  placeholder="e.g. customer@gmail.com"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
                 />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">Contract Value ($ USD) *</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    placeholder="e.g. 15,000"
+                    value={newAmount}
+                    onChange={(e) => setNewAmount(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Discount % (Optional)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="80"
+                    className="form-input"
+                    placeholder="e.g. 10"
+                    value={newDiscount}
+                    onChange={(e) => setNewDiscount(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">Customer Tier</label>
+                  <select
+                    className="form-input"
+                    value={newTier}
+                    onChange={(e) => setNewTier(e.target.value)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <option value="Bronze">Bronze (Standard)</option>
+                    <option value="Silver">Silver (5% tier max)</option>
+                    <option value="Gold">Gold (15% tier max)</option>
+                    <option value="Platinum">Platinum (25% tier max)</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Initial Stage</label>
+                  <select
+                    className="form-input"
+                    value={newStage}
+                    onChange={(e) => setNewStage(e.target.value)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="pending">Pending Approval</option>
+                    <option value="approved">Approved</option>
+                    <option value="negotiation">Negotiation</option>
+                  </select>
+                </div>
               </div>
 
               <div className="form-group">
@@ -696,28 +956,48 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                 />
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Initial Stage</label>
-                <select
-                  className="form-input"
-                  value={newStage}
-                  onChange={(e) => setNewStage(e.target.value)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <option value="draft">Draft</option>
-                  <option value="pending">Pending Approval</option>
-                  <option value="approved">Approved</option>
-                  <option value="negotiation">Negotiation</option>
-                </select>
-              </div>
+              {/* Instant Email Checkbox */}
+              {newEmail.trim() && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '9px',
+                  background: '#f0f9ff',
+                  border: '1px solid #bae6fd',
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  marginBottom: '16px'
+                }}>
+                  <input
+                    type="checkbox"
+                    id="sendPortalCheck"
+                    checked={sendImmediateEmail}
+                    onChange={(e) => setSendImmediateEmail(e.target.checked)}
+                    style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                  />
+                  <label htmlFor="sendPortalCheck" style={{ fontSize: '13px', color: '#0369a1', cursor: 'pointer', fontWeight: 600 }}>
+                    ✉️ Mail directly openable quotation link to {newEmail} immediately
+                  </label>
+                </div>
+              )}
 
               <button 
                 type="submit" 
                 className="btn-new-quote"
-                style={{ width: '100%', justifyContent: 'center', height: '46px', marginTop: '10px' }}
+                disabled={isCreatingQuote}
+                style={{ width: '100%', justifyContent: 'center', height: '46px', marginTop: '6px' }}
               >
-                <span>Save & Add to Pipeline</span>
-                <ArrowRight size={16} />
+                {isCreatingQuote ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Creating & Dispatching...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Save & Add to Pipeline</span>
+                    <ArrowRight size={16} />
+                  </>
+                )}
               </button>
             </form>
           </div>

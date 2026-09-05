@@ -3,7 +3,7 @@ import {
   listQuotations,
   requestNegotiation,
 } from "../services/sales-rep.services.js";
-import { generatePortalToken } from "../services/portal.services.js";
+import { generatePortalToken, getPortalMessagesByQuoteId } from "../services/portal.services.js";
 import { sendPortalInviteEmail } from "../services/email.service.js";
 import { postSalesRepReply } from "./portal.controller.js";
 
@@ -16,9 +16,52 @@ const required = (value, message) => {
 export const createQuote = async (req, res) => {
   try {
     required(req.body?.customerName, "customerName is required");
+    const quotation = await createQuotation(req.auth.adminId, req.body);
+    let portalUrl = null;
+    let portalToken = null;
+    let emailSent = false;
+    let emailError = null;
+
+    const customerEmail = req.body?.customerEmail?.trim();
+    if (customerEmail && req.body?.sendPortalEmail) {
+      try {
+        portalToken = await generatePortalToken(quotation.id, customerEmail);
+        const portalBase = process.env.PORTAL_BASE_URL || "http://localhost:5173";
+        portalUrl = `${portalBase}/portal/${portalToken}`;
+
+        const db = (await import("../config/db.js")).default;
+        const owner = await db("admins")
+          .where({ id: req.auth.adminId })
+          .select("work_email", "profile")
+          .first();
+
+        const ownerProfile = typeof owner?.profile === "string"
+          ? JSON.parse(owner.profile || "{}")
+          : (owner?.profile || {});
+        const repName = ownerProfile.name || owner?.work_email?.split("@")[0] || "Your Sales Representative";
+
+        await sendPortalInviteEmail({
+          toEmail: customerEmail,
+          customerName: quotation.customer_name,
+          quoteId: quotation.id,
+          totalAmount: quotation.total_amount,
+          portalUrl,
+          salesRepName: repName,
+        });
+        emailSent = true;
+      } catch (err) {
+        console.error("[createQuote] Email dispatch warning:", err.message);
+        emailError = err.message;
+      }
+    }
+
     return res.status(201).json({
       success: true,
-      data: await createQuotation(req.auth.adminId, req.body),
+      data: quotation,
+      portalUrl,
+      portalToken,
+      emailSent,
+      emailError,
     });
   } catch (error) {
     return res.status(400).json({ success: false, message: error.message });
@@ -55,7 +98,7 @@ export const sendPortalLink = async (req, res) => {
       return res.status(400).json({ success: false, message: "customerEmail is required" });
     }
 
-    const token = await generatePortalToken(id, customerEmail);
+    const token = await generatePortalToken(id, customerEmail.trim());
     const portalBase = process.env.PORTAL_BASE_URL || "http://localhost:5173";
     const portalUrl = `${portalBase}/portal/${token}`;
 
@@ -63,24 +106,53 @@ export const sendPortalLink = async (req, res) => {
     const quote = await db("quotations as q")
       .leftJoin("admins as a", "a.id", "q.owner_id")
       .where("q.id", id)
-      .select("q.id", "q.customer_name", "q.total_amount", "a.full_name as owner_name")
+      .select("q.id", "q.customer_name", "q.total_amount", "a.work_email as owner_email", "a.profile as owner_profile")
       .first();
 
     if (!quote) return res.status(404).json({ success: false, message: "Quotation not found" });
 
-    await sendPortalInviteEmail({
-      toEmail: customerEmail,
-      customerName: quote.customer_name,
-      quoteId: quote.id,
-      totalAmount: quote.total_amount,
-      portalUrl,
-      salesRepName: quote.owner_name || "Your Sales Representative",
-    });
+    const ownerProfile = typeof quote.owner_profile === "string"
+      ? JSON.parse(quote.owner_profile || "{}")
+      : (quote.owner_profile || {});
+    const repName = ownerProfile.name || quote.owner_email?.split("@")[0] || "Your Sales Representative";
 
-    return res.json({ success: true, portalUrl, token, message: `Portal link sent to ${customerEmail}` });
+    let emailError = null;
+    try {
+      await sendPortalInviteEmail({
+        toEmail: customerEmail.trim(),
+        customerName: quote.customer_name,
+        quoteId: quote.id,
+        totalAmount: quote.total_amount,
+        portalUrl,
+        salesRepName: repName,
+      });
+    } catch (err) {
+      console.error("[sendPortalLink] Email dispatch warning:", err.message);
+      emailError = err.message;
+    }
+
+    return res.json({
+      success: true,
+      portalUrl,
+      token,
+      emailSent: !emailError,
+      message: emailError
+        ? `Portal link ready: ${portalUrl} (Email warning: ${emailError})`
+        : `Portal link sent successfully to ${customerEmail}`,
+    });
   } catch (error) {
     console.error("[sendPortalLink]", error.message);
     return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getQuoteMessages = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const messages = await getPortalMessagesByQuoteId(id);
+    return res.json({ success: true, messages });
+  } catch (error) {
+    return res.status(400).json({ success: false, message: error.message });
   }
 };
 

@@ -20,6 +20,11 @@ export async function sendPortalLink(quoteId, customerEmail) {
   return res;
 }
 
+export async function fetchQuoteMessages(quoteId) {
+  const res = await api.get(`/sales/rep/quotations/${quoteId}/messages`);
+  return res.messages || [];
+}
+
 export async function sendSalesRepReply(quoteId, message) {
   const res = await api.post(`/sales/rep/quotations/${quoteId}/reply`, { message });
   return res;

@@ -14,16 +14,18 @@ export const createQuotation = async (ownerId, input) => {
   const customerTier = input.customerTier || "Bronze";
   const approvalRequired =
     discountPercent > (await discountLimit(customerTier));
+  const newId = quoteId();
   const [quotation] = await db("quotations")
     .insert({
-      id: quoteId(),
+      id: newId,
       customer_name: input.customerName,
+      customer_email: input.customerEmail || null,
       customer_tier: customerTier,
       total_amount: Number(input.totalAmount || 0),
       discount_percent: discountPercent,
       upsell_items: JSON.stringify(input.upsellItems || []),
       owner_id: ownerId,
-      stage: approvalRequired ? "Pending Approval" : "Draft",
+      stage: approvalRequired ? "Pending Approval" : (input.stage || "Draft"),
       approval_required: approvalRequired,
       approval_status: approvalRequired
         ? "Pending Manager Review"

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { CheckCircle, Send, TrendingDown, MessageSquare, Package, Loader2, AlertCircle } from "lucide-react";
 import {
   getPortalQuotation,
@@ -53,7 +53,12 @@ export default function CustomerPortal({ token }) {
       ]);
       setQuotation(q);
       setMessages(msgs);
-      if (q.stage === "Confirmed") setConfirmed(true);
+      if (q.stage === "Confirmed") {
+        setConfirmed(true);
+        if (q.upsellSuggestions?.length) {
+          setUpsellItems(q.upsellSuggestions);
+        }
+      }
     } catch (e) {
       setError(e.message);
     } finally {
@@ -370,19 +375,45 @@ export default function CustomerPortal({ token }) {
           <div className="portal-section">
             <div className="portal-section-title">
               <Package size={14} />
-              You Might Also Need
+              Recommended Add-ons & Spares (Warehouse In-Stock)
             </div>
             <div className="portal-upsell-grid">
               {upsellItems.map((item) => (
                 <div key={item.id} className="portal-upsell-card">
-                  <div className="portal-upsell-cat">{item.category}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className="portal-upsell-cat">{item.category}</div>
+                    {item.stockAvailable > 0 && (
+                      <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700, background: '#dcfce7', padding: '2px 8px', borderRadius: '10px' }}>
+                        ● {item.stockAvailable} units in warehouse
+                      </span>
+                    )}
+                  </div>
                   <div className="portal-upsell-name">{item.name}</div>
                   <div className="portal-upsell-desc">
                     {item.description || `${item.unit} · SKU: ${item.sku}`}
                   </div>
                   <div className="portal-upsell-footer">
-                    <div className="portal-upsell-price">{item.priceFormatted}</div>
-                    <div className="portal-upsell-reason">{item.reason}</div>
+                    <div>
+                      <div className="portal-upsell-price">{item.priceFormatted}</div>
+                      <div className="portal-upsell-reason">{item.reason}</div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-dash-secondary"
+                      onClick={async () => {
+                        try {
+                          await sendPortalMessage(token, `Hi, I would also like to request adding "${item.name}" (${item.priceFormatted}) to this order.`);
+                          showToast(`Requested ${item.name}! Your rep has been notified.`);
+                          const msgs = await getPortalMessages(token);
+                          setMessages(msgs);
+                        } catch (e) {
+                          showToast(e.message, 'error');
+                        }
+                      }}
+                      style={{ height: '32px', fontSize: '12px', padding: '0 10px', background: '#54324c', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}
+                    >
+                      + Request Add-on
+                    </button>
                   </div>
                 </div>
               ))}

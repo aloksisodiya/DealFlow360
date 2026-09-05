@@ -1,4 +1,4 @@
-﻿import db from "../config/db.js";
+import db from "../config/db.js";
 import { v4 as uuidv4 } from "uuid";
 import { getUpsellSuggestions } from "./upsell.services.js";
 
@@ -27,10 +27,25 @@ export async function getQuotationByToken(token) {
   const quote = await db("quotations as q")
     .leftJoin("admins as a", "a.id", "q.owner_id")
     .where("q.portal_token", token)
-    .select("q.*", "a.work_email as owner_email", "a.full_name as owner_name")
+    .select("q.*", "a.work_email as owner_email", "a.profile as owner_profile")
     .first();
 
   if (!quote) throw new Error("Invalid or expired portal link");
+
+  let upsellSuggestions = [];
+  if (quote.stage === "Confirmed") {
+    try {
+      const { getUpsellSuggestions } = await import("./upsell.services.js");
+      upsellSuggestions = await getUpsellSuggestions(quote.id);
+    } catch (e) {
+      console.warn("[getQuotationByToken] Could not fetch upsell suggestions:", e.message);
+    }
+  }
+
+  const ownerProfile = typeof quote.owner_profile === "string"
+    ? JSON.parse(quote.owner_profile || "{}")
+    : (quote.owner_profile || {});
+  const repName = ownerProfile.name || quote.owner_email?.split("@")[0] || "Your Sales Representative";
 
   return {
     id: quote.id,
@@ -42,10 +57,11 @@ export async function getQuotationByToken(token) {
     approvalStatus: quote.approval_status,
     approvalRequired: quote.approval_required,
     canConfirm: !["Confirmed", "Cancelled"].includes(quote.stage),
-    ownerName: quote.owner_name || "Your Sales Representative",
+    ownerName: repName,
     ownerEmail: quote.owner_email || "",
     notes: quote.notes || "",
     createdAt: quote.created_at,
+    upsellSuggestions,
   };
 }
 
@@ -56,8 +72,12 @@ export async function getPortalMessages(token) {
   const quote = await db("quotations").where({ portal_token: token }).select("id").first();
   if (!quote) throw new Error("Invalid portal token");
 
+  return getPortalMessagesByQuoteId(quote.id);
+}
+
+export async function getPortalMessagesByQuoteId(quoteId) {
   const messages = await db("portal_messages")
-    .where({ quote_id: quote.id })
+    .where({ quote_id: quoteId })
     .orderBy("created_at", "asc");
 
   return messages.map((m) => ({
