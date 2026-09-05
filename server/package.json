@@ -7,15 +7,18 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "node app.js",
     "db:check": "node scripts/check-db.js",
-    "db:migrate": "knex migrate:latest --env development"
+    "db:migrate": "knex migrate:latest --env development",
+    "db:seed": "knex seed:run --env development"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "knex": "^3.3.0",
     "nodemon": "^3.1.14",
     "pg": "^8.23.0"
