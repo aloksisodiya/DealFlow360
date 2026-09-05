@@ -125,7 +125,16 @@ export async function login(req, res) {
 
   try {
     const data = await loginAdmin(emailVal.trim().toLowerCase(), password);
-    return res.json({ success: true, message: "Login successful", ...data });
+    return res.json({
+      success: true,
+      message: "Login successful",
+      ...data,
+      data: {
+        admin: data.admin,
+        token: data.token,
+        next: data.next,
+      },
+    });
   } catch (error) {
     return sendError(res, error);
   }

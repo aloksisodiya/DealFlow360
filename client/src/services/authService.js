@@ -5,7 +5,10 @@
  * Synced with PostgreSQL database accounts and provides session persistence across page refreshes.
  */
 
-const API_BASE_URL = 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ||
+  (typeof window !== 'undefined' && window.location.hostname
+    ? `http://${window.location.hostname}:3000/api`
+    : 'http://localhost:3000/api');
 const STORAGE_USER_KEY = 'dealflow360_active_user';
 const STORAGE_SCREEN_KEY = 'dealflow360_active_screen';
 
@@ -122,8 +125,9 @@ export async function loginUser(workEmail, password) {
     const data = await response.json();
 
     if (response.ok && data.success) {
-      const adminData = data.data.admin || {};
-      const profile = adminData.profile || {};
+      const adminData = data.admin || data.data?.admin || {};
+      const profile = typeof adminData.profile === 'string' ? JSON.parse(adminData.profile) : adminData.profile || {};
+      const token = data.token || data.data?.token || '';
       
       const displayName = profile.name || 
         adminData.workEmail?.split('@')[0]?.replace(/[._]/g, ' ') || 
@@ -142,7 +146,7 @@ export async function loginUser(workEmail, password) {
         email: adminData.workEmail || workEmail,
         role: adminData.role || 'admin',
         title: profile.title || 'Institutional Member',
-        token: data.data.token,
+        token: token,
         initials: initials
       };
 

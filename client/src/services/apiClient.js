@@ -5,7 +5,10 @@
  * and standardizes error handling across all frontend modules.
  */
 
-const API_BASE_URL = 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ||
+  (typeof window !== 'undefined' && window.location.hostname
+    ? `http://${window.location.hostname}:3000/api`
+    : 'http://localhost:3000/api');
 
 export async function request(endpoint, options = {}) {
   const user = JSON.parse(localStorage.getItem('dealflow360_active_user') || '{}');
