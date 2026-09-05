@@ -1,67 +1,86 @@
-import {
-  getCustomerPortalQuotation,
-  addPortalLineComment,
-  getPortalLineComments,
-  submitCounterDiscountProposal,
-  confirmQuotationTerms
+﻿import {
+  getQuotationByToken,
+  getPortalMessages,
+  addPortalMessage,
+  addSalesRepReply,
+  counterDiscountByToken,
+  confirmOrderByToken,
+  getUnreadCount,
 } from "../services/portal.services.js";
 
-// 1. Online Quotation Viewing
+// ── GET quotation by portal token ──────────────────────────────────────
 export async function getPortalQuotation(req, res) {
   try {
-    const { id } = req.params;
-    const data = await getCustomerPortalQuotation(id);
+    const data = await getQuotationByToken(req.params.token);
     return res.json({ success: true, quotation: data });
   } catch (err) {
     return res.status(404).json({ success: false, message: err.message });
   }
 }
 
-// 2. Line Comments & Counter Proposals
-export async function createLineComment(req, res) {
+// ── GET message thread ─────────────────────────────────────────────────
+export async function getMessages(req, res) {
   try {
-    const { id } = req.params;
-    const { lineItemId, commentText, senderRole } = req.body || {};
+    const messages = await getPortalMessages(req.params.token);
+    return res.json({ success: true, messages });
+  } catch (err) {
+    return res.status(404).json({ success: false, message: err.message });
+  }
+}
 
-    const result = await addPortalLineComment(id, lineItemId, senderRole || "Customer", commentText);
-    return res.status(201).json({ success: true, result });
+// ── POST message from customer ─────────────────────────────────────────
+export async function postMessage(req, res) {
+  try {
+    const { message, sender } = req.body || {};
+    if (!message) return res.status(400).json({ success: false, message: "message is required" });
+    const msg = await addPortalMessage(req.params.token, sender || "Customer", message);
+    return res.status(201).json({ success: true, message: msg });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
   }
 }
 
-export async function getLineComments(req, res) {
+// ── POST sales rep reply (authenticated via sales rep routes) ──────────
+export async function postSalesRepReply(req, res) {
   try {
-    const { id } = req.params;
-    const comments = await getPortalLineComments(id);
-    return res.json({ success: true, count: comments.length, comments });
+    const { message } = req.body || {};
+    if (!message) return res.status(400).json({ success: false, message: "message is required" });
+    const msg = await addSalesRepReply(req.params.id, message);
+    return res.status(201).json({ success: true, message: msg });
   } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(400).json({ success: false, message: err.message });
   }
 }
 
-export async function submitCounterProposal(req, res) {
+// ── POST counter discount ──────────────────────────────────────────────
+export async function counterDiscount(req, res) {
   try {
-    const { id } = req.params;
-    const { proposedDiscountPercent, comment } = req.body || {};
-
+    const { proposedDiscountPercent, note } = req.body || {};
     if (proposedDiscountPercent == null) {
       return res.status(400).json({ success: false, message: "proposedDiscountPercent is required" });
     }
-
-    const result = await submitCounterDiscountProposal(id, proposedDiscountPercent, comment);
+    const result = await counterDiscountByToken(req.params.token, proposedDiscountPercent, note);
     return res.json({ success: true, result });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
   }
 }
 
-// 3. One-Click Terms Confirmation
-export async function confirmTerms(req, res) {
+// ── POST confirm order ─────────────────────────────────────────────────
+export async function confirmOrder(req, res) {
   try {
-    const { id } = req.params;
-    const result = await confirmQuotationTerms(id);
+    const result = await confirmOrderByToken(req.params.token);
     return res.json({ success: true, result });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+}
+
+// ── GET unread message count (for sales rep view) ──────────────────────
+export async function getUnreadMessages(req, res) {
+  try {
+    const count = await getUnreadCount(req.params.id);
+    return res.json({ success: true, unreadCount: count });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

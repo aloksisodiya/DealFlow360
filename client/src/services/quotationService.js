@@ -14,3 +14,13 @@ export async function requestNegotiation(id, requestNotes) {
   const res = await api.post(`/sales/rep/quotations/${id}/negotiation`, { request: requestNotes });
   return res.data;
 }
+
+export async function sendPortalLink(quoteId, customerEmail) {
+  const res = await api.post(`/sales/rep/quotations/${quoteId}/send-portal`, { customerEmail });
+  return res;
+}
+
+export async function sendSalesRepReply(quoteId, message) {
+  const res = await api.post(`/sales/rep/quotations/${quoteId}/reply`, { message });
+  return res;
+}

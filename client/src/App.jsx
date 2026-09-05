@@ -11,6 +11,7 @@ import DealHealth from './pages/deal-health/DealHealth';
 import Reports from './pages/reports/Reports';
 import ProductCatalog from './pages/products/ProductCatalog';
 import AdminPanel from './pages/admin/AdminPanel';
+import CustomerPortal from './pages/portal/CustomerPortal';
 import { hasAccess } from './utils/rbac';
 import { 
   getStoredUser, 
@@ -30,6 +31,12 @@ import './App.css';
  * - Unified navigation and toast feedback
  */
 export default function App() {
+  // ── Public portal route: /portal/:token (no auth required) ──────────
+  const portalMatch = window.location.pathname.match(/^\/portal\/([\w-]+)/);
+  if (portalMatch) {
+    return <CustomerPortal token={portalMatch[1]} />;
+  }
+
   // Initialize state directly from stored session on initial mount / page reload
   const [currentUser, setCurrentUser] = useState(() => getStoredUser());
   const [currentScreen, setCurrentScreen] = useState(() => {

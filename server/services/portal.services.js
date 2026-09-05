@@ -1,236 +1,212 @@
-import db from "../config/db.js";
+﻿import db from "../config/db.js";
+import { v4 as uuidv4 } from "uuid";
+import { getUpsellSuggestions } from "./upsell.services.js";
 
 /**
- * SERVICE LAYER: Customer (Portal User) Role (PDF Section 3 & B8)
+ * DealFlow360 — Token-Based Customer Portal Service
+ * All functions use portal_token (UUID) so no authentication is needed on the customer side.
  */
 
-// Category Discount Ceilings (PDF Section A3 & Section 10)
-const CATEGORY_CEILINGS = {
-  Hardware: 15,
-  Software: 20,
-  Services: 10,
-  Subscriptions: 12
-};
-
-const TIER_CEILINGS = {
-  Bronze: 5,
-  Silver: 10,
-  Gold: 15
-};
-
-// -------------------------------------------------------------
-// 1. ONLINE QUOTATION VIEW (RESTRICTED PORTAL ACCESS)
-// -------------------------------------------------------------
-
-export async function getCustomerPortalQuotation(quoteId) {
-  try {
-    const quote = await db("quotations").where({ id: quoteId }).first();
-
-    if (!quote) {
-      // Fallback for demonstration
-      return {
-        id: quoteId,
-        customerName: "Acme Corp",
-        customerTier: "Gold",
-        status: "Sent",
-        totalAmountUSD: 124000.00,
-        items: [
-          { productId: "prod-1", name: "Enterprise Server Rack X1", category: "Hardware", qty: 8, unitPrice: 15000, discountPercent: 10 },
-          { productId: "prod-2", name: "Setup & Onboarding Service", category: "Services", qty: 1, unitPrice: 4000, discountPercent: 5 }
-        ],
-        canConfirm: true
-      };
-    }
-
-    return {
-      id: quote.id,
-      customerName: quote.customer_name,
-      customerTier: quote.customer_tier,
-      status: quote.stage,
-      approvalStatus: quote.approval_status,
-      totalAmountUSD: Number(quote.total_amount),
-      blendedRiskScore: quote.blended_risk_score,
-      items: [
-        { productId: "prod-1", name: "Enterprise Server Rack X1", category: "Hardware", qty: 8, unitPrice: 15000, discountPercent: 10 },
-        { productId: "prod-2", name: "Setup & Onboarding Service", category: "Services", qty: 1, unitPrice: 4000, discountPercent: 5 }
-      ],
-      canConfirm: quote.stage !== "Confirmed"
-    };
-  } catch (error) {
-    console.warn("DB fetch error in getCustomerPortalQuotation:", error.message);
-    return {
-      id: quoteId,
-      customerName: "Portal Customer",
-      customerTier: "Silver",
-      status: "Sent",
-      totalAmountUSD: 88500.00,
-      canConfirm: true
-    };
-  }
+// ──────────────────────────────────────────────────────────────────────
+// 1. GENERATE & ATTACH PORTAL TOKEN TO A QUOTATION
+// ──────────────────────────────────────────────────────────────────────
+export async function generatePortalToken(quoteId, customerEmail) {
+  const token = uuidv4();
+  await db("quotations").where({ id: quoteId }).update({
+    portal_token: token,
+    portal_customer_email: customerEmail,
+    portal_sent_at: db.fn.now(),
+  });
+  return token;
 }
 
-// -------------------------------------------------------------
-// 2. LINE ITEM COMMENTS & COUNTER DISCOUNT PROPOSAL TOOL
-// -------------------------------------------------------------
+// ──────────────────────────────────────────────────────────────────────
+// 2. GET QUOTATION BY TOKEN (public — no auth)
+// ──────────────────────────────────────────────────────────────────────
+export async function getQuotationByToken(token) {
+  const quote = await db("quotations as q")
+    .leftJoin("admins as a", "a.id", "q.owner_id")
+    .where("q.portal_token", token)
+    .select("q.*", "a.work_email as owner_email", "a.full_name as owner_name")
+    .first();
 
-export async function addPortalLineComment(quoteId, lineItemId, senderRole = "Customer", commentText = "") {
-  if (!commentText || commentText.trim() === "") {
-    throw new Error("Comment text cannot be empty");
-  }
-
-  let commentRecord;
-  try {
-    const inserted = await db("portal_line_comments")
-      .insert({
-        quote_id: quoteId,
-        line_item_id: lineItemId || null,
-        sender_role: senderRole,
-        comment_text: commentText.trim()
-      })
-      .returning("*");
-
-    commentRecord = inserted[0];
-  } catch (error) {
-    console.warn("DB insert error for line comment:", error.message);
-    commentRecord = {
-      id: Date.now(),
-      quote_id: quoteId,
-      line_item_id: lineItemId,
-      sender_role: senderRole,
-      comment_text: commentText,
-      created_at: new Date().toISOString()
-    };
-  }
+  if (!quote) throw new Error("Invalid or expired portal link");
 
   return {
-    success: true,
-    comment: commentRecord
+    id: quote.id,
+    customerName: quote.customer_name,
+    customerTier: quote.customer_tier,
+    totalAmount: Number(quote.total_amount),
+    discountPercent: Number(quote.discount_percent || 0),
+    stage: quote.stage,
+    approvalStatus: quote.approval_status,
+    approvalRequired: quote.approval_required,
+    canConfirm: !["Confirmed", "Cancelled"].includes(quote.stage),
+    ownerName: quote.owner_name || "Your Sales Representative",
+    ownerEmail: quote.owner_email || "",
+    notes: quote.notes || "",
+    createdAt: quote.created_at,
   };
 }
 
-export async function getPortalLineComments(quoteId) {
-  try {
-    const comments = await db("portal_line_comments")
-      .where({ quote_id: quoteId })
-      .orderBy("created_at", "asc");
+// ──────────────────────────────────────────────────────────────────────
+// 3. PORTAL MESSAGE THREAD (Customer <-> SalesRep)
+// ──────────────────────────────────────────────────────────────────────
+export async function getPortalMessages(token) {
+  const quote = await db("quotations").where({ portal_token: token }).select("id").first();
+  if (!quote) throw new Error("Invalid portal token");
 
-    if (comments && comments.length > 0) return comments;
-  } catch (error) {
-    console.warn("DB list query for line comments failed:", error.message);
-  }
+  const messages = await db("portal_messages")
+    .where({ quote_id: quote.id })
+    .orderBy("created_at", "asc");
 
-  return [
-    {
-      id: 1,
-      quote_id: quoteId,
-      line_item_id: "prod-2",
-      sender_role: "Customer",
-      comment_text: "Can we get an additional 5% volume discount if we order 5 setup packages instead of 3?",
-      created_at: new Date().toISOString()
-    }
-  ];
+  return messages.map((m) => ({
+    id: m.id,
+    sender: m.sender,
+    message: m.message,
+    isRead: m.is_read,
+    createdAt: m.created_at,
+  }));
 }
 
-export async function submitCounterDiscountProposal(quoteId, proposedDiscountPercent, comment = "") {
-  const proposedDiscount = Number(proposedDiscountPercent);
-  if (isNaN(proposedDiscount) || proposedDiscount < 0 || proposedDiscount > 100) {
-    throw new Error("Invalid proposed discount percentage");
+export async function addPortalMessage(token, sender, message) {
+  if (!message || message.trim() === "") throw new Error("Message cannot be empty");
+
+  const quote = await db("quotations").where({ portal_token: token }).select("id").first();
+  if (!quote) throw new Error("Invalid portal token");
+
+  const [msg] = await db("portal_messages").insert({
+    quote_id: quote.id,
+    sender: sender || "Customer",
+    message: message.trim(),
+  }).returning("*");
+
+  return msg;
+}
+
+// Allow sales rep to reply via internal ID
+export async function addSalesRepReply(quoteId, message) {
+  if (!message || message.trim() === "") throw new Error("Message cannot be empty");
+  const [msg] = await db("portal_messages").insert({
+    quote_id: quoteId,
+    sender: "SalesRep",
+    message: message.trim(),
+  }).returning("*");
+  return msg;
+}
+
+export async function getUnreadCount(quoteId) {
+  const result = await db("portal_messages")
+    .where({ quote_id: quoteId, sender: "Customer", is_read: false })
+    .count("id as count")
+    .first();
+  return Number(result?.count || 0);
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// 4. COUNTER DISCOUNT PROPOSAL (customer proposes different %)
+// ──────────────────────────────────────────────────────────────────────
+export async function counterDiscountByToken(token, proposedDiscountPercent, note) {
+  const proposed = Number(proposedDiscountPercent);
+  if (isNaN(proposed) || proposed < 0 || proposed > 80) {
+    throw new Error("Proposed discount must be between 0% and 80%");
   }
 
-  // Calculate blended risk score adjustment
-  let newStage = "Under Customer Negotiation";
-  let approvalStatus = "Under Negotiation";
-  let requiresApproval = false;
+  const quote = await db("quotations").where({ portal_token: token }).first();
+  if (!quote) throw new Error("Invalid portal token");
 
-  // Threshold check: Gold 15%, Silver 10%, Bronze 5%
-  if (proposedDiscount > 10) {
-    requiresApproval = true;
-    newStage = "Pending Re-Approval";
-    approvalStatus = proposedDiscount > 15 ? "Pending Finance Review" : "Pending Manager Review";
-  }
+  const requiresApproval = proposed > 10;
+  const newStage = requiresApproval ? "Pending Re-Approval" : "Under Negotiation";
+  const approvalStatus = proposed > 15 ? "Pending Finance Review" : "Pending Manager Review";
 
+  await db("quotations").where({ id: quote.id }).update({
+    stage: newStage,
+    approval_required: requiresApproval,
+    approval_status: requiresApproval ? approvalStatus : quote.approval_status,
+    updated_at: db.fn.now(),
+  });
+
+  // Log to message thread
+  await db("portal_messages").insert({
+    quote_id: quote.id,
+    sender: "Customer",
+    message: `Counter proposal: requesting ${proposed}% discount.${note ? ` Note: ${note}` : ""}`,
+  });
+
+  // Audit log
   try {
-    await db("quotations")
-      .where({ id: quoteId })
-      .update({
-        stage: newStage,
-        approval_status: approvalStatus,
-        approval_required: requiresApproval,
-        updated_at: db.fn.now()
-      });
-
-    // Log to Audit Trail
     await db("approval_audit_logs").insert({
-      quote_id: quoteId,
+      quote_id: quote.id,
       reviewer_role: "Customer",
       action: "COUNTER_PROPOSAL",
-      reason: `Customer counter discount proposed: ${proposedDiscount}%. Note: ${comment}`
+      reason: `Customer counter discount: ${proposed}%. Note: ${note || "none"}`,
     });
-  } catch (error) {
-    console.warn("DB update error for counter discount proposal:", error.message);
-  }
+  } catch {}
 
   return {
-    success: true,
-    quoteId,
-    proposedDiscountPercent: proposedDiscount,
-    comment,
+    quoteId: quote.id,
+    proposedDiscountPercent: proposed,
     newStage,
-    approvalStatus,
     requiresApproval,
     message: requiresApproval
-      ? `Counter proposal of ${proposedDiscount}% exceeds standard limit. Quotation re-routed for ${approvalStatus}.`
-      : `Counter proposal of ${proposedDiscount}% accepted.`
+      ? `Your ${proposed}% counter proposal has been sent for manager review.`
+      : `Your counter proposal of ${proposed}% has been submitted.`,
   };
 }
 
-// -------------------------------------------------------------
-// 3. ONE-CLICK QUOTATION TERMS CONFIRMATION
-// -------------------------------------------------------------
+// ──────────────────────────────────────────────────────────────────────
+// 5. ONE-CLICK CONFIRM ORDER
+// ──────────────────────────────────────────────────────────────────────
+export async function confirmOrderByToken(token) {
+  const quote = await db("quotations").where({ portal_token: token }).first();
+  if (!quote) throw new Error("Invalid portal token");
 
-export async function confirmQuotationTerms(quoteId) {
-  let updatedStage = "Confirmed";
-  let updatedStatus = "Confirmed";
-  let autoReenteredApproval = false;
-
-  try {
-    const quote = await db("quotations").where({ id: quoteId }).first();
-
-    if (quote && (quote.blended_risk_score > 12.0 || quote.approval_required)) {
-      // Re-enters approval workflow if terms exceed thresholds (PDF Section B8)
-      updatedStage = "Pending Approval";
-      updatedStatus = "Pending Finance Review";
-      autoReenteredApproval = true;
-    }
-
-    await db("quotations")
-      .where({ id: quoteId })
-      .update({
-        stage: updatedStage,
-        approval_status: updatedStatus,
-        updated_at: db.fn.now()
-      });
-
-    await db("approval_audit_logs").insert({
-      quote_id: quoteId,
-      reviewer_role: "Customer",
-      action: "CONFIRM_QUOTATION",
-      reason: autoReenteredApproval
-        ? "Customer confirmed terms, but high risk score triggered auto re-entry into approval workflow."
-        : "Customer confirmed final terms with one-click approval."
-    });
-  } catch (error) {
-    console.warn("DB update error in confirmQuotationTerms:", error.message);
+  if (quote.stage === "Confirmed") {
+    return { alreadyConfirmed: true, quoteId: quote.id, upsellSuggestions: [] };
   }
 
+  let newStage = "Confirmed";
+  let autoReentry = false;
+
+  if (Number(quote.blended_risk_score) > 12 || quote.approval_required) {
+    newStage = "Pending Final Approval";
+    autoReentry = true;
+  }
+
+  await db("quotations").where({ id: quote.id }).update({
+    stage: newStage,
+    approval_status: autoReentry ? "Pending Finance Review" : "Confirmed",
+    updated_at: db.fn.now(),
+  });
+
+  // Log to message thread
+  await db("portal_messages").insert({
+    quote_id: quote.id,
+    sender: "Customer",
+    message: "I have confirmed the quotation terms. Please proceed.",
+  });
+
+  try {
+    await db("approval_audit_logs").insert({
+      quote_id: quote.id,
+      reviewer_role: "Customer",
+      action: "CONFIRM_ORDER",
+      reason: autoReentry
+        ? "Customer confirmed. High risk score auto-routed to Finance."
+        : "Customer confirmed terms with one-click acceptance.",
+    });
+  } catch {}
+
+  // Run upsell engine
+  const upsellSuggestions = await getUpsellSuggestions(quote.id);
+
   return {
-    success: true,
-    quoteId,
-    confirmedStage: updatedStage,
-    approvalStatus: updatedStatus,
-    autoReenteredApproval,
-    message: autoReenteredApproval
-      ? "Quotation terms confirmed by customer. High risk score automatically re-entered quotation into Finance approval flow."
-      : "Quotation terms confirmed successfully! Order moves directly to fulfillment and billing."
+    quoteId: quote.id,
+    confirmedStage: newStage,
+    autoReentry,
+    upsellSuggestions,
+    message: autoReentry
+      ? "Thank you! Your order is confirmed and has been sent for final finance review."
+      : "Thank you! Your order is confirmed and has been sent to fulfillment.",
   };
 }

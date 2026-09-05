@@ -7,10 +7,13 @@ import {
   Check, 
   X, 
   ArrowRight, 
-  Send 
+  Send,
+  Mail,
+  ExternalLink,
+  Loader2
 } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
-import { fetchQuotations, createQuotation, requestNegotiation } from '../../services/quotationService';
+import { fetchQuotations, createQuotation, requestNegotiation, sendPortalLink } from '../../services/quotationService';
 import './Quotations.css';
 
 /**
@@ -38,11 +41,30 @@ export default function Quotations({ user, onNavigate, onLogout }) {
   const [newDiscount, setNewDiscount] = useState(0);
   const [newStage, setNewStage] = useState('draft');
 
+  // Portal send state
+  const [portalEmail, setPortalEmail] = useState('');
+  const [sendingPortal, setSendingPortal] = useState(false);
+  const [portalSent, setPortalSent] = useState(null); // { url, email }
+
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage(null), 4000;
     });
+  };
+
+  const handleSendPortal = async () => {
+    if (!portalEmail || !selectedQuote || sendingPortal) return;
+    setSendingPortal(true);
+    try {
+      const result = await sendPortalLink(selectedQuote.id, portalEmail);
+      setPortalSent({ url: result.portalUrl, email: portalEmail });
+      showToast(`Portal link sent to ${portalEmail}!`);
+    } catch (err) {
+      showToast(err.message || 'Failed to send portal link');
+    } finally {
+      setSendingPortal(false);
+    }
   };
 
   const loadQuotations = async () => {
@@ -538,14 +560,15 @@ export default function Quotations({ user, onNavigate, onLogout }) {
 
       {/* Quote Detail Modal */}
       {selectedQuote && (
-        <div className="modal-overlay" onClick={() => setSelectedQuote(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay" onClick={() => { setSelectedQuote(null); setPortalEmail(''); setPortalSent(null); }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '480px' }}>
             <div className="modal-header">
               <div>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: '#714b67' }}>{selectedQuote.id}</span>
                 <h3 style={{ fontSize: '19px', fontWeight: 800, color: '#0f172a' }}>{selectedQuote.client}</h3>
               </div>
-              <button className="modal-close-btn" onClick={() => setSelectedQuote(null)}>
+              <button className="modal-close-btn" onClick={() => { setSelectedQuote(null); setPortalEmail(''); setPortalSent(null); }}>
                 <X size={18} />
               </button>
             </div>
@@ -566,23 +589,56 @@ export default function Quotations({ user, onNavigate, onLogout }) {
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
-              <button 
-                type="button" 
-                className="btn-dash-primary"
-                style={{ flex: 1, justifyContent: 'center' }}
-                onClick={() => {
-                  showToast(`Quotation ${selectedQuote.id} transmitted to client email.`);
-                  setSelectedQuote(null);
-                }}
-              >
-                <Send size={15} />
-                <span>Send to Client</span>
-              </button>
-              <button 
-                type="button" 
+            {/* Send Portal Link Section */}
+            <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '10px', padding: '16px', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '10px' }}>
+                <Mail size={15} color="#0284c7" />
+                <span style={{ fontWeight: 700, fontSize: '13px', color: '#0284c7' }}>Send Portal Link to Customer</span>
+              </div>
+              {portalSent ? (
+                <div>
+                  <div style={{ fontSize: '12.5px', color: '#059669', fontWeight: 600, marginBottom: '6px' }}>
+                    ✓ Sent to {portalSent.email}
+                  </div>
+                  <a
+                    href={portalSent.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#0284c7', wordBreak: 'break-all' }}
+                  >
+                    <ExternalLink size={12} /> {portalSent.url}
+                  </a>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="email"
+                    className="form-input"
+                    placeholder="customer@company.com"
+                    value={portalEmail}
+                    onChange={(e) => setPortalEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendPortal()}
+                    style={{ flex: 1, height: '38px' }}
+                  />
+                  <button
+                    className="btn-new-quote"
+                    onClick={handleSendPortal}
+                    disabled={sendingPortal || !portalEmail}
+                    style={{ height: '38px', padding: '0 14px', gap: '6px', whiteSpace: 'nowrap' }}
+                  >
+                    {sendingPortal ? <Loader2 size={13} /> : <Send size={13} />}
+                    <span>{sendingPortal ? 'Sending…' : 'Send Link'}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+              <button
+                type="button"
                 className="btn-dash-secondary"
-                onClick={() => setSelectedQuote(null)}
+                style={{ flex: 1, justifyContent: 'center' }}
+                onClick={() => { setSelectedQuote(null); setPortalEmail(''); setPortalSent(null); }}
               >
                 Close
               </button>
