@@ -10,6 +10,7 @@ import Invoices from './pages/invoices/Invoices';
 import DealHealth from './pages/deal-health/DealHealth';
 import Reports from './pages/reports/Reports';
 import ProductCatalog from './pages/products/ProductCatalog';
+import AdminPanel from './pages/admin/AdminPanel';
 import { 
   getStoredUser, 
   getStoredScreen, 
@@ -106,6 +107,8 @@ export default function App() {
         return <Reports {...commonProps} />;
       case 'product':
         return <ProductCatalog {...commonProps} />;
+      case 'admin':
+        return <AdminPanel {...commonProps} />;
       default:
         return <Dashboard {...commonProps} />;
     }

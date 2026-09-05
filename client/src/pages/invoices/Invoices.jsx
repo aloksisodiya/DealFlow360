@@ -130,17 +130,29 @@ export default function Invoices({ user, onNavigate, onLogout }) {
   const handleSaveAdjustedLines = (e) => {
     e.preventDefault();
     const newTotal = adjustLines.reduce((acc, l) => acc + (l.qty * l.price), 0);
-    setInvoiceBatches(prev => prev.map(inv => {
-      if (inv.id === 'INV-1042') {
-        return {
-          ...inv,
-          amount: newTotal
-        };
-      }
-      return inv;
-    }));
     showToast(`Line items updated! New invoice total: $${newTotal.toLocaleString()}.`);
     setActiveModal(null);
+  };
+
+  const handleDownloadSummary = () => {
+    const headers = ['Invoice #', 'Customer', 'Amount', 'Status', 'Due Date'];
+    const rows = invoiceBatches.map(inv => [
+      inv.id,
+      inv.title,
+      `$${inv.amount.toLocaleString()}`,
+      inv.status,
+      inv.dueDate || 'N/A'
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' +
+      [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `DealFlow360_Invoices_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Invoice summary downloaded as CSV!');
   };
 
   return (

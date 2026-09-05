@@ -5,11 +5,12 @@ import {
   loginAdmin,
   resetAdminCredentials,
   updateManagedAccount,
+  deleteManagedAccount,
   requestPasswordReset,
   verifyAndResetPassword,
 } from "../services/admin.services.js";
 
-const MANAGED_ROLES = ["sales_rep", "sales_manager", "finance", "customer"];
+const MANAGED_ROLES = ["admin", "sales_rep", "sales_manager", "finance", "customer", "warehouse", "operations"];
 
 function validateRoleEmail(workEmail, role) {
   // Allow all standard valid email formats (including @gmail.com, enterprise domains, etc.)
@@ -104,6 +105,15 @@ export async function updateAccount(req, res) {
         isActive,
       }),
     });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+export async function deleteAccount(req, res) {
+  try {
+    await deleteManagedAccount(req.params.id);
+    return res.json({ success: true, message: "Employee account deleted successfully" });
   } catch (error) {
     return sendError(res, error);
   }

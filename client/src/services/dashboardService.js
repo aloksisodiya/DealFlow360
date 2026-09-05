@@ -1,16 +1,19 @@
 import { api } from './apiClient';
 
 export async function fetchDashboardMetrics() {
-  const res = await api.get('/dashboard/stats');
-  return res.data || {};
+  const res = await api.get('/dashboard/metrics');
+  // Backend returns { success, data, metrics, ... } — return the nested data object
+  return res.data?.data || res.data || {};
 }
 
 export async function fetchRecentActivities() {
   const res = await api.get('/dashboard/activities');
-  return res.data || [];
+  // Backend returns { success, data, activities } — return the activities array
+  return res.data?.activities || res.data?.data || res.data || [];
 }
 
 export async function fetchDashboardAlerts() {
-  const res = await api.get('/dashboard/health-alerts');
-  return res.data || [];
+  const res = await api.get('/dashboard/deal-health');
+  // Backend returns { success, alerts } — return alerts array
+  return res.data?.alerts || res.data?.data || res.data || [];
 }

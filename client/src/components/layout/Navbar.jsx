@@ -13,7 +13,8 @@ import {
   DollarSign,
   AlertTriangle,
   BarChart3,
-  Package
+  Package,
+  ShieldCheck
 } from 'lucide-react';
 import './Navbar.css';
 
@@ -256,6 +257,19 @@ export default function Navbar({ activePage, user, onNavigate, onLogout, onToast
                     <Package size={14} />
                     <span>Products</span>
                   </button>
+
+                  <button 
+                    className="nav-dropdown-item admin-panel-item" 
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      if (onNavigate) onNavigate('admin');
+                    }}
+                  >
+                    <ShieldCheck size={14} className="admin-dropdown-icon" />
+                    <span style={{ flex: 1 }}>Admin Panel</span>
+                    <span className="nav-admin-badge">ADMIN</span>
+                  </button>
+
                   <button 
                     className="nav-dropdown-item logout" 
                     onClick={() => {

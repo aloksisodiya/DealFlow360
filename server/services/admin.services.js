@@ -181,6 +181,12 @@ export async function updateManagedAccount(accountId, changes) {
   return toAdminResponse(account);
 }
 
+export async function deleteManagedAccount(accountId) {
+  const deleted = await db("admins").where({ id: accountId }).del();
+  if (!deleted) throw new Error("Managed account not found");
+  return true;
+}
+
 export async function requestPasswordReset(workEmail) {
   const normalizedEmail = workEmail.trim().toLowerCase();
   const admin = await db("admins").where({ work_email: normalizedEmail }).first();

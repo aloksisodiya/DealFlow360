@@ -7,6 +7,7 @@ import {
   createAccount,
   getAccounts,
   updateAccount,
+  deleteAccount,
   forgotPassword,
   resetPasswordWithToken,
 } from "../controllers/admin.controller.js";
@@ -28,6 +29,12 @@ router.patch(
   requireAdmin,
   requireRole("admin"),
   updateAccount,
+);
+router.delete(
+  "/accounts/:id",
+  requireAdmin,
+  requireRole("admin"),
+  deleteAccount,
 );
 
 // Dashboard routes for Admin role

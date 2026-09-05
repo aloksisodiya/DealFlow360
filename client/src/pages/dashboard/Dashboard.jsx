@@ -229,30 +229,37 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
           </div>
 
           <div className="activity-list">
-            {(metrics?.recentActivities || []).map((act, index) => (
-              <div className="activity-item" key={act.id || index}>
-                <div className="activity-item-left">
-                  <div className={`activity-badge-icon ${act.badge_color || 'green'}`}>
-                    <Check size={18} />
-                  </div>
-                  <div className="activity-text-content">
-                    <div className="activity-headline">
-                      {act.title}
-                    </div>
-                    <div className="activity-description">
-                      {act.subtitle}
-                    </div>
-                  </div>
-                </div>
+            {(metrics?.recentActivities || []).map((act, index) => {
+              const badgeType = (act.badge_type || '').toLowerCase();
+              const badgeColor = (act.badge_color || '').toLowerCase();
+              const isWarning = badgeColor === 'warning' || badgeType.includes('review') || badgeType.includes('discount');
+              const isInfo = badgeColor === 'info' || badgeType.includes('sync') || badgeType.includes('inventory');
 
-                <div className="activity-item-right">
-                  <span className={`status-pill ${act.badge_color === 'success' ? 'approved' : act.badge_color === 'warning' ? 'review' : 'sync'}`}>
-                    {act.badge_type}
-                  </span>
-                  <span className="activity-timestamp">{act.time_ago}</span>
+              return (
+                <div className="activity-item" key={act.id || index}>
+                  <div className="activity-item-left">
+                    <div className={`activity-badge-icon ${act.badge_color || (isWarning ? 'warning' : isInfo ? 'info' : 'success')}`}>
+                      {isWarning ? <Clock size={18} /> : isInfo ? <Package size={18} /> : <Check size={18} />}
+                    </div>
+                    <div className="activity-text-content">
+                      <div className="activity-headline">
+                        {act.title}
+                      </div>
+                      <div className="activity-description">
+                        {act.subtitle}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="activity-item-right">
+                    <span className={`status-pill ${act.badge_color === 'success' ? 'approved' : act.badge_color === 'warning' ? 'review' : 'sync'}`}>
+                      {act.badge_type}
+                    </span>
+                    <span className="activity-timestamp">{act.time_ago}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="activity-card-footer">

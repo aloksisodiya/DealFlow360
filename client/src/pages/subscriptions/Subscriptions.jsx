@@ -138,6 +138,30 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
     }
   };
 
+  const handleExportCSV = () => {
+    const headers = ['ID', 'Customer', 'Plan', 'Cycle', 'Amount', 'Status', 'Next Bill', 'Seats'];
+    const rows = subscriptions.map(s => [
+      s.id,
+      s.customer,
+      s.plan,
+      s.cycle,
+      s.amount,
+      s.status,
+      s.nextBill,
+      s.seats
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' +
+      [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `DealFlow360_Subscriptions_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Subscriptions exported as CSV!');
+  };
+
   const handleCreateNewBlueprint = async (e) => {
     e.preventDefault();
     if (!newCustomer.trim()) {
@@ -173,6 +197,15 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
           </div>
         </div>
       )}
+
+      {/* Top Universal Navbar */}
+      <Navbar
+        activePage="subscriptions"
+        user={user}
+        onNavigate={onNavigate}
+        onLogout={onLogout}
+        onToast={showToast}
+      />
 
       {/* Main Subscriptions Page Content */}
       <main className="subscriptions-main animate-fade-in">
