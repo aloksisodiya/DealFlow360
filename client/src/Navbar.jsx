@@ -99,9 +99,9 @@ export default function Navbar({ activePage, user, onNavigate, onLogout, onToast
 
               <button
                 className={`nav-tab-button ${activePage === 'product' ? 'active' : ''}`}
-                onClick={() => notify('Opening Product Catalog')}
+                onClick={() => onNavigate && onNavigate('product')}
               >
-                <span>Product</span>
+                <span>Products</span>
               </button>
             </nav>
           </div>
@@ -229,6 +229,16 @@ export default function Navbar({ activePage, user, onNavigate, onLogout, onToast
                   >
                     <BarChart3 size={14} />
                     <span>Reports</span>
+                  </button>
+                  <button 
+                    className="nav-dropdown-item" 
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      if (onNavigate) onNavigate('product');
+                    }}
+                  >
+                    <Package size={14} />
+                    <span>Products</span>
                   </button>
                   <button 
                     className="nav-dropdown-item logout" 

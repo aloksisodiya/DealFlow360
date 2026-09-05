@@ -20,9 +20,10 @@ import Subscriptions from './Subscriptions';
 import Invoices from './Invoices';
 import DealHealth from './DealHealth';
 import Reports from './Reports';
+import ProductCatalog from './ProductCatalog';
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState('auth'); // 'auth' | 'dashboard' | 'quotations' | 'approvals' | 'fulfillment' | 'subscriptions' | 'invoices' | 'dealhealth' | 'reports'
+  const [currentScreen, setCurrentScreen] = useState('auth'); // 'auth' | 'dashboard' | 'quotations' | 'approvals' | 'fulfillment' | 'subscriptions' | 'invoices' | 'dealhealth' | 'reports' | 'product'
   const [currentUser, setCurrentUser] = useState({
     name: 'Alex Morgan',
     email: 'alex.morgan@firm-capital.com',
@@ -219,6 +220,16 @@ export default function App() {
   if (currentScreen === 'reports') {
     return (
       <Reports 
+        user={currentUser} 
+        onNavigate={(screen) => setCurrentScreen(screen)}
+        onLogout={handleLogout} 
+      />
+    );
+  }
+
+  if (currentScreen === 'product') {
+    return (
+      <ProductCatalog 
         user={currentUser} 
         onNavigate={(screen) => setCurrentScreen(screen)}
         onLogout={handleLogout} 
