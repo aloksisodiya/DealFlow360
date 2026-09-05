@@ -111,7 +111,8 @@ export default function App() {
           <div className="brand-container" onClick={() => setActiveTab('signin')}>
             <img src="/logo.png" alt="DealFlow360 Logo" className="brand-logo" />
             <span className="brand-name">
-              <span>DealFlow</span>360
+              <span className="brand-text-dark">DealFlow</span>
+              <span className="brand-text-purple">360</span>
             </span>
           </div>
 
@@ -137,7 +138,6 @@ export default function App() {
             </button>
           </div>
         </div>
-        <div className="header-accent-stripe"></div>
       </header>
 
       {/* Main Content Area */}
