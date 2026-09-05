@@ -36,8 +36,17 @@ export default function CustomerPortal({ token }) {
   const [counterSent, setCounterSent]   = useState(false);
   const [submittingCounter, setSubmittingCounter] = useState(false);
   const [toasts, setToasts]             = useState([]);
+  const [activeTab, setActiveTab]       = useState("overview"); // 'overview' | 'lines' | 'chat'
   const threadRef = useRef(null);
   const pollRef   = useRef(null);
+  const quotePollRef = useRef(null);
+
+  const quickPrompts = [
+    "Can you offer an extra 5% discount if we sign this week?",
+    "What is the estimated delivery timeframe across warehouses?",
+    "Could we add 2-year 24/7 SLA support to this proposal?",
+    "Terms look great! Ready to finalize and proceed.",
+  ];
 
   const showToast = useCallback((msg, type = "success") => {
     const id = Date.now();
@@ -68,13 +77,30 @@ export default function CustomerPortal({ token }) {
 
   useEffect(() => {
     loadData();
-    // Poll for new messages every 8 seconds
+    // Real-time live polling for messages every 3 seconds
     pollRef.current = setInterval(() => {
       getPortalMessages(token)
         .then((msgs) => setMessages(msgs))
         .catch(() => {});
-    }, 8000);
-    return () => clearInterval(pollRef.current);
+    }, 3000);
+
+    // Live quotation status poll every 6 seconds
+    quotePollRef.current = setInterval(() => {
+      getPortalQuotation(token)
+        .then((q) => {
+          setQuotation(q);
+          if (q.stage === "Confirmed") {
+            setConfirmed(true);
+            if (q.upsellSuggestions?.length) setUpsellItems(q.upsellSuggestions);
+          }
+        })
+        .catch(() => {});
+    }, 6000);
+
+    return () => {
+      clearInterval(pollRef.current);
+      clearInterval(quotePollRef.current);
+    };
   }, [loadData, token]);
 
   useEffect(() => {
@@ -83,12 +109,13 @@ export default function CustomerPortal({ token }) {
     }
   }, [messages]);
 
-  const handleSendMessage = async () => {
-    if (!msgText.trim() || sendingMsg) return;
+  const handleSendMessage = async (textToSend) => {
+    const text = (typeof textToSend === "string" ? textToSend : msgText).trim();
+    if (!text || sendingMsg) return;
     setSendingMsg(true);
     try {
-      await sendPortalMessage(token, msgText.trim());
-      setMsgText("");
+      await sendPortalMessage(token, text);
+      if (typeof textToSend !== "string") setMsgText("");
       const msgs = await getPortalMessages(token);
       setMessages(msgs);
     } catch (e) {
@@ -96,6 +123,12 @@ export default function CustomerPortal({ token }) {
     } finally {
       setSendingMsg(false);
     }
+  };
+
+  const handleItemInquiry = (item) => {
+    const prompt = `Regarding item "${item.name}": Could you provide more details about delivery and configuration options?`;
+    setMsgText(prompt);
+    showToast(`Inquiry drafted in chat below!`);
   };
 
   const handleCounterSubmit = async () => {
@@ -234,6 +267,11 @@ export default function CustomerPortal({ token }) {
             {quotation?.approvalStatus && (
               <div className="portal-meta-pill">{quotation.approvalStatus}</div>
             )}
+            {quotation?.warehouseStockTotal > 0 && (
+              <div className="portal-meta-pill" style={{ background: '#dcfce7', color: '#15803d', borderColor: '#bbf7d0' }}>
+                🟢 {quotation.warehouseStockTotal} Units In Stock (Regional Warehouses)
+              </div>
+            )}
           </div>
 
           {quotation?.ownerName && (
@@ -243,37 +281,119 @@ export default function CustomerPortal({ token }) {
               </div>
               <div>
                 <div className="portal-rep-name">{quotation.ownerName}</div>
-                <div className="portal-rep-label">Your Sales Representative</div>
+                <div className="portal-rep-label">Your Dedicated Sales Representative</div>
               </div>
             </div>
           )}
         </div>
 
-        {/* ── Message Thread ── */}
+        {/* ── Itemized Line Items Breakdown ── */}
+        {quotation?.items && quotation.items.length > 0 && (
+          <div className="portal-section">
+            <div className="portal-section-title">
+              <Package size={14} />
+              Quotation Line Items & Real-Time Availability
+            </div>
+            <div className="portal-lines-table-wrap">
+              <table className="portal-lines-table">
+                <thead>
+                  <tr>
+                    <th>Item Description</th>
+                    <th>Category</th>
+                    <th>Qty</th>
+                    <th>Unit Price</th>
+                    <th>Total</th>
+                    <th>Warehouse Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {quotation.items.map((it, idx) => (
+                    <tr key={it.id || idx}>
+                      <td>
+                        <div style={{ fontWeight: 600, color: '#0f172a' }}>{it.name}</div>
+                        {it.description && <div style={{ fontSize: '11px', color: '#64748b' }}>{it.description}</div>}
+                      </td>
+                      <td>
+                        <span className="portal-item-cat-badge">{it.category || 'Standard'}</span>
+                      </td>
+                      <td style={{ fontWeight: 600 }}>{it.quantity || 1}</td>
+                      <td>${Number(it.unitPrice || 0).toLocaleString()}</td>
+                      <td style={{ fontWeight: 700, color: '#54324c' }}>
+                        ${Number(it.totalPrice || (it.quantity || 1) * (it.unitPrice || 0)).toLocaleString()}
+                      </td>
+                      <td>
+                        <span style={{ fontSize: '11.5px', color: '#16a34a', fontWeight: 600 }}>
+                          ● {it.warehouseAvailability || 'Ready in Main Depot'}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="portal-ask-item-btn"
+                          onClick={() => handleItemInquiry(it)}
+                          title="Ask rep a question about this item"
+                        >
+                          <MessageSquare size={12} />
+                          <span>Inquire</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── Live Message & Negotiation Thread ── */}
         <div className="portal-section">
           <div className="portal-section-title">
             <MessageSquare size={14} />
-            Negotiate & Ask Questions
+            Live Rep Negotiation & Questions (Real-Time Synced)
           </div>
           <div className="portal-thread-box">
             <div className="portal-thread-messages" ref={threadRef}>
-              {messages.map((m) => (
-                <div
-                  key={m.id}
-                  className={`portal-msg ${m.sender === "Customer" ? "customer" : "salesrep"}`}
-                >
-                  <div className="portal-msg-bubble">{m.message}</div>
-                  <div className="portal-msg-meta">
-                    {m.sender === "Customer" ? "You" : quotation?.ownerName || "Sales Rep"} · {formatTime(m.createdAt)}
-                  </div>
+              {messages.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px 10px', color: '#94a3b8', fontStyle: 'italic', fontSize: '12.5px' }}>
+                  No messages yet. Send a question, request terms adjustment, or choose a quick prompt below!
                 </div>
+              ) : (
+                messages.map((m) => (
+                  <div
+                    key={m.id}
+                    className={`portal-msg ${m.sender === "Customer" ? "customer" : "salesrep"}`}
+                  >
+                    <div className="portal-msg-bubble">{m.message}</div>
+                    <div className="portal-msg-meta">
+                      {m.sender === "Customer" ? "You" : quotation?.ownerName || "Sales Rep"} · {formatTime(m.createdAt)}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Quick Negotiation Prompts */}
+            <div className="portal-quick-chips">
+              <span className="portal-quick-label">Quick Prompts:</span>
+              {quickPrompts.map((p, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className="portal-chip-btn"
+                  onClick={() => handleSendMessage(p)}
+                  disabled={sendingMsg}
+                >
+                  {p}
+                </button>
               ))}
             </div>
+
             <div className="portal-msg-input-row">
               <textarea
                 className="portal-msg-textarea"
                 rows={2}
-                placeholder="Ask a question or suggest a change…"
+                placeholder="Type your message, query, or negotiation request here (Press Enter to Send)…"
                 value={msgText}
                 onChange={(e) => setMsgText(e.target.value)}
                 onKeyDown={(e) => {
@@ -285,7 +405,7 @@ export default function CustomerPortal({ token }) {
               />
               <button
                 className="portal-msg-send-btn"
-                onClick={handleSendMessage}
+                onClick={() => handleSendMessage()}
                 disabled={sendingMsg || !msgText.trim()}
               >
                 {sendingMsg ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}

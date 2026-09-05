@@ -69,9 +69,9 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
   // Split management state
   const [splitDraft, setSplitDraft] = useState(null);
 
-  const loadFulfillmentData = async () => {
+  const loadFulfillmentData = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const [invData, ordData] = await Promise.all([
         fetchInventory().catch(() => []),
         fetchFulfillmentOrders().catch(() => [])
@@ -85,12 +85,17 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
     } catch (err) {
       console.error('Failed to load fulfillment data:', err);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadFulfillmentData();
+    loadFulfillmentData(true);
+    // Real-time live background polling for inventory changes
+    const interval = setInterval(() => {
+      loadFulfillmentData(false);
+    }, 4000);
+    return () => clearInterval(interval);
   }, []);
 
   // Filter handlers

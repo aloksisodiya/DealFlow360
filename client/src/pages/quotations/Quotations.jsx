@@ -143,9 +143,9 @@ export default function Quotations({ user, onNavigate, onLogout }) {
     }
   };
 
-  const loadQuotations = async () => {
+  const loadQuotations = async (showLoading = true) => {
     try {
-      setIsLoading(true);
+      if (showLoading) setIsLoading(true);
       const data = await fetchQuotations();
       const mapped = data.map(q => {
         let stageName = 'draft';
@@ -186,14 +186,19 @@ export default function Quotations({ user, onNavigate, onLogout }) {
       });
       setQuotes(mapped);
     } catch {
-      showToast('Failed to load quotations from database');
+      if (showLoading) showToast('Failed to load quotations from database');
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadQuotations();
+    loadQuotations(true);
+    // Real-time live sync for quotation stages across browser tabs
+    const interval = setInterval(() => {
+      loadQuotations(false);
+    }, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -208,6 +213,15 @@ export default function Quotations({ user, onNavigate, onLogout }) {
       fetchQuoteMessages(selectedQuote.id)
         .then(msgs => setQuoteMessages(msgs))
         .catch(() => setQuoteMessages([]));
+
+      // Live 3s polling for customer messages when viewing this quotation
+      const msgInterval = setInterval(() => {
+        fetchQuoteMessages(selectedQuote.id)
+          .then(msgs => setQuoteMessages(msgs))
+          .catch(() => {});
+      }, 3000);
+
+      return () => clearInterval(msgInterval);
     } else {
       setQuoteMessages([]);
       setPortalSent(null);
@@ -1053,11 +1067,39 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                 )}
               </div>
 
+              {/* Quick Rep Replies */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '8px' }}>
+                {[
+                  "Thank you! I have updated the pricing as requested.",
+                  "We have units in stock ready for immediate dispatch.",
+                  "I've submitted this counter discount for expedited manager signoff.",
+                  "Looking forward to partnering with you! Please proceed with confirmation."
+                ].map((quickText, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setRepReplyText(quickText)}
+                    style={{
+                      background: '#fff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      padding: '3px 8px',
+                      fontSize: '11px',
+                      color: '#475569',
+                      cursor: 'pointer',
+                      fontWeight: 500
+                    }}
+                  >
+                    {quickText}
+                  </button>
+                ))}
+              </div>
+
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="Reply to customer's inquiry or negotiation..."
+                  placeholder="Reply to customer's inquiry or negotiation (Press Enter)..."
                   value={repReplyText}
                   onChange={(e) => setRepReplyText(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendReply()}
