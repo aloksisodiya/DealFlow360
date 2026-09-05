@@ -14,30 +14,69 @@ export async function listWarehouses() {
 }
 
 export async function listWarehouseInventory() {
+  // Ensure all active products exist in warehouse_inventory
+  try {
+    const [prods, warehouses, existing] = await Promise.all([
+      db("products").where({ is_active: true }).select("id", "name", "category", "sku"),
+      db("warehouses").select("id", "name"),
+      db("warehouse_inventory").select("warehouse_id", "product_id")
+    ]);
+
+    const existingSet = new Set(existing.map(e => `${e.warehouse_id}_${e.product_id}`));
+    const toInsert = [];
+
+    for (const p of prods) {
+      for (const w of warehouses) {
+        const key = `${w.id}_${p.id}`;
+        if (!existingSet.has(key)) {
+          const isMain = w.id === "wh-main";
+          const defaultQty = p.category === "Services" || p.category === "Subscription" ? 500 : isMain ? 45 : 15;
+          toInsert.push({
+            warehouse_id: w.id,
+            product_id: p.id,
+            product_name: p.name,
+            stock_qty: defaultQty
+          });
+        }
+      }
+    }
+
+    if (toInsert.length > 0) {
+      await db("warehouse_inventory").insert(toInsert);
+    }
+  } catch (err) {
+    console.warn("[listWarehouseInventory] Sync warning:", err.message);
+  }
+
   const inventory = await db("warehouse_inventory as wi")
     .leftJoin("warehouses as w", "wi.warehouse_id", "w.id")
+    .leftJoin("products as p", "wi.product_id", "p.id")
     .select(
       "wi.id",
       "wi.warehouse_id as warehouseId",
       "w.name as warehouse",
       "wi.product_id as productId",
       "wi.product_name as product",
-      "wi.stock_qty as inStock"
+      "wi.stock_qty as inStock",
+      "p.sku as productSku"
     )
-    .orderBy("wi.id");
+    .orderBy("wi.product_name", "asc")
+    .orderBy("w.name", "asc");
 
   return inventory.map((item) => {
-    const reserved = Math.min(Math.floor(item.inStock * 0.3), 20);
-    const available = Math.max(0, item.inStock - reserved);
-    const status = available < 10 ? "Low Stock" : available < 30 ? "Optimal" : "Healthy";
-    const dotColor = status === "Low Stock" ? "amber" : "blue";
+    const inStock = Number(item.inStock || 0);
+    const reserved = Math.min(Math.floor(inStock * 0.25), 15);
+    const available = Math.max(0, inStock - reserved);
+    const status = available <= 0 ? "Out of Stock" : available < 15 ? "Low Stock" : available < 40 ? "Optimal" : "Healthy";
+    const dotColor = status === "Out of Stock" ? "red" : status === "Low Stock" ? "amber" : "blue";
     return {
       ...item,
+      inStock,
       reserved,
       available,
       status,
       dotColor,
-      sku: `SKU-${(item.product || "PROD").slice(0, 4).toUpperCase()}`
+      sku: item.productSku || `SKU-${(item.product || "PROD").slice(0, 4).toUpperCase()}`
     };
   });
 }
@@ -110,25 +149,54 @@ export async function transferStock({ fromWarehouseId, toWarehouseId, productId,
 
 export async function listFulfillmentOrders() {
   const quotes = await db("quotations")
-    .whereIn("stage", ["Fulfillment", "Approved", "In Review", "Draft"])
-    .orderBy("created_at", "desc");
+    .whereIn("stage", ["Fulfillment", "Approved", "Confirmed", "In Review", "Draft"])
+    .orderBy("created_at", "desc")
+    .limit(15);
 
-  return quotes.map((q) => ({
-    id: `ord-${q.id.replace("Q-", "")}`,
-    code: q.id,
-    type: q.customer_tier === "Enterprise" ? "Priority" : "Standard",
-    customer: q.customer_name,
-    initials: (q.customer_name || "CU").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
-    status: q.stage === "Fulfillment" ? "Split Pending" : q.stage === "Approved" ? "Ready for Dispatch" : "Backorder",
-    warehouses: ["Main Warehouse", "East Depot"],
-    items: [
-      { product: "Enterprise Server Rack X1", qty: 2, mainAlloc: 2, eastAlloc: 0, pending: 0 },
-      { product: "Setup & Onboarding Service", qty: 1, mainAlloc: 1, eastAlloc: 0, pending: 0 }
-    ],
-    totalUnits: 3,
-    routingRule: "Nearest Depot Preferred (Distance Optimized)",
-    dispatchDate: new Date(Date.now() + 86400000 * 3).toISOString().split("T")[0]
-  }));
+  return quotes.map((q) => {
+    let quoteItems = [];
+    try {
+      if (Array.isArray(q.items)) {
+        quoteItems = q.items;
+      } else if (typeof q.items === "string") {
+        quoteItems = JSON.parse(q.items);
+      }
+    } catch {}
+
+    const items = quoteItems.length > 0
+      ? quoteItems.map(it => {
+          const qty = Number(it.quantity || 1);
+          const isBack = !!it.isBackorder || String(it.warehouseAvailability || "").toLowerCase().includes("backorder");
+          return {
+            product: it.name || "Enterprise Product",
+            qty: qty,
+            mainAlloc: isBack ? 0 : Math.ceil(qty * 0.7),
+            eastAlloc: isBack ? 0 : Math.floor(qty * 0.3),
+            pending: isBack ? qty : 0,
+          };
+        })
+      : [
+          { product: "Enterprise Server Rack X1", qty: 2, mainAlloc: 2, eastAlloc: 0, pending: 0 },
+          { product: "Setup & Onboarding Service", qty: 1, mainAlloc: 1, eastAlloc: 0, pending: 0 }
+        ];
+
+    const totalUnits = items.reduce((sum, it) => sum + it.qty, 0);
+    const hasBackorder = items.some(it => it.pending > 0);
+
+    return {
+      id: `ord-${q.id.replace("Q-", "")}`,
+      code: q.id,
+      type: q.customer_tier === "Enterprise" ? "Priority" : "Standard",
+      customer: q.customer_name || "Enterprise Client",
+      initials: (q.customer_name || "CU").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
+      status: hasBackorder ? "Backorder" : q.stage === "Confirmed" ? "Ready for Dispatch" : q.stage === "Fulfillment" ? "Split Pending" : "Ready for Dispatch",
+      warehouses: ["Main Warehouse", "East Depot", "West Hub"],
+      items,
+      totalUnits,
+      routingRule: "Nearest Depot Preferred (Distance & Freight Optimized)",
+      dispatchDate: new Date(Date.now() + 86400000 * (hasBackorder ? 7 : 2)).toISOString().split("T")[0]
+    };
+  });
 }
 
 export async function getPendingFinanceApprovals() {
