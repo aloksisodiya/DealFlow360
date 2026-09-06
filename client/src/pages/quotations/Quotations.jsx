@@ -365,7 +365,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
       availableStock: availableStock,
       warehouseAvailability: isBackorder
         ? '⚠️ Backorder (0 in stock · Estimated Lead Time: 5-7 days)'
-        : `Main Depot (${availableStock} units in stock)`
+        : `Mumbai Central Hub (${availableStock} units in stock)`
     };
 
     const updatedItems = [...quoteItems, newItem];
@@ -599,7 +599,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
               <div className="metric-pill-card">
                 <div className="metric-pill-info">
                   <span className="metric-pill-label">Draft Total</span>
-                  <span className="metric-pill-value gray">${draftSum.toLocaleString()}</span>
+                  <span className="metric-pill-value gray">₹{draftSum.toLocaleString('en-IN')}</span>
                 </div>
                 <span className="metric-dot gray"></span>
               </div>
@@ -607,7 +607,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
               <div className="metric-pill-card">
                 <div className="metric-pill-info">
                   <span className="metric-pill-label">Pending Value</span>
-                  <span className="metric-pill-value amber">${pendingSum.toLocaleString()}</span>
+                  <span className="metric-pill-value amber">₹{pendingSum.toLocaleString('en-IN')}</span>
                 </div>
                 <span className="metric-dot amber"></span>
               </div>
@@ -615,7 +615,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
               <div className="metric-pill-card">
                 <div className="metric-pill-info">
                   <span className="metric-pill-label">Approved Value</span>
-                  <span className="metric-pill-value blue">${approvedSum.toLocaleString()}</span>
+                  <span className="metric-pill-value blue">₹{approvedSum.toLocaleString('en-IN')}</span>
                 </div>
                 <span className="metric-dot blue"></span>
               </div>
@@ -623,7 +623,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
               <div className="metric-pill-card">
                 <div className="metric-pill-info">
                   <span className="metric-pill-label">In Negotiation</span>
-                  <span className="metric-pill-value purple">${negotiationSum.toLocaleString()}</span>
+                  <span className="metric-pill-value purple">₹{negotiationSum.toLocaleString('en-IN')}</span>
                 </div>
                 <span className="metric-dot purple"></span>
               </div>
@@ -631,7 +631,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
               <div className="metric-pill-card">
                 <div className="metric-pill-info">
                   <span className="metric-pill-label">Confirmed Value</span>
-                  <span className="metric-pill-value green">${confirmedSum.toLocaleString()}</span>
+                  <span className="metric-pill-value green">₹{confirmedSum.toLocaleString('en-IN')}</span>
                 </div>
                 <span className="metric-dot green"></span>
               </div>
@@ -669,7 +669,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                   >
                     <div className="card-top-row">
                       <span className="card-quote-code">{quote.id}</span>
-                      <span className="card-amount">${quote.amount.toLocaleString()}</span>
+                      <span className="card-amount">₹{quote.amount.toLocaleString('en-IN')}</span>
                     </div>
 
                     <div className="card-company-name">{quote.client}</div>
@@ -724,7 +724,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                         <span className="card-quote-code">{quote.id}</span>
                         {quote.badge && <span className="card-tag-vp">{quote.badge}</span>}
                       </div>
-                      <span className="card-amount">${quote.amount.toLocaleString()}</span>
+                      <span className="card-amount">₹{quote.amount.toLocaleString('en-IN')}</span>
                     </div>
 
                     <div className="card-company-name">{quote.client}</div>
@@ -777,7 +777,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                   >
                     <div className="card-top-row">
                       <span className="card-quote-code">{quote.id}</span>
-                      <span className="card-amount">${quote.amount.toLocaleString()}</span>
+                      <span className="card-amount">₹{quote.amount.toLocaleString('en-IN')}</span>
                     </div>
 
                     <div className="card-company-name">{quote.client}</div>
@@ -831,7 +831,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                   >
                     <div className="card-top-row">
                       <span className="card-quote-code">{quote.id}</span>
-                      <span className="card-amount">${quote.amount.toLocaleString()}</span>
+                      <span className="card-amount">₹{quote.amount.toLocaleString('en-IN')}</span>
                     </div>
 
                     <div className="card-company-name">{quote.client}</div>
@@ -888,7 +888,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                         {quote.stage.toUpperCase()}
                       </span>
                     </td>
-                    <td style={{ fontWeight: 800, color: '#0f172a' }}>${quote.amount.toLocaleString()}</td>
+                    <td style={{ fontWeight: 800, color: '#0f172a' }}>₹{quote.amount.toLocaleString('en-IN')}</td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span className={`owner-avatar-mini ${quote.ownerClass}`}>{quote.ownerInitials}</span>
@@ -924,7 +924,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
           </div>
 
           <div className="bottom-pipeline-stat">
-            Showing <strong>{filteredQuotes.length} total quotations</strong>  •  Total Pipeline: <strong>${filteredQuotes.reduce((acc, q) => acc + (q.amount || 0), 0).toLocaleString()}</strong>
+            Showing <strong>{filteredQuotes.length} total quotations</strong>  •  Total Pipeline: <strong>₹{filteredQuotes.reduce((acc, q) => acc + (q.amount || 0), 0).toLocaleString('en-IN')}</strong>
           </div>
         </div>
 
@@ -948,7 +948,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
             <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <span style={{ fontSize: '13px', color: '#64748b' }}>Total Quoted Value</span>
-                <span style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>${selectedQuote.amount.toLocaleString()}</span>
+                <span style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>₹{selectedQuote.amount.toLocaleString('en-IN')}</span>
               </div>
               <div style={{ fontSize: '13px', color: '#475569' }}>
                 <strong>Scope:</strong> {selectedQuote.desc}
@@ -972,11 +972,11 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                       <div>
                         <strong style={{ color: '#0f172a' }}>{item.name}</strong>
                         <div style={{ fontSize: '11px', color: '#64748b' }}>
-                          SKU: {item.sku || 'N/A'} • {item.quantity || 1}x @ ${Number(item.unitPrice || 0).toLocaleString()}
+                          SKU: {item.sku || 'N/A'} • {item.quantity || 1}x @ ₹{Number(item.unitPrice || 0).toLocaleString('en-IN')}
                         </div>
                       </div>
                       <strong style={{ color: '#059669', fontSize: '13px' }}>
-                        ${Number(item.totalPrice || ((item.unitPrice || 0) * (item.quantity || 1))).toLocaleString()}
+                        ₹{Number(item.totalPrice || ((item.unitPrice || 0) * (item.quantity || 1))).toLocaleString('en-IN')}
                       </strong>
                     </div>
                   ))}
@@ -1093,13 +1093,13 @@ export default function Quotations({ user, onNavigate, onLogout }) {
               }}>
                 <div>
                   <span style={{ color: '#64748b' }}>Base: </span>
-                  <strong>${Math.round(selectedBasePrice).toLocaleString()}</strong>
+                  <strong>₹{Math.round(selectedBasePrice).toLocaleString('en-IN')}</strong>
                   <span style={{ margin: '0 6px', color: '#cbd5e1' }}>•</span>
-                  <span style={{ color: '#c2410c' }}>Disc ({repDiscountPct}%): -${selectedDiscountDollar.toLocaleString()}</span>
+                  <span style={{ color: '#c2410c' }}>Disc ({repDiscountPct}%): -₹{selectedDiscountDollar.toLocaleString('en-IN')}</span>
                 </div>
                 <div>
                   <span style={{ color: '#64748b' }}>New Total: </span>
-                  <strong style={{ fontSize: '14px', color: '#0f172a' }}>${selectedNewTotal.toLocaleString()}</strong>
+                  <strong style={{ fontSize: '14px', color: '#0f172a' }}>₹{selectedNewTotal.toLocaleString('en-IN')}</strong>
                 </div>
               </div>
 
@@ -1454,7 +1454,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                       const isOut = stock <= 0;
                       return (
                         <option key={p.id} value={p.id}>
-                          [{p.sku || 'SKU'}] {p.name} — ${Number(p.price || 0).toLocaleString()} (Stock: {stock} {isOut ? '⚠️ OUT OF STOCK - Backorder' : 'units'})
+                          [{p.sku || 'SKU'}] {p.name} — ₹{Number(p.price || 0).toLocaleString('en-IN')} (Stock: {stock} {isOut ? '⚠️ OUT OF STOCK - Backorder' : 'units'})
                         </option>
                       );
                     })}
@@ -1506,13 +1506,13 @@ export default function Quotations({ user, onNavigate, onLogout }) {
 
                   <div>
                     <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '3px' }}>
-                      Unit Price ($)
+                      Unit Price (₹)
                     </label>
                     <input
                       type="number"
                       min="0"
                       className="form-input"
-                      placeholder="Price ($)"
+                      placeholder="Price (₹)"
                       value={selectedProductUnitPrice}
                       onChange={(e) => setSelectedProductUnitPrice(Number(e.target.value))}
                       style={{ height: '38px', width: '100%' }}
@@ -1574,11 +1574,11 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                               </span>
                             )}
                             <span style={{ fontSize: '11.5px', color: '#64748b', marginLeft: '6px' }}>
-                              [{item.sku}] — {item.quantity}x @ ${item.unitPrice.toLocaleString()}
+                              [{item.sku}] — {item.quantity}x @ ₹{item.unitPrice.toLocaleString('en-IN')}
                             </span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <strong style={{ color: item.isBackorder ? '#b45309' : '#059669' }}>${item.totalPrice.toLocaleString()}</strong>
+                            <strong style={{ color: item.isBackorder ? '#b45309' : '#059669' }}>₹{item.totalPrice.toLocaleString('en-IN')}</strong>
                             <button
                               type="button"
                               onClick={() => handleRemoveQuoteItem(item.id)}
@@ -1603,7 +1603,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                 <div className="form-group">
-                  <label className="form-label">Base List Total ($ USD) *</label>
+                  <label className="form-label">Base List Total (₹ INR) *</label>
                   <input
                     type="number"
                     className="form-input"
@@ -1640,18 +1640,18 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                     <span style={{ color: '#64748b' }}>Base List Price:</span>
-                    <strong style={{ color: '#0f172a' }}>${Number(newAmount).toLocaleString()}</strong>
+                    <strong style={{ color: '#0f172a' }}>₹{Number(newAmount).toLocaleString('en-IN')}</strong>
                   </div>
                   {Number(newDiscount) > 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', color: '#e11d48' }}>
                       <span>Discount ({newDiscount}% deduction):</span>
-                      <strong>-${(Number(newAmount) * (Number(newDiscount) / 100)).toLocaleString()}</strong>
+                      <strong>-₹{(Number(newAmount) * (Number(newDiscount) / 100)).toLocaleString('en-IN')}</strong>
                     </div>
                   )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '6px', fontSize: '14px', fontWeight: 800 }}>
                     <span style={{ color: '#714b67' }}>Consumer Portal Total (After Deduction):</span>
                     <span style={{ color: '#059669' }}>
-                      ${(Number(newAmount) * (1 - Number(newDiscount) / 100)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      ₹{(Number(newAmount) * (1 - Number(newDiscount) / 100)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
                 </div>

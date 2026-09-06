@@ -9,21 +9,21 @@ export async function seed(knex) {
   const warehouses = [
     {
       id: "wh-main",
-      name: "Main Warehouse",
-      location: "Chicago, IL",
+      name: "Mumbai Central Hub",
+      location: "Bhiwandi, Mumbai, MH",
       shipping_cost_weight: 1.0,
     },
     {
       id: "wh-east",
-      name: "East Depot",
-      location: "Newark, NJ",
-      shipping_cost_weight: 1.2,
+      name: "Bengaluru Tech Depot",
+      location: "Whitefield, Bengaluru, KA",
+      shipping_cost_weight: 1.15,
     },
     {
       id: "wh-west",
-      name: "West Hub",
-      location: "San Jose, CA",
-      shipping_cost_weight: 1.15,
+      name: "Delhi NCR Logistics Hub",
+      location: "Gurugram, Delhi NCR, HR",
+      shipping_cost_weight: 1.1,
     }
   ];
 

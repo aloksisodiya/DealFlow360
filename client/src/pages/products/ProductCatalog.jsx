@@ -263,7 +263,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
               </div>
             </div>
             <div className="cat-kpi-footer-row">
-              • Currencies configured: USD ($), EUR (€)
+              • Currencies configured: INR (₹), USD ($)
             </div>
           </div>
 
@@ -355,9 +355,9 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
               value={selectedCurrency}
               onChange={(e) => setSelectedCurrency(e.target.value)}
             >
+              <option value="INR">Currency: INR (₹)</option>
               <option value="USD">Currency: USD ($)</option>
               <option value="EUR">Currency: EUR (€)</option>
-              <option value="GBP">Currency: GBP (£)</option>
             </select>
           </div>
         </div>
@@ -655,7 +655,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px', marginBottom: '16px' }}>
                 <div className="form-group">
-                  <label className="form-label">Base Price ($)</label>
+                  <label className="form-label">Base Price (₹ INR)</label>
                   <input 
                     type="number"
                     min="1"
@@ -695,8 +695,9 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
                     value={newProdTax}
                     onChange={(e) => setNewProdTax(e.target.value)}
                   >
-                    <option value="15%">15%</option>
-                    <option value="18%">18%</option>
+                    <option value="18%">18% (GST)</option>
+                    <option value="12%">12% (GST)</option>
+                    <option value="5%">5% (GST)</option>
                     <option value="0% (Exempt)">0% (Exempt)</option>
                   </select>
                 </div>
@@ -743,12 +744,12 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
             <div style={{ margin: '14px 0 20px' }}>
               <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '12px' }}>
                 <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>Standard List Price (Default)</div>
-                <div style={{ fontSize: '12px', color: '#64748b' }}>Base CPQ price matrix across USD ($) and EUR (€)</div>
+                <div style={{ fontSize: '12px', color: '#64748b' }}>Base CPQ price matrix in INR (₹) across regional hubs</div>
               </div>
 
               <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '12px' }}>
                 <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>Enterprise Volume Tier (10% Floor)</div>
-                <div style={{ fontSize: '12px', color: '#64748b' }}>Auto-applied for quotes exceeding $100k contract value</div>
+                <div style={{ fontSize: '12px', color: '#64748b' }}>Auto-applied for quotes exceeding ₹10,00,000 contract value</div>
               </div>
 
               <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
@@ -799,7 +800,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                 <div className="form-group">
-                  <label className="form-label">List Price ($ USD)</label>
+                  <label className="form-label">List Price (₹ INR)</label>
                   <input 
                     type="number"
                     className="form-input"
@@ -815,8 +816,9 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
                     value={editTax}
                     onChange={(e) => setEditTax(e.target.value)}
                   >
-                    <option value="15%">15% Standard</option>
-                    <option value="18%">18% High</option>
+                    <option value="18%">18% (GST)</option>
+                    <option value="12%">12% (GST)</option>
+                    <option value="5%">5% (GST)</option>
                     <option value="0%">0% Exempt</option>
                   </select>
                 </div>

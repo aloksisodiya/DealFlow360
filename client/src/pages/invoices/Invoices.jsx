@@ -132,7 +132,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
       if (target) {
         await updateInvoiceStatus(target.id, 'Paid', `Payment settled via ${paymentMethod.toUpperCase()} ref: ${paymentReference}`);
       }
-      showToast(`Payment of $${Number(paymentAmount).toLocaleString()} recorded in database!`);
+      showToast(`Payment of ₹${Number(paymentAmount).toLocaleString('en-IN')} recorded in database!`);
       setActiveModal(null);
       await loadInvoices();
     } catch (err) {
@@ -149,7 +149,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
   const handleSaveAdjustedLines = (e) => {
     e.preventDefault();
     const newTotal = adjustLines.reduce((acc, l) => acc + (l.qty * l.price), 0);
-    showToast(`Line items updated! New invoice total: $${newTotal.toLocaleString()}.`);
+    showToast(`Line items updated! New invoice total: ₹${newTotal.toLocaleString('en-IN')}.`);
     setActiveModal(null);
   };
 
@@ -158,7 +158,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
     const rows = invoiceBatches.map(inv => [
       inv.id,
       inv.title,
-      `$${inv.amount.toLocaleString()}`,
+      `₹${inv.amount.toLocaleString('en-IN')}`,
       inv.status,
       inv.dueDate || 'N/A'
     ]);
@@ -387,7 +387,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
 
                         {/* Amount */}
                         <td className="inv-amount-cell">
-                          ${batch.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          ₹{batch.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
 
                         {/* Status */}
@@ -455,24 +455,24 @@ export default function Invoices({ user, onNavigate, onLogout }) {
               <div className="inv-summary-footer-row">
                 <div className="inv-account-details-left">
                   <div><strong>Account:</strong> {invoices[0]?.customerName || 'Account'} ({invoices[0]?.customerEmail || 'Billing Record'})</div>
-                  <div><strong>Billing Policy:</strong> Commercial Net 30 Terms Apply</div>
+                  <div><strong>Billing Policy:</strong> Commercial Net 30 Terms Apply (INR)</div>
                 </div>
 
                 <div className="inv-totals-box-right">
                   <div className="inv-totals-sub-row">
                     <span>Subtotal (Invoiced items):</span>
-                    <span>${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span>₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                   {settledCredit > 0 && (
                     <div className="inv-totals-sub-row credit">
                       <span>Settled Credit:</span>
-                      <span>-${settledCredit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span>-₹{settledCredit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                   )}
                   <div className="inv-totals-main-row">
                     <span className="inv-total-label">Total Outstanding:</span>
                     <span className="inv-total-amount">
-                      ${totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      ₹{totalOutstanding.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
                 </div>
@@ -596,7 +596,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
             <form onSubmit={handleRecordPaymentSubmit}>
               <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
                 <div style={{ fontSize: '12px', color: '#64748b' }}>Outstanding Balance (Acme Corp)</div>
-                <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>$2,730.00</div>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>₹2,25,000.00</div>
               </div>
 
               <div className="form-group" style={{ marginBottom: '14px' }}>
@@ -606,15 +606,15 @@ export default function Invoices({ user, onNavigate, onLogout }) {
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
                 >
-                  <option value="ach">ACH Electronic Direct Debit (Net 30)</option>
-                  <option value="card">Corporate Credit Card (•••• 4242)</option>
-                  <option value="wire">Direct Bank Wire Transfer</option>
-                  <option value="check">Check / Paper Voucher</option>
+                  <option value="upi">UPI / Instant Transfer (INR)</option>
+                  <option value="neft">NEFT / RTGS Bank Transfer</option>
+                  <option value="card">Corporate Credit / Debit Card</option>
+                  <option value="netbanking">Net Banking (Authorized Gateway)</option>
                 </select>
               </div>
 
               <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label className="form-label">Settlement Amount ($ USD)</label>
+                <label className="form-label">Settlement Amount (₹ INR)</label>
                 <input 
                   type="number"
                   step="0.01"
@@ -679,12 +679,12 @@ export default function Invoices({ user, onNavigate, onLogout }) {
             <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', margin: '14px 0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '14px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
                 <div>
-                  <strong>DealFlow360 Technologies, Inc.</strong>
-                  <div style={{ fontSize: '12px', color: '#64748b' }}>100 Enterprise Way, Suite 400</div>
+                  <strong>DealFlow360 Technologies India Pvt. Ltd.</strong>
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>BKC, Mumbai, Maharashtra 400051</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: '14px', fontWeight: 700 }}>INV-1042</div>
-                  <div style={{ fontSize: '12px', color: '#64748b' }}>Date: Sep 03, 2025</div>
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>Date: {new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
                 </div>
               </div>
 
@@ -701,21 +701,21 @@ export default function Invoices({ user, onNavigate, onLogout }) {
                   <tr style={{ borderBottom: '1px solid #f8fafc' }}>
                     <td style={{ padding: '8px 0' }}>Edge Gateway IoT Router v3</td>
                     <td style={{ textAlign: 'center', padding: '8px 0' }}>10</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0' }}>$240.00</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', fontWeight: 600 }}>$2,400.00</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0' }}>₹19,900.00</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', fontWeight: 600 }}>₹1,99,000.00</td>
                   </tr>
                   <tr style={{ borderBottom: '1px solid #f8fafc' }}>
                     <td style={{ padding: '8px 0' }}>Mounting Hardware Rack Kits</td>
                     <td style={{ textAlign: 'center', padding: '8px 0' }}>10</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0' }}>$33.00</td>
-                    <td style={{ textAlign: 'right', padding: '8px 0', fontWeight: 600 }}>$330.00</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0' }}>₹2,600.00</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', fontWeight: 600 }}>₹26,000.00</td>
                   </tr>
                 </tbody>
               </table>
 
               <div style={{ textAlign: 'right', borderTop: '1.5px solid #e2e8f0', paddingTop: '10px' }}>
                 <span style={{ fontSize: '14px', color: '#64748b' }}>Invoice Total: </span>
-                <strong style={{ fontSize: '18px', color: '#0f172a' }}>$2,730.00 USD</strong>
+                <strong style={{ fontSize: '18px', color: '#0f172a' }}>₹2,25,000.00 INR</strong>
               </div>
             </div>
 

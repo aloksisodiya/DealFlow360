@@ -45,7 +45,7 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
   };
 
   // Warehouse Inventory State from database
-  const [warehouseFilter, setWarehouseFilter] = useState('all'); // 'all' | 'Main Warehouse' | 'East Depot' | 'West Hub'
+  const [warehouseFilter, setWarehouseFilter] = useState('all'); // 'all' | 'Mumbai Central Hub' | 'Bengaluru Tech Depot' | 'Delhi NCR Logistics Hub'
   const [inventoryList, setInventoryList] = useState([]);
 
   // Orders Awaiting Fulfillment State from database
@@ -61,15 +61,15 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
   const [openActionMenuId, setOpenActionMenuId] = useState(null);
 
   // Form states for modals
-  const [newAllocWarehouse, setNewAllocWarehouse] = useState('Main Warehouse');
+  const [newAllocWarehouse, setNewAllocWarehouse] = useState('Mumbai Central Hub');
   const [newAllocProduct, setNewAllocProduct] = useState('');
   const [newAllocQty, setNewAllocQty] = useState(25);
 
-  const [transferOrigin, setTransferOrigin] = useState('Main Warehouse');
-  const [transferDest, setTransferDest] = useState('East Depot');
+  const [transferOrigin, setTransferOrigin] = useState('Mumbai Central Hub');
+  const [transferDest, setTransferDest] = useState('Bengaluru Tech Depot');
   const [transferQty, setTransferQty] = useState(5);
 
-  const [restockWarehouse, setRestockWarehouse] = useState('Main Warehouse');
+  const [restockWarehouse, setRestockWarehouse] = useState('Mumbai Central Hub');
   const [restockProduct, setRestockProduct] = useState('');
   const [restockQty, setRestockQty] = useState(25);
 
@@ -168,11 +168,11 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
   const handleOpenTransfer = (item) => {
     setSelectedInventory(item);
     setTransferOrigin(item.warehouse);
-    const defaultDest = item.warehouse.includes('Main') 
-      ? 'East Depot' 
-      : item.warehouse.includes('East') 
-      ? 'West Hub' 
-      : 'Main Warehouse';
+    const defaultDest = item.warehouse.includes('Mumbai') 
+      ? 'Bengaluru Tech Depot' 
+      : item.warehouse.includes('Bengaluru') 
+      ? 'Delhi NCR Logistics Hub' 
+      : 'Mumbai Central Hub';
     setTransferDest(defaultDest);
     setTransferQty(Math.min(5, item.available || 5));
     setActiveModal('transfer');
@@ -481,22 +481,22 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                   All Warehouses
                 </button>
                 <button 
-                  className={`btn-filter-tab ${warehouseFilter === 'Main Warehouse' ? 'active' : ''}`}
-                  onClick={() => setWarehouseFilter('Main Warehouse')}
+                  className={`btn-filter-tab ${warehouseFilter === 'Mumbai Central Hub' ? 'active' : ''}`}
+                  onClick={() => setWarehouseFilter('Mumbai Central Hub')}
                 >
-                  Main Warehouse
+                  Mumbai Central Hub
                 </button>
                 <button 
-                  className={`btn-filter-tab ${warehouseFilter === 'East Depot' ? 'active' : ''}`}
-                  onClick={() => setWarehouseFilter('East Depot')}
+                  className={`btn-filter-tab ${warehouseFilter === 'Bengaluru Tech Depot' ? 'active' : ''}`}
+                  onClick={() => setWarehouseFilter('Bengaluru Tech Depot')}
                 >
-                  East Depot
+                  Bengaluru Tech Depot
                 </button>
                 <button 
-                  className={`btn-filter-tab ${warehouseFilter === 'West Hub' ? 'active' : ''}`}
-                  onClick={() => setWarehouseFilter('West Hub')}
+                  className={`btn-filter-tab ${warehouseFilter === 'Delhi NCR Logistics Hub' ? 'active' : ''}`}
+                  onClick={() => setWarehouseFilter('Delhi NCR Logistics Hub')}
                 >
-                  West Hub
+                  Delhi NCR Logistics Hub
                 </button>
               </div>
             </div>
@@ -912,10 +912,10 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
             </div>
             <div>
               <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#92400e' }}>
-                Multi-Warehouse Split Router & Auto-Balancing Active
+                Multi-Warehouse Indian Regional Router Active
               </div>
               <div style={{ fontSize: '12.5px', color: '#b45309', marginTop: '2px' }}>
-                If a primary warehouse is at maximum capacity or out of stock, click "Manage Split" or "Review Stock" to route units from East Depot or West Hub, then dispatch with one click.
+                If Mumbai Central Hub is at capacity or out of stock, route units from Bengaluru Tech Depot or Delhi NCR Logistics Hub with real-time stock deduction.
               </div>
             </div>
           </div>
@@ -930,7 +930,7 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
             color: '#b45309',
             fontFamily: 'monospace'
           }}>
-            Capacity: 3 Regional Depots
+            Capacity: 3 Indian Regional Depots
           </div>
         </div>
 
@@ -987,7 +987,7 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
 
             <form onSubmit={handleSubmitNewAllocation}>
               <p style={{ fontSize: '13.5px', color: '#64748b', marginBottom: '16px' }}>
-                Allocate newly arrived freight or manufactured batches directly into regional warehouse depots.
+                Allocate newly arrived freight or manufactured batches directly into Indian regional warehouse depots.
               </p>
 
               <div className="form-group" style={{ marginBottom: '14px' }}>
@@ -997,9 +997,9 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                   value={newAllocWarehouse}
                   onChange={(e) => setNewAllocWarehouse(e.target.value)}
                 >
-                  <option value="Main Warehouse">Main Warehouse (Chicago Hub - Central)</option>
-                  <option value="East Depot">East Depot (Newark Depot - East Coast)</option>
-                  <option value="West Hub">West Hub (San Jose Depot - West Coast)</option>
+                  <option value="Mumbai Central Hub">Mumbai Central Hub (Bhiwandi, Maharashtra)</option>
+                  <option value="Bengaluru Tech Depot">Bengaluru Tech Depot (Whitefield, Karnataka)</option>
+                  <option value="Delhi NCR Logistics Hub">Delhi NCR Logistics Hub (Gurugram, Haryana)</option>
                 </select>
               </div>
 
@@ -1084,8 +1084,8 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                   value={transferDest}
                   onChange={(e) => setTransferDest(e.target.value)}
                 >
-                  {['Main Warehouse', 'East Depot', 'West Hub']
-                    .filter(w => !w.toLowerCase().includes((selectedInventory.warehouse || '').toLowerCase().replace(' warehouse', '').replace(' depot', '').replace(' hub', '')))
+                  {['Mumbai Central Hub', 'Bengaluru Tech Depot', 'Delhi NCR Logistics Hub']
+                    .filter(w => !w.toLowerCase().includes((selectedInventory.warehouse || '').toLowerCase().replace(' hub', '').replace(' depot', '')))
                     .map(w => (
                       <option key={w} value={w}>{w}</option>
                     ))}
@@ -1173,15 +1173,15 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                   </div>
 
                   <div className="form-group" style={{ marginBottom: '14px' }}>
-                    <label className="form-label">Select Target Warehouse</label>
+                    <label className="form-label">Select Target Indian Warehouse</label>
                     <select 
                       className="form-input"
                       value={restockWarehouse}
                       onChange={(e) => setRestockWarehouse(e.target.value)}
                     >
-                      <option value="Main Warehouse">Main Warehouse (Chicago Hub)</option>
-                      <option value="East Depot">East Depot (Newark Hub)</option>
-                      <option value="West Hub">West Hub (San Jose Hub)</option>
+                      <option value="Mumbai Central Hub">Mumbai Central Hub (Maharashtra)</option>
+                      <option value="Bengaluru Tech Depot">Bengaluru Tech Depot (Karnataka)</option>
+                      <option value="Delhi NCR Logistics Hub">Delhi NCR Logistics Hub (Haryana)</option>
                     </select>
                   </div>
                 </>
@@ -1274,10 +1274,10 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '10px' }}>
-                      {/* Main Warehouse */}
+                      {/* Mumbai Central Hub */}
                       <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                          <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#1e293b' }}>Main Warehouse</span>
+                          <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#1e293b' }}>Mumbai Central</span>
                           <span style={{ fontSize: '11px', color: '#64748b' }}>({item.stocks?.main ?? 45} avail)</span>
                         </div>
                         <input 
@@ -1296,10 +1296,10 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                         />
                       </div>
 
-                      {/* East Depot */}
+                      {/* Bengaluru Tech Depot */}
                       <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                          <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#1e293b' }}>East Depot</span>
+                          <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#1e293b' }}>Bengaluru Depot</span>
                           <span style={{ fontSize: '11px', color: '#64748b' }}>({item.stocks?.east ?? 15} avail)</span>
                         </div>
                         <input 
@@ -1318,10 +1318,10 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                         />
                       </div>
 
-                      {/* West Hub */}
+                      {/* Delhi NCR Logistics Hub */}
                       <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                          <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#1e293b' }}>West Hub</span>
+                          <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#1e293b' }}>Delhi NCR Hub</span>
                           <span style={{ fontSize: '11px', color: '#64748b' }}>({item.stocks?.west ?? 30} avail)</span>
                         </div>
                         <input 
@@ -1346,7 +1346,7 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
             </div>
 
             <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '20px', fontSize: '12.5px', color: '#475569' }}>
-              <strong>Routing Rule:</strong> {selectedOrder.routingRule || 'Nearest Regional Depot with Available Stock Priority'}
+              <strong>Routing Rule:</strong> {selectedOrder.routingRule || 'Nearest Indian Regional Depot with Available Stock Priority'}
             </div>
 
             {canManageFulfillment(user) ? (
@@ -1417,7 +1417,7 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
 
             <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
               <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>
-                Order Items & Multi-Warehouse Stock Breakdown:
+                Order Items & Indian Regional Stock Breakdown:
               </div>
 
               {splitDraft && splitDraft.map((item, idx) => {
@@ -1432,11 +1432,11 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                     </div>
 
                     <div style={{ display: 'flex', gap: '14px', marginTop: '6px', fontSize: '12px', color: '#64748b' }}>
-                      <span>Main: <strong style={{ color: '#0f172a' }}>{item.stocks?.main ?? 45}</strong></span>
-                      <span>East: <strong style={{ color: '#0f172a' }}>{item.stocks?.east ?? 15}</strong></span>
-                      <span>West: <strong style={{ color: '#0f172a' }}>{item.stocks?.west ?? 30}</strong></span>
+                      <span>Mumbai: <strong style={{ color: '#0f172a' }}>{item.stocks?.main ?? 45}</strong></span>
+                      <span>Bengaluru: <strong style={{ color: '#0f172a' }}>{item.stocks?.east ?? 15}</strong></span>
+                      <span>Delhi NCR: <strong style={{ color: '#0f172a' }}>{item.stocks?.west ?? 30}</strong></span>
                       <span style={{ marginLeft: 'auto', fontWeight: 700, color: isSufficient ? '#15803d' : '#b45309' }}>
-                        {isSufficient ? '✓ In Stock Across Warehouses' : '⚠️ Regional Backorder'}
+                        {isSufficient ? '✓ In Stock in Hubs' : '⚠️ Regional Backorder'}
                       </span>
                     </div>
                   </div>
@@ -1447,7 +1447,7 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
             <div style={{ fontSize: '13px', color: '#334155', marginBottom: '20px', lineHeight: 1.5 }}>
               <div><strong>Fulfillment Resolution:</strong></div>
               <ul style={{ paddingLeft: '20px', marginTop: '6px', color: '#64748b' }}>
-                <li>Auto-balance stock allocation across Main Warehouse, East Depot, and West Hub.</li>
+                <li>Auto-balance stock allocation across Mumbai Central Hub, Bengaluru Tech Depot, and Delhi NCR Logistics Hub.</li>
                 <li>Dispatch instantly with automated deduction from PostgreSQL inventory.</li>
               </ul>
             </div>

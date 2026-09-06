@@ -453,11 +453,11 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
                       <div style={{ marginTop: '6px' }}>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
                           <span style={{ fontSize: '20px', fontWeight: 800, color: '#38bdf8' }}>
-                            ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            ₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
                           {discPct > 0 && base > total && (
                             <span style={{ fontSize: '13px', textDecoration: 'line-through', color: '#94a3b8' }}>
-                              ${base.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              ₹{base.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
                           )}
                         </div>
@@ -474,7 +474,7 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
                             borderRadius: '6px',
                             display: 'inline-block'
                           }}>
-                            🏷️ {discPct}% Discount Applied (-${savings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} savings)
+                            🏷️ {discPct}% Discount Applied (-₹{savings.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} savings)
                           </div>
                         ) : (
                           <div style={{ fontSize: '11.5px', color: '#a5b4fc', marginTop: '4px' }}>
@@ -683,11 +683,11 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
                       <td>
                         {sub.status === 'Cancelled' ? (
                           <span className="subs-value-cancelled">
-                            ${sub.amount.toLocaleString()} {sub.unit}
+                            ₹{sub.amount.toLocaleString('en-IN')} {sub.unit}
                           </span>
                         ) : (
                           <span className="subs-value-cell">
-                            ${sub.amount.toLocaleString()} <span className="subs-value-muted">{sub.unit}</span>
+                            ₹{sub.amount.toLocaleString('en-IN')} <span className="subs-value-muted">{sub.unit}</span>
                           </span>
                         )}
                       </td>
@@ -1011,7 +1011,7 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Recurring Billing Rate ($)</label>
+                  <label className="form-label">Recurring Billing Rate (₹ INR)</label>
                   <input 
                     type="number"
                     min="1"
@@ -1177,7 +1177,7 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
               </div>
 
               <div className="form-group" style={{ marginBottom: '20px' }}>
-                <label className="form-label">Recurring Amount ($ USD)</label>
+                <label className="form-label">Recurring Amount (₹ INR)</label>
                 <input 
                   type="number"
                   min="100"

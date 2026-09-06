@@ -80,7 +80,7 @@ export default function Approvals({ user, onNavigate, onLogout }) {
     const rows = records.map(r => [
       `"${r.id}"`,
       `"${r.customer}"`,
-      `"$${r.amount}"`,
+      `"₹${r.amount}"`,
       `"${r.discount}"`,
       `"${r.risk}"`,
       `"${r.stage}"`,
@@ -320,7 +320,7 @@ export default function Approvals({ user, onNavigate, onLogout }) {
                   {/* DEAL VALUE & DISCOUNT */}
                   <td>
                     <div className="deal-value-cell">
-                      <span className="deal-value-amount">${item.amount.toLocaleString()}</span>
+                      <span className="deal-value-amount">₹{item.amount.toLocaleString('en-IN')}</span>
                       <span className={`discount-subtext ${item.discountNum >= 20 ? 'red' : item.discountNum >= 10 ? 'amber' : 'green'}`}>
                         {item.discount}
                       </span>
@@ -473,7 +473,7 @@ export default function Approvals({ user, onNavigate, onLogout }) {
             <div className="review-modal-section">
               <div className="review-metric-row">
                 <span style={{ color: '#64748b' }}>Quoted Contract Value</span>
-                <strong style={{ fontSize: '16px' }}>${reviewingItem.amount.toLocaleString()}</strong>
+                <strong style={{ fontSize: '16px' }}>₹{reviewingItem.amount.toLocaleString('en-IN')}</strong>
               </div>
               <div className="review-metric-row">
                 <span style={{ color: '#64748b' }}>Requested Discount</span>

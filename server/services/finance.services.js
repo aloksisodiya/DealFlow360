@@ -251,10 +251,10 @@ export async function listFulfillmentOrders() {
         : q.stage === "Fulfillment" 
         ? "Split Pending" 
         : "Ready for Dispatch",
-      warehouses: ["Main Warehouse", "East Depot", "West Hub"],
+      warehouses: ["Mumbai Central Hub", "Bengaluru Tech Depot", "Delhi NCR Logistics Hub"],
       items,
       totalUnits,
-      routingRule: "Nearest Depot Preferred (Distance & Freight Optimized)",
+      routingRule: "Nearest Regional Hub Preferred (Distance & Freight Optimized)",
       dispatchDate: new Date(Date.now() + 86400000 * (hasBackorder ? 7 : 2)).toISOString().split("T")[0]
     };
   });
@@ -421,12 +421,11 @@ export async function decideFinanceApproval(reviewerId, quoteId, decision, reaso
 export async function getWarehouseFulfillmentSplit(quoteId) {
   try {
     const warehouses = await db("warehouses").select("*");
-    const inventory = await db("warehouse_inventory").select("*");
 
     const allocations = [
       {
         warehouseId: "wh-main",
-        warehouseName: "Main Warehouse",
+        warehouseName: "Mumbai Central Hub",
         productId: "prod-1",
         allocatedQty: 10,
         backorderQty: 0,
@@ -434,7 +433,7 @@ export async function getWarehouseFulfillmentSplit(quoteId) {
       },
       {
         warehouseId: "wh-east",
-        warehouseName: "East Depot",
+        warehouseName: "Bengaluru Tech Depot",
         productId: "prod-1",
         allocatedQty: 5,
         backorderQty: 0,
@@ -445,24 +444,26 @@ export async function getWarehouseFulfillmentSplit(quoteId) {
     return {
       quoteId,
       warehouses: warehouses.length > 0 ? warehouses : [
-        { id: "wh-main", name: "Main Warehouse", location: "Chicago, IL", shipping_cost_weight: 1.0 },
-        { id: "wh-east", name: "East Depot", location: "Newark, NJ", shipping_cost_weight: 1.2 }
+        { id: "wh-main", name: "Mumbai Central Hub", location: "Bhiwandi, Mumbai, MH", shipping_cost_weight: 1.0 },
+        { id: "wh-east", name: "Bengaluru Tech Depot", location: "Whitefield, Bengaluru, KA", shipping_cost_weight: 1.15 },
+        { id: "wh-west", name: "Delhi NCR Logistics Hub", location: "Gurugram, Delhi NCR, HR", shipping_cost_weight: 1.1 }
       ],
       recommendedAllocations: allocations,
       estimatedShipmentsCount: 2,
-      estimatedShippingCostUSD: 375.00
+      estimatedShippingCostINR: 3750.00
     };
   } catch (error) {
     console.warn("Error calculating warehouse split:", error.message);
     return {
       quoteId,
       warehouses: [
-        { id: "wh-main", name: "Main Warehouse", location: "Chicago, IL" },
-        { id: "wh-east", name: "East Depot", location: "Newark, NJ" }
+        { id: "wh-main", name: "Mumbai Central Hub", location: "Bhiwandi, Mumbai, MH" },
+        { id: "wh-east", name: "Bengaluru Tech Depot", location: "Whitefield, Bengaluru, KA" },
+        { id: "wh-west", name: "Delhi NCR Logistics Hub", location: "Gurugram, Delhi NCR, HR" }
       ],
       recommendedAllocations: [],
       estimatedShipmentsCount: 1,
-      estimatedShippingCostUSD: 250.00
+      estimatedShippingCostINR: 2500.00
     };
   }
 }

@@ -156,7 +156,7 @@ export default function DealHealth({ user, onNavigate, onLogout }) {
       a.id,
       a.account,
       a.dealCode,
-      `$${a.dealValue.toLocaleString()}`,
+      `₹${a.dealValue.toLocaleString('en-IN')}`,
       a.issueCategory,
       a.issueTitle,
       a.severity,
@@ -357,7 +357,7 @@ export default function DealHealth({ user, onNavigate, onLogout }) {
                   </div>
                 </div>
                 <div className="kpi-bottom-row">
-                  <span>Affected Value: <strong>${deliveryValue.toLocaleString()}</strong></span>
+                  <span>Affected Value: <strong>₹{deliveryValue.toLocaleString('en-IN')}</strong></span>
                   <span style={{ color: '#64748b' }}>Live Sync</span>
                 </div>
               </div>
@@ -373,9 +373,12 @@ export default function DealHealth({ user, onNavigate, onLogout }) {
               <strong>ANOMALY RESOLUTION POLICY:</strong> Real-time monitors continuously evaluate quote velocity and discount ceilings. Flags automatically clear once quotes advance to subsequent pipeline stages or receive managerial sign-off.
             </div>
           </div>
-          <div className="dark-banner-shortcut">
-            Shortcut: ⌘ + E to Escalate
-          </div>
+          <button 
+            className="btn-dark-banner-action"
+            onClick={() => setActiveModal('governance')}
+          >
+            Configure Rules
+          </button>
         </div>
 
         {/* Filter Bar */}
@@ -409,7 +412,7 @@ export default function DealHealth({ user, onNavigate, onLogout }) {
               className={`btn-anomaly-tab ${activeTab === 'delivery' ? 'active' : ''}`}
               onClick={() => setActiveTab('delivery')}
             >
-              <span>Delivery Slippage</span>
+              <span>Delivery / Stock Risks</span>
               <span className={`tab-badge-count ${activeTab === 'delivery' ? '' : 'amber'}`}>{anomalies.filter(a => a.issueCategory === 'delivery').length}</span>
             </button>
           </div>
@@ -492,7 +495,7 @@ export default function DealHealth({ user, onNavigate, onLogout }) {
                         <td>
                           <div style={{ fontWeight: 700, color: '#0f172a' }}>{item.account}</div>
                           <div style={{ fontSize: '11.5px', color: '#64748b' }}>
-                            {item.dealCode} • <strong>${item.dealValue.toLocaleString()}</strong>
+                            {item.dealCode} • <strong>₹{item.dealValue.toLocaleString('en-IN')}</strong>
                           </div>
                         </td>
 
@@ -924,7 +927,7 @@ export default function DealHealth({ user, onNavigate, onLogout }) {
                   Severity: {selectedAnomaly.severity} ({selectedAnomaly.issueTitle})
                 </div>
                 <div style={{ fontSize: '12px', color: '#9f1239', marginTop: '2px' }}>
-                  Deal Value: ${selectedAnomaly.dealValue.toLocaleString()} • Rep: {selectedAnomaly.rep}
+                  Deal Value: ₹{selectedAnomaly.dealValue.toLocaleString('en-IN')} • Rep: {selectedAnomaly.rep}
                 </div>
               </div>
 
@@ -994,7 +997,7 @@ export default function DealHealth({ user, onNavigate, onLogout }) {
               <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '14px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <span style={{ fontSize: '13px', color: '#64748b' }}>Requested Discount Rate:</span>
-                  <strong style={{ fontSize: '15px', color: '#e11d48' }}>22.0% ($14,124.00 savings)</strong>
+                  <strong style={{ fontSize: '15px', color: '#e11d48' }}>22.0% (₹1,40,000 savings)</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <span style={{ fontSize: '13px', color: '#64748b' }}>Standard Rep Allowance:</span>

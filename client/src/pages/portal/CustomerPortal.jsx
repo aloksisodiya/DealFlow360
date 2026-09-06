@@ -321,7 +321,7 @@ export default function CustomerPortal({ token }) {
             <div className="portal-quote-amount">
               <div className="portal-quote-amount-label">Net Payable Total (After Discount)</div>
               <div className="portal-quote-amount-value">
-                ${Number(quotation?.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ₹{Number(quotation?.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
               {Number(quotation?.discountPercent) > 0 && (() => {
                 const total = Number(quotation?.totalAmount || 0);
@@ -332,9 +332,9 @@ export default function CustomerPortal({ token }) {
                 return (
                   <div className="portal-quote-discount" style={{ marginTop: '4px', fontSize: '12.5px', color: '#15803d' }}>
                     <span style={{ textDecoration: 'line-through', color: '#64748b', marginRight: '6px' }}>
-                      ${base.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      ₹{base.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
-                    <strong>{discPct}% discount applied (-${savings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</strong>
+                    <strong>{discPct}% discount applied (-₹{savings.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</strong>
                   </div>
                 );
               })()}
@@ -353,7 +353,7 @@ export default function CustomerPortal({ token }) {
             )}
             {quotation?.warehouseStockTotal > 0 && (
               <div className="portal-meta-pill" style={{ background: '#dcfce7', color: '#15803d', borderColor: '#bbf7d0' }}>
-                🟢 {quotation.warehouseStockTotal} Units In Stock (Regional Warehouses)
+                🟢 {quotation.warehouseStockTotal} Units In Stock (Indian Regional Hubs)
               </div>
             )}
           </div>
@@ -404,9 +404,9 @@ export default function CustomerPortal({ token }) {
                         <span className="portal-item-cat-badge">{it.category || 'Standard'}</span>
                       </td>
                       <td style={{ fontWeight: 600 }}>{it.quantity || 1}</td>
-                      <td>${Number(it.unitPrice || 0).toLocaleString()}</td>
+                      <td>₹{Number(it.unitPrice || 0).toLocaleString('en-IN')}</td>
                       <td style={{ fontWeight: 700, color: '#54324c' }}>
-                        ${Number(it.totalPrice || (it.quantity || 1) * (it.unitPrice || 0)).toLocaleString()}
+                        ₹{Number(it.totalPrice || (it.quantity || 1) * (it.unitPrice || 0)).toLocaleString('en-IN')}
                       </td>
                       <td>
                         {it.isBackorder || it.inStock === false || String(it.warehouseAvailability || '').toLowerCase().includes('backorder') ? (
@@ -415,7 +415,7 @@ export default function CustomerPortal({ token }) {
                           </span>
                         ) : (
                           <span style={{ fontSize: '11.5px', color: '#16a34a', fontWeight: 600 }}>
-                            ● {it.warehouseAvailability || 'Ready in Main Depot'}
+                            ● {it.warehouseAvailability || 'Ready in Mumbai Central Hub'}
                           </span>
                         )}
                       </td>
@@ -696,10 +696,10 @@ export default function CustomerPortal({ token }) {
                     DealFlow<span style={{ color: '#714b67' }}>360</span>
                   </div>
                   <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: '4px', lineHeight: 1.4 }}>
-                    DealFlow360 Technologies, Inc.<br />
-                    100 Enterprise Way, Suite 400<br />
-                    Chicago, IL 60601 • USA<br />
-                    Tax EIN: 84-2918492
+                    DealFlow360 Technologies India Pvt. Ltd.<br />
+                    Level 8, Tower B, Bandra Kurla Complex (BKC)<br />
+                    Bandra East, Mumbai, MH 400051 • India<br />
+                    GSTIN: 27AABCD1234E1Z5
                   </div>
                 </div>
 
@@ -711,10 +711,10 @@ export default function CustomerPortal({ token }) {
                     Invoice #: <strong style={{ color: '#0f172a' }}>INV-{quotation.id}</strong>
                   </div>
                   <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>
-                    Date: <strong style={{ color: '#0f172a' }}>{new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</strong>
+                    Date: <strong style={{ color: '#0f172a' }}>{new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}</strong>
                   </div>
                   <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>
-                    Payment Terms: <strong style={{ color: '#0f172a' }}>Net 30 Days</strong>
+                    Payment Terms: <strong style={{ color: '#0f172a' }}>Net 30 Days (INR)</strong>
                   </div>
                 </div>
               </div>
@@ -732,7 +732,7 @@ export default function CustomerPortal({ token }) {
                     Account Tier: <strong>{quotation.customerTier || 'Enterprise'}</strong>
                   </div>
                   <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                    Routing: Nearest Depot Preferred
+                    Routing: Nearest Indian Hub Preferred
                   </div>
                 </div>
 
@@ -747,7 +747,7 @@ export default function CustomerPortal({ token }) {
                     Status: <strong>Order Confirmed for Dispatch</strong>
                   </div>
                   <div style={{ fontSize: '12px', color: '#16a34a', marginTop: '2px' }}>
-                    ✓ 3 Regional Warehouses Synced
+                    ✓ 3 Indian Hubs Synced (Mumbai, BLR, Delhi)
                   </div>
                 </div>
               </div>
@@ -773,10 +773,10 @@ export default function CustomerPortal({ token }) {
                       <td style={{ padding: '10px 12px', color: '#64748b' }}>{it.category || 'Standard'}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600 }}>{it.quantity || 1}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#475569' }}>
-                        ${Number(it.unitPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ₹{Number(it.unitPrice || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>
-                        ${Number(it.totalPrice || (it.quantity || 1) * (it.unitPrice || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ₹{Number(it.totalPrice || (it.quantity || 1) * (it.unitPrice || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                     </tr>
                   ))}
@@ -785,11 +785,11 @@ export default function CustomerPortal({ token }) {
 
               {/* Financial Calculation Summary */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
-                <div style={{ width: '320px', background: '#faf5f8', padding: '16px', borderRadius: '10px', border: '1px solid #f3e8f0' }}>
+                <div style={{ width: '340px', background: '#faf5f8', padding: '16px', borderRadius: '10px', border: '1px solid #f3e8f0' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#64748b', marginBottom: '8px' }}>
                     <span>Gross Subtotal:</span>
                     <span style={{ fontWeight: 600, color: '#0f172a' }}>
-                      ${(Number(quotation.baseAmount || quotation.totalAmount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      ₹{(Number(quotation.baseAmount || quotation.totalAmount || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
 
@@ -797,13 +797,13 @@ export default function CustomerPortal({ token }) {
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#15803d', marginBottom: '8px' }}>
                       <span>Discount ({quotation.discountPercent}%):</span>
                       <span style={{ fontWeight: 700 }}>
-                        -${((Number(quotation.baseAmount || quotation.totalAmount) * Number(quotation.discountPercent)) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        -₹{((Number(quotation.baseAmount || quotation.totalAmount) * Number(quotation.discountPercent)) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
                   )}
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#64748b', marginBottom: '8px' }}>
-                    <span>Estimated Tax (15%):</span>
+                    <span>GST (18% Included):</span>
                     <span style={{ fontWeight: 600, color: '#0f172a' }}>
                       Included
                     </span>
@@ -812,7 +812,7 @@ export default function CustomerPortal({ token }) {
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 800, color: '#54324c', borderTop: '2px solid #e9d5e3', paddingTop: '10px', marginTop: '4px' }}>
                     <span>Total Net Amount:</span>
                     <span>
-                      ${Number(quotation.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      ₹{Number(quotation.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
                 </div>
@@ -820,7 +820,7 @@ export default function CustomerPortal({ token }) {
 
               {/* Footer Note */}
               <div style={{ fontSize: '11.5px', color: '#94a3b8', textAlign: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '14px' }}>
-                Thank you for your business! For billing or warehouse fulfillment questions, contact support@dealflow360.com.
+                Thank you for your business! For billing or warehouse fulfillment questions, contact billing-india@dealflow360.com.
               </div>
 
             </div>
@@ -852,7 +852,7 @@ export default function CustomerPortal({ token }) {
       )}
 
       <footer className="portal-footer">
-        DealFlow360 Technologies Inc. · Secure Quotation Portal · Your link is unique and private
+        DealFlow360 Technologies India Pvt. Ltd. · Secure Quotation Portal · All Rates in INR (₹)
       </footer>
     </div>
   );

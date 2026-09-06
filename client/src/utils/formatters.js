@@ -1,6 +1,17 @@
 /**
- * DealFlow360 - Common Formatting & Export Helpers
+ * Formats a number or numeric string into Indian Rupee (INR) representation with ₹ symbol
  */
+export function formatINR(amount, options = {}) {
+  if (amount === undefined || amount === null || isNaN(Number(amount))) return '₹0';
+  const num = Number(amount);
+  const minDigits = options.minimumFractionDigits !== undefined ? options.minimumFractionDigits : (num % 1 !== 0 ? 2 : 0);
+  const maxDigits = options.maximumFractionDigits !== undefined ? options.maximumFractionDigits : 2;
+  return `₹${num.toLocaleString('en-IN', { minimumFractionDigits: minDigits, maximumFractionDigits: maxDigits })}`;
+}
+
+export function formatCurrency(amount, options = {}) {
+  return formatINR(amount, options);
+}
 
 /**
  * Derives user display name and initials from an email address

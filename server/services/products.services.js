@@ -54,7 +54,7 @@ export async function listProducts({ category, search, tier = "Bronze" } = {}) {
       avatarColor: p.avatar_color,
       price: calculatedPrice,
       basePrice: Number(p.price),
-      priceFormatted: `$${calculatedPrice.toLocaleString()}`,
+      priceFormatted: `₹${calculatedPrice.toLocaleString('en-IN')}`,
       unit: p.unit,
       tax: "15%",
       margin: `${p.margin_percent}%`,

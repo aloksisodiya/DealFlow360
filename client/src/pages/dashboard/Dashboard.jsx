@@ -69,7 +69,7 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
         customerTier: 'Bronze',
         discountPercent: 0,
       });
-      showToast(`Quotation for ${newQuoteClient} ($${Number(newQuoteAmount).toLocaleString()}) saved to database!`);
+      showToast(`Quotation for ${newQuoteClient} (₹${Number(newQuoteAmount).toLocaleString('en-IN')}) saved to database!`);
       setActiveModal(null);
       setNewQuoteClient('');
       setNewQuoteAmount('');
@@ -155,7 +155,7 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
               </div>
               <div className="kpi-value-text">{metrics?.openQuotations?.activeDealsCount ?? 0} active deals</div>
               <div>
-                <span className="kpi-sub-tag green">Pipeline Value: ${Number(metrics?.openQuotations?.totalPipelineValue ?? 0).toLocaleString()}</span>
+                <span className="kpi-sub-tag green">Pipeline Value: ₹{Number(metrics?.openQuotations?.totalPipelineValue ?? 0).toLocaleString('en-IN')}</span>
               </div>
             </div>
             <div className="kpi-card-footer">
@@ -357,7 +357,7 @@ export default function Dashboard({ user, onNavigate, onLogout }) {
                   AI deal health alerts flagged deals with no buyer interaction for over 14 days:
                 </p>
                 <div style={{ background: '#fff1f2', padding: '12px', borderRadius: '8px', border: '1px solid #fecdd3', marginBottom: '16px' }}>
-                  <div style={{ fontWeight: 700, color: '#9f1239', fontSize: '13.5px' }}>NorthStar Holdings ($180,000)</div>
+                  <div style={{ fontWeight: 700, color: '#9f1239', fontSize: '13.5px' }}>NorthStar Holdings (₹18,00,000)</div>
                   <div style={{ fontSize: '12.5px', color: '#881337', marginTop: '4px' }}>
                     Stalled for 16 days at Proposal Review stage.
                   </div>
