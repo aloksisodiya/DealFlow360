@@ -28,7 +28,8 @@ export async function listSubscriptions({ status, search, role, workEmail, admin
     query = query.where(function() {
       if (customerEmail) {
         const handle = customerEmail.split('@')[0].toLowerCase();
-        this.whereRaw("LOWER(COALESCE(customer_name, '')) LIKE ?", [`%${handle}%`]);
+        this.whereRaw("LOWER(COALESCE(customer_email, '')) = ?", [customerEmail])
+          .orWhereRaw("LOWER(COALESCE(customer_name, '')) LIKE ?", [`%${handle}%`]);
       }
       if (customerName) {
         this.orWhereRaw("LOWER(COALESCE(customer_name, '')) LIKE ?", [`%${customerName}%`]);
@@ -45,6 +46,7 @@ export async function listSubscriptions({ status, search, role, workEmail, admin
     query = query.where((builder) => {
       builder.whereRaw("LOWER(subscription_code) LIKE ?", [term])
         .orWhereRaw("LOWER(customer_name) LIKE ?", [term])
+        .orWhereRaw("LOWER(COALESCE(customer_email, '')) LIKE ?", [term])
         .orWhereRaw("LOWER(plan_name) LIKE ?", [term]);
     });
   }
@@ -71,32 +73,36 @@ export async function listSubscriptions({ status, search, role, workEmail, admin
 }
 
 export async function createSubscription(data) {
-  const id = data.id || `sub-${Date.now().toString().slice(-6)}`;
+  const id = data.id || `wrn-${Date.now().toString().slice(-6)}`;
   const customerName = data.customer || data.customer_name || "Enterprise Client";
-  const planName = data.plan || data.plan_name || "Enterprise Platform Suite";
-  const code = data.code || data.subscription_code || `SUB-${customerName.slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-3)}`;
+  const customerEmail = data.customerEmail || data.customer_email || null;
+  const planName = data.plan || data.plan_name || "12-Month Comprehensive Full Care Warranty";
+  const tier = data.tier || (planName.includes("3") ? "3 Months" : planName.includes("6") ? "6 Months" : "12 Months");
+  const prefix = tier.includes("3") ? "WRN-3M" : tier.includes("6") ? "WRN-6M" : "WRN-12M";
+  const code = data.code || data.subscription_code || `${prefix}-${customerName.replace(/[^a-zA-Z0-9]/g, "").slice(0, 3).toUpperCase()}${Math.floor(10 + Math.random() * 90)}`;
   const amount = Number(data.amount || 0);
-  const cycle = data.billingCycle || data.billing_cycle || "Monthly";
-  const mrr = cycle === "Annual" ? amount / 12 : amount;
-  const nextDate = data.nextBillingDate || data.next_billing_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const months = tier.includes("3") ? 3 : tier.includes("6") ? 6 : 12;
+  const mrr = amount / months;
+  const nextDate = data.nextBillingDate || data.next_billing_date || new Date(Date.now() + months * 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
   const [sub] = await db("subscriptions")
     .insert({
       id,
       subscription_code: code,
       customer_name: customerName,
-      tier: data.tier || "Enterprise",
+      customer_email: customerEmail,
+      tier,
       plan_name: planName,
       amount,
       mrr,
-      billing_cycle: cycle,
+      billing_cycle: tier,
       status: data.status || "Active",
       start_date: data.startDate || data.start_date || db.fn.now(),
       next_billing_date: nextDate,
-      seats: Number(data.seats || 10),
-      features: JSON.stringify(data.features || ["Standard CPQ"]),
+      seats: Number(data.seats || 1),
+      features: JSON.stringify(data.features || {}),
       audit_logs: JSON.stringify([
-        { date: new Date().toISOString().split("T")[0], action: "Subscription Created", user: data.createdBy || "Admin" }
+        { date: new Date().toISOString().split("T")[0], action: "Warranty Subscription Created", user: data.createdBy || "Admin" }
       ]),
     })
     .returning("*");

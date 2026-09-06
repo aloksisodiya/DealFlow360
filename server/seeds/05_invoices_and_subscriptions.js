@@ -72,239 +72,147 @@ export async function seed(knex) {
   // 2. Subscriptions: Product Warranty Extension Plans (3 Months, 6 Months, 12 Months)
   await knex("subscriptions").del();
   const subscriptions = [
-    // 3 Months Warranty Subscribers
+    // 3 Months Warranty Subscribers (Real Customers from Deals)
     {
-      id: "wrn-3m-1001",
-      subscription_code: "WRN-3M-001",
-      customer_name: "Acme Corp",
+      id: "wrn-3m-ujwal",
+      subscription_code: "WRN-3M-UJW01",
+      customer_name: "ujwal",
+      customer_email: "ujwal@gmail.com",
       tier: "3 Months",
       plan_name: "3-Month Hardware Extended Warranty",
       amount: 2999.00,
       mrr: 999.67,
       billing_cycle: "3 Months",
       status: "Active",
-      start_date: new Date(Date.now() - 30 * 86400000),
-      next_billing_date: new Date(Date.now() + 60 * 86400000).toISOString().split("T")[0],
-      seats: 2,
+      start_date: new Date(Date.now() - 25 * 86400000),
+      next_billing_date: new Date(Date.now() + 65 * 86400000).toISOString().split("T")[0],
+      seats: 1,
       features: JSON.stringify({
         productName: 'MacBook Pro 16" M3 Max (36GB / 1TB)',
         productSku: "SKU-LAP-MBP16",
+        quotationId: "Q-49189166",
         warrantyDuration: "3 Months",
         coverageScope: "Express Part Replacement (48-hr SLA) · Diagnostic Support · Zero Labor Charges",
         warehouseHub: "Mumbai Central Hub",
-        serialNumbers: ["MBP16-IN-98211", "MBP16-IN-98212"]
+        serialNumbers: ["MBP16-UJW-9821"]
       }),
       audit_logs: JSON.stringify([
-        { date: "2026-08-05", action: "Warranty Initialized (3 Months)", user: "Sales Executive" },
-        { date: "2026-08-20", action: "Mid-Term Diagnostic Passed (0 faults)", user: "Quality Engineer" }
-      ]),
-    },
-    {
-      id: "wrn-3m-1002",
-      subscription_code: "WRN-3M-002",
-      customer_name: "Infosys Technologies",
-      tier: "3 Months",
-      plan_name: "3-Month Hardware Extended Warranty",
-      amount: 5998.00,
-      mrr: 1999.33,
-      billing_cycle: "3 Months",
-      status: "Expiring Soon",
-      start_date: new Date(Date.now() - 75 * 86400000),
-      next_billing_date: new Date(Date.now() + 15 * 86400000).toISOString().split("T")[0],
-      seats: 4,
-      features: JSON.stringify({
-        productName: 'Dell XPS 16 OLED Touch (Intel i9 / 32GB / 1TB)',
-        productSku: "SKU-LAP-XPS16",
-        warrantyDuration: "3 Months",
-        coverageScope: "Express Screen & Motherboard Replacement · Free Return Shipping",
-        warehouseHub: "Bengaluru South Logistics Hub",
-        serialNumbers: ["XPS16-BLR-011", "XPS16-BLR-012", "XPS16-BLR-013", "XPS16-BLR-014"]
-      }),
-      audit_logs: JSON.stringify([
-        { date: "2026-06-20", action: "3-Month Warranty Pack Activated", user: "Sales Rep" },
-        { date: "2026-08-30", action: "Expiry Notice Dispatched (15 days remaining)", user: "System Automations" }
-      ]),
-    },
-    {
-      id: "wrn-3m-1003",
-      subscription_code: "WRN-3M-003",
-      customer_name: "Tata Consultancy Services",
-      tier: "3 Months",
-      plan_name: "3-Month Hardware Extended Warranty",
-      amount: 2999.00,
-      mrr: 999.67,
-      billing_cycle: "3 Months",
-      status: "Active",
-      start_date: new Date(Date.now() - 15 * 86400000),
-      next_billing_date: new Date(Date.now() + 75 * 86400000).toISOString().split("T")[0],
-      seats: 1,
-      features: JSON.stringify({
-        productName: "Smart Optical Transceiver 100G",
-        productSku: "SKU-NET-OPT100",
-        warrantyDuration: "3 Months",
-        coverageScope: "100% Optical Laser Replacement Guarantee · Free Firmware Updates",
-        warehouseHub: "Delhi NCR Depot",
-        serialNumbers: ["OPT100-DEL-5541"]
-      }),
-      audit_logs: JSON.stringify([
-        { date: "2026-08-22", action: "3-Month Optical Warranty Enrolled", user: "Arjav Dariya" }
+        { date: "2026-08-12", action: "Warranty Initialized from Deal Q-49189166", user: "Sales Rep" },
+        { date: "2026-08-28", action: "Quality Diagnostic Check Passed", user: "Field Engineer" }
       ]),
     },
 
-    // 6 Months Warranty Subscribers
+    // 6 Months Warranty Subscribers (Real Customers from Deals)
     {
-      id: "wrn-6m-2001",
-      subscription_code: "WRN-6M-101",
-      customer_name: "Reliance Digital Systems",
-      tier: "6 Months",
-      plan_name: "6-Month Extended Care Warranty",
-      amount: 10998.00,
-      mrr: 1833.00,
-      billing_cycle: "6 Months",
-      status: "Active",
-      start_date: new Date(Date.now() - 45 * 86400000),
-      next_billing_date: new Date(Date.now() + 135 * 86400000).toISOString().split("T")[0],
-      seats: 2,
-      features: JSON.stringify({
-        productName: "Enterprise Server Rack X1",
-        productSku: "SKU-SRV-X100",
-        warrantyDuration: "6 Months",
-        coverageScope: "24-hr Dedicated Technician Dispatch · Zero Deductible Parts · Bi-monthly Health Checks",
-        warehouseHub: "Mumbai Central Hub",
-        serialNumbers: ["SRV-MUM-8801", "SRV-MUM-8802"]
-      }),
-      audit_logs: JSON.stringify([
-        { date: "2026-07-20", action: "6-Month Extended Care Registered", user: "Sales Manager" },
-        { date: "2026-08-15", action: "Routine Power Diagnostics Completed", user: "Tech Support" }
-      ]),
-    },
-    {
-      id: "wrn-6m-2002",
-      subscription_code: "WRN-6M-102",
-      customer_name: "Wipro Cloud Infrastructure",
+      id: "wrn-6m-piyush",
+      subscription_code: "WRN-6M-PIY01",
+      customer_name: "piyush shah",
+      customer_email: "piyush@gmail.com",
       tier: "6 Months",
       plan_name: "6-Month Extended Care Warranty",
       amount: 5499.00,
       mrr: 916.50,
       billing_cycle: "6 Months",
       status: "Active",
-      start_date: new Date(Date.now() - 60 * 86400000),
-      next_billing_date: new Date(Date.now() + 120 * 86400000).toISOString().split("T")[0],
+      start_date: new Date(Date.now() - 45 * 86400000),
+      next_billing_date: new Date(Date.now() + 135 * 86400000).toISOString().split("T")[0],
       seats: 1,
       features: JSON.stringify({
-        productName: "Cloud Telemetry Hub v4",
-        productSku: "SKU-SFT-TEL4",
+        productName: "ASUS ROG Zephyrus G16 Gaming Laptop",
+        productSku: "SKU-LAP-ROG16",
+        quotationId: "Q-53527875",
         warrantyDuration: "6 Months",
-        coverageScope: "Telemetry Hardware & Antenna Replacement · Free Cloud Gateway Upgrades",
-        warehouseHub: "Bengaluru South Logistics Hub",
-        serialNumbers: ["TEL4-BLR-901"]
+        coverageScope: "24-hour priority dispatch from Mumbai Hub · GPU & Panel Protection · Bi-monthly Health Diagnostics",
+        warehouseHub: "Mumbai Central Hub",
+        serialNumbers: ["ROG16-PIY-7712"]
       }),
       audit_logs: JSON.stringify([
-        { date: "2026-07-05", action: "Telemetry Warranty Activated", user: "Rjav Dariya" }
-      ]),
-    },
-    {
-      id: "wrn-6m-2003",
-      subscription_code: "WRN-6M-103",
-      customer_name: "HCL Technologies",
-      tier: "6 Months",
-      plan_name: "6-Month Extended Care Warranty",
-      amount: 16497.00,
-      mrr: 2749.50,
-      billing_cycle: "6 Months",
-      status: "Paused",
-      start_date: new Date(Date.now() - 90 * 86400000),
-      next_billing_date: new Date(Date.now() + 90 * 86400000).toISOString().split("T")[0],
-      seats: 3,
-      features: JSON.stringify({
-        productName: "Lenovo ThinkPad X1 Carbon Gen 12",
-        productSku: "SKU-LAP-TPX1",
-        warrantyDuration: "6 Months",
-        coverageScope: "Full Keyboard, Battery & Motherboard Protection · Onsite Courier Pickup",
-        warehouseHub: "Delhi NCR Depot",
-        serialNumbers: ["TPX1-DEL-331", "TPX1-DEL-332", "TPX1-DEL-333"]
-      }),
-      audit_logs: JSON.stringify([
-        { date: "2026-06-05", action: "Warranty Contract Provisioned", user: "Sales Rep" },
-        { date: "2026-08-25", action: "Temporary Coverage Paused per Client Request", user: "Admin" }
+        { date: "2026-07-23", action: "6-Month Extended Care Activated for Q-53527875", user: "Sales Manager" },
+        { date: "2026-08-19", action: "Thermal Cooling System Verified", user: "Tech Support" }
       ]),
     },
 
-    // 12 Months Warranty Subscribers
+    // 12 Months Warranty Subscribers (Real Customers from Deals)
     {
-      id: "wrn-12m-3001",
-      subscription_code: "WRN-12M-201",
-      customer_name: "Mahindra Logistics Tech",
+      id: "wrn-12m-akash",
+      subscription_code: "WRN-12M-AKA01",
+      customer_name: "akash patel",
+      customer_email: "akash@gmail.com",
       tier: "12 Months",
       plan_name: "12-Month Comprehensive Full Care Warranty",
-      amount: 49995.00,
-      mrr: 4166.25,
+      amount: 9999.00,
+      mrr: 833.25,
       billing_cycle: "12 Months",
       status: "Active",
       start_date: new Date(Date.now() - 30 * 86400000),
       next_billing_date: new Date(Date.now() + 335 * 86400000).toISOString().split("T")[0],
-      seats: 5,
+      seats: 1,
       features: JSON.stringify({
-        productName: "Enterprise Server Rack X1",
-        productSku: "SKU-SRV-X100",
+        productName: 'MacBook Pro 16" M3 Max (36GB / 1TB)',
+        productSku: "SKU-LAP-MBP16",
+        quotationId: "Q-50655909",
         warrantyDuration: "12 Months",
-        coverageScope: "Bumper-to-Bumper Full Guarantee · Same-Day Onsite Replacement SLA · Free Annual Overhaul",
+        coverageScope: "Bumper-to-Bumper Full Guarantee · Same-Day Onsite Technician SLA · Free Annual Overhaul Kit",
         warehouseHub: "Mumbai Central Hub",
-        serialNumbers: ["SRV-MUM-701", "SRV-MUM-702", "SRV-MUM-703", "SRV-MUM-704", "SRV-MUM-705"]
+        serialNumbers: ["MBP16-AKA-5011"]
       }),
       audit_logs: JSON.stringify([
-        { date: "2026-08-05", action: "Annual Comprehensive Warranty Policy Created", user: "Sales Manager" },
-        { date: "2026-08-10", action: "Onsite Serial Audit & Tagging Completed", user: "Field Engineer" }
+        { date: "2026-08-07", action: "Annual Warranty Care Registered for Confirmed Order Q-50655909", user: "Sales Manager" },
+        { date: "2026-08-10", action: "Hardware Seal Authenticated", user: "Warehouse Dispatch" }
       ]),
     },
     {
-      id: "wrn-12m-3002",
-      subscription_code: "WRN-12M-202",
-      customer_name: "Zomato Enterprise Operations",
+      id: "wrn-12m-piyush-srv",
+      subscription_code: "WRN-12M-PIY02",
+      customer_name: "piyush shah",
+      customer_email: "piyush@gmail.com",
       tier: "12 Months",
       plan_name: "12-Month Comprehensive Full Care Warranty",
-      amount: 29997.00,
-      mrr: 2499.75,
+      amount: 9999.00,
+      mrr: 833.25,
+      billing_cycle: "12 Months",
+      status: "Active",
+      start_date: new Date(Date.now() - 35 * 86400000),
+      next_billing_date: new Date(Date.now() + 330 * 86400000).toISOString().split("T")[0],
+      seats: 1,
+      features: JSON.stringify({
+        productName: "Enterprise Server Rack X1",
+        productSku: "SKU-SRV-X100",
+        quotationId: "Q-49720396",
+        warrantyDuration: "12 Months",
+        coverageScope: "24/7 Priority Emergency Dispatch · 100% Component Uptime Guarantee · Dedicated TAM",
+        warehouseHub: "Mumbai Central Hub",
+        serialNumbers: ["SRV-PIY-1002"]
+      }),
+      audit_logs: JSON.stringify([
+        { date: "2026-08-02", action: "Mission-Critical 12M Warranty Activated for Q-49720396", user: "Arjav Dariya" }
+      ]),
+    },
+    {
+      id: "wrn-12m-apex",
+      subscription_code: "WRN-12M-APX01",
+      customer_name: "Apex Tech Labs (John Doe)",
+      customer_email: "customer.laptop@test.com",
+      tier: "12 Months",
+      plan_name: "12-Month Comprehensive Full Care Warranty",
+      amount: 39996.00,
+      mrr: 3333.00,
       billing_cycle: "12 Months",
       status: "Active",
       start_date: new Date(Date.now() - 40 * 86400000),
       next_billing_date: new Date(Date.now() + 325 * 86400000).toISOString().split("T")[0],
-      seats: 3,
+      seats: 4,
       features: JSON.stringify({
         productName: 'MacBook Pro 16" M3 Max (36GB / 1TB)',
         productSku: "SKU-LAP-MBP16",
+        quotationId: "QUOTE-LAPTOP-101",
         warrantyDuration: "12 Months",
-        coverageScope: "Accidental Damage Protection · Unlimited Logic Board Claims · Level 3 Tech VIP Hotline",
+        coverageScope: "Enterprise Fleet Protection (4 units) · Level-3 VIP Hotline · Advance Hardware Replacement",
         warehouseHub: "Bengaluru South Logistics Hub",
-        serialNumbers: ["MBP16-ZOM-11", "MBP16-ZOM-12", "MBP16-ZOM-13"]
+        serialNumbers: ["MBP16-APX-01", "MBP16-APX-02", "MBP16-APX-03", "MBP16-APX-04"]
       }),
       audit_logs: JSON.stringify([
-        { date: "2026-07-25", action: "12-Month Mac VIP Care Enrolled", user: "Arjav Dariya" }
-      ]),
-    },
-    {
-      id: "wrn-12m-3003",
-      subscription_code: "WRN-12M-203",
-      customer_name: "Paytm Payments Infrastructure",
-      tier: "12 Months",
-      plan_name: "12-Month Comprehensive Full Care Warranty",
-      amount: 19998.00,
-      mrr: 1666.50,
-      billing_cycle: "12 Months",
-      status: "Active",
-      start_date: new Date(Date.now() - 10 * 86400000),
-      next_billing_date: new Date(Date.now() + 355 * 86400000).toISOString().split("T")[0],
-      seats: 2,
-      features: JSON.stringify({
-        productName: "24/7 Mission-Critical SLA Support + Server Rack",
-        productSku: "SKU-SVC-SLA24",
-        warrantyDuration: "12 Months",
-        coverageScope: "24/7 Priority Emergency Dispatch · 100% Component Uptime Guarantee · Free Spares Stocking",
-        warehouseHub: "Delhi NCR Depot",
-        serialNumbers: ["SLA24-PAY-01", "SLA24-PAY-02"]
-      }),
-      audit_logs: JSON.stringify([
-        { date: "2026-08-27", action: "Mission-Critical 12M Warranty Activated", user: "Sales Rep" }
+        { date: "2026-07-28", action: "Fleet Warranty Contract Enrolled for QUOTE-LAPTOP-101", user: "Sales Executive" }
       ]),
     }
   ];
