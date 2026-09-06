@@ -323,6 +323,12 @@ export async function confirmOrderByToken(token) {
   // Run upsell engine
   const upsellSuggestions = await getUpsellSuggestions(quote.id);
 
+  // Sync quotation into invoice ledger immediately
+  try {
+    const { syncQuotationInvoices } = await import("./invoices.services.js");
+    await syncQuotationInvoices();
+  } catch (e) {}
+
   return {
     quoteId: quote.id,
     confirmedStage: newStage,

@@ -59,6 +59,8 @@ export default function Invoices({ user, onNavigate, onLogout }) {
   const [genQuoteId, setGenQuoteId] = useState('');
   const [genCustomerName, setGenCustomerName] = useState('');
   const [genCustomerEmail, setGenCustomerEmail] = useState('');
+  const [genBaseAmount, setGenBaseAmount] = useState('');
+  const [genDiscountPercent, setGenDiscountPercent] = useState('0');
   const [genAmount, setGenAmount] = useState('');
   const [genDueDate, setGenDueDate] = useState(
     new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -134,9 +136,21 @@ export default function Invoices({ user, onNavigate, onLogout }) {
       } catch {
         parsedItems = [];
       }
+      const amount = Number(inv.amount || 0);
+      const discountPercent = Number(inv.discountPercent ?? inv.discount_percent ?? 0);
+      let baseAmount = Number(inv.baseAmount ?? inv.base_amount ?? 0);
+      if (baseAmount <= 0 || (discountPercent > 0 && baseAmount === amount)) {
+        if (discountPercent > 0 && discountPercent < 100) {
+          baseAmount = Number((amount / (1 - discountPercent / 100)).toFixed(2));
+        } else {
+          baseAmount = amount;
+        }
+      }
+      const discountAmount = Number(inv.discountAmount ?? inv.discount_amount ?? Math.max(0, baseAmount - amount));
+
       if (!parsedItems || parsedItems.length === 0) {
         parsedItems = [
-          { name: inv.notes || `${inv.customerName} Commercial CPQ Order`, qty: 1, unitPrice: Number(inv.amount), total: Number(inv.amount) }
+          { name: inv.notes || `${inv.customerName} Commercial CPQ Order`, qty: 1, unitPrice: baseAmount > 0 ? baseAmount : amount, total: amount }
         ];
       }
 
@@ -149,7 +163,10 @@ export default function Invoices({ user, onNavigate, onLogout }) {
         customerName: inv.customerName,
         customerEmail: inv.customerEmail,
         subtitle: inv.notes || `Due on ${formatDate(inv.dueDate)}`,
-        amount: Number(inv.amount || 0),
+        baseAmount: baseAmount,
+        discountPercent: discountPercent,
+        discountAmount: discountAmount,
+        amount: amount,
         status: inv.status,
         dueDate: inv.dueDate,
         issueDate: inv.issueDate,
@@ -166,10 +183,12 @@ export default function Invoices({ user, onNavigate, onLogout }) {
   const isOverdue = activeSlip.status === 'Overdue';
 
   const activeSlipItems = activeSlip.items || [
-    { name: 'Commercial Hardware & Platform Package', qty: 1, unitPrice: activeSlip.amount || 124000, total: activeSlip.amount || 124000 }
+    { name: 'Commercial Hardware & Platform Package', qty: 1, unitPrice: activeSlip.baseAmount || activeSlip.amount || 124000, total: activeSlip.amount || 124000 }
   ];
 
   // Computed totals across all invoices
+  const totalGross = invoiceBatches.reduce((acc, item) => acc + (item.baseAmount || item.amount), 0);
+  const totalDiscounts = invoiceBatches.reduce((acc, item) => acc + (item.discountAmount || 0), 0);
   const subtotal = invoiceBatches.reduce((acc, item) => acc + item.amount, 0);
   const settledCredit = invoiceBatches
     .filter(item => item.status === 'Paid')
@@ -187,8 +206,29 @@ export default function Invoices({ user, onNavigate, onLogout }) {
     if (q) {
       setGenCustomerName(q.customer_name || q.customerName || '');
       setGenCustomerEmail(q.customer_email || q.customerEmail || '');
-      setGenAmount(q.total_amount || q.totalAmount || '');
-      setGenNotes(`Commercial order for ${q.customer_name} (${q.customer_tier || 'Enterprise'} tier)`);
+      const net = Number(q.total_amount || q.totalAmount || 0);
+      const disc = Number(q.discount_percent || q.discountPercent || 0);
+      let base = Number(q.base_amount || q.baseAmount || 0);
+      if (base <= 0 && disc > 0 && disc < 100) {
+        base = Number((net / (1 - disc / 100)).toFixed(2));
+      } else if (base <= 0) {
+        base = net;
+      }
+      setGenBaseAmount(base);
+      setGenDiscountPercent(disc);
+      setGenAmount(net || base);
+      setGenNotes(`Commercial CPQ order for ${q.customer_name} (${q.customer_tier || 'Enterprise'} tier)`);
+    }
+  };
+
+  const handleBaseOrDiscountChange = (baseVal, discVal) => {
+    const b = Number(baseVal || 0);
+    const d = Number(discVal || 0);
+    setGenBaseAmount(baseVal);
+    setGenDiscountPercent(discVal);
+    if (b > 0 && d >= 0 && d <= 100) {
+      const net = Number((b * (1 - d / 100)).toFixed(2));
+      setGenAmount(net);
     }
   };
 
@@ -204,6 +244,8 @@ export default function Invoices({ user, onNavigate, onLogout }) {
         quotationId: genQuoteId || null,
         customerName: genCustomerName,
         customerEmail: genCustomerEmail,
+        baseAmount: Number(genBaseAmount || genAmount),
+        discountPercent: Number(genDiscountPercent || 0),
         amount: Number(genAmount),
         dueDate: genDueDate,
         paymentMethod: genPaymentMethod,
@@ -216,6 +258,8 @@ export default function Invoices({ user, onNavigate, onLogout }) {
       setGenQuoteId('');
       setGenCustomerName('');
       setGenCustomerEmail('');
+      setGenBaseAmount('');
+      setGenDiscountPercent('0');
       setGenAmount('');
       setGenNotes('');
       if (created?.id) setSelectedInvoiceId(created.id);
@@ -252,10 +296,13 @@ export default function Invoices({ user, onNavigate, onLogout }) {
   };
 
   const handleDownloadSummary = () => {
-    const headers = ['Invoice #', 'Customer', 'Amount (INR)', 'Status', 'Due Date', 'Payment Method'];
+    const headers = ['Invoice #', 'Customer', 'List Price (INR)', 'Discount %', 'Discount Amt (INR)', 'Net Invoiced (INR)', 'Status', 'Due Date', 'Payment Method'];
     const rows = invoiceBatches.map(inv => [
       inv.id,
       inv.customerName,
+      inv.baseAmount,
+      `${inv.discountPercent}%`,
+      inv.discountAmount,
       inv.amount,
       inv.status,
       formatDate(inv.dueDate),
@@ -289,7 +336,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
     }
     if (!parsedItems || parsedItems.length === 0) {
       parsedItems = [
-        { name: target.notes || target.subtitle || `${target.customerName} Commercial CPQ Order`, qty: 1, unitPrice: Number(target.amount || 0), total: Number(target.amount || 0) }
+        { name: target.notes || target.subtitle || `${target.customerName} Commercial CPQ Order`, qty: 1, unitPrice: Number(target.baseAmount || target.amount || 0), total: Number(target.amount || 0) }
       ];
     }
 
@@ -302,7 +349,10 @@ export default function Invoices({ user, onNavigate, onLogout }) {
       </tr>
     `).join('');
 
-    const subtotalVal = Number(target.amount || 0);
+    const baseVal = Number(target.baseAmount || target.amount || 0);
+    const discPct = Number(target.discountPercent || 0);
+    const discAmt = Number(target.discountAmount || Math.max(0, baseVal - Number(target.amount || 0)));
+    const netVal = Number(target.amount || 0);
     const isSettled = target.status === 'Paid';
 
     const printHtml = `
@@ -381,6 +431,19 @@ export default function Invoices({ user, onNavigate, onLogout }) {
             }
             .badge-paid { background: #dcfce7; color: #15803d; }
             .badge-unpaid { background: #fef3c7; color: #b45309; }
+            .discount-callout {
+              background: #f0fdf4;
+              border: 1px solid #bbf7d0;
+              color: #166534;
+              padding: 8px 14px;
+              border-radius: 6px;
+              font-size: 12.5px;
+              font-weight: 600;
+              margin-bottom: 20px;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+            }
             table {
               width: 100%;
               border-collapse: collapse;
@@ -398,7 +461,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
               border-bottom: 1px solid #e2e8f0;
             }
             .summary-table {
-              width: 320px;
+              width: 360px;
               margin-left: auto;
               margin-bottom: 24px;
             }
@@ -463,6 +526,13 @@ export default function Invoices({ user, onNavigate, onLogout }) {
             </div>
           </div>
 
+          ${discPct > 0 || discAmt > 0 ? `
+          <div class="discount-callout">
+            <span>🏷️ Commercial Tier Discount Applied: <strong>${discPct}%</strong></span>
+            <span>Total Savings: <strong>-₹${discAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+          </div>
+          ` : ''}
+
           <table>
             <thead>
               <tr>
@@ -480,16 +550,22 @@ export default function Invoices({ user, onNavigate, onLogout }) {
           <div class="summary-table">
             <table style="margin-bottom: 0;">
               <tr>
-                <td style="color: #64748b;">Subtotal:</td>
-                <td style="text-align: right; font-weight: 600;">₹${subtotalVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                <td style="color: #64748b;">Gross List Price:</td>
+                <td style="text-align: right; font-weight: 600;">₹${baseVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
               </tr>
+              ${discPct > 0 || discAmt > 0 ? `
+              <tr style="color: #059669;">
+                <td>Applied Discount (${discPct}%):</td>
+                <td style="text-align: right; font-weight: 600;">-₹${discAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+              </tr>
+              ` : ''}
               <tr>
                 <td style="color: #64748b;">GST / Taxes (Included):</td>
                 <td style="text-align: right; font-weight: 600;">₹0.00</td>
               </tr>
               <tr class="total-row">
-                <td style="padding-top: 8px;">Total Amount:</td>
-                <td style="text-align: right; padding-top: 8px; color: #714b67;">₹${subtotalVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })} INR</td>
+                <td style="padding-top: 8px;">Net Invoiced Total:</td>
+                <td style="text-align: right; padding-top: 8px; color: #714b67;">₹${netVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })} INR</td>
               </tr>
             </table>
           </div>
@@ -701,7 +777,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
             <div className="invoices-stepper-card">
               <div className="stepper-header-row">
                 <div className="stepper-title-kicker">ORDER & FULFILLMENT PIPELINE</div>
-                <div className="stepper-stage-indicator">
+                <div className="stepper-stage-indicator" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                   {isPaid ? (
                     <span style={{ color: '#059669', fontWeight: 700 }}>
                       Stage 4 of 4: <span className="stepper-stage-bold">Settled & Reconciled</span>
@@ -713,6 +789,19 @@ export default function Invoices({ user, onNavigate, onLogout }) {
                   ) : (
                     <span>
                       Stage 3 of 4: <span className="stepper-stage-bold">Awaiting Payment Settlement</span>
+                    </span>
+                  )}
+                  {(activeSlip.discountPercent > 0 || activeSlip.discountAmount > 0) && (
+                    <span style={{ 
+                      background: '#ecfdf5', 
+                      color: '#047857', 
+                      border: '1px solid #a7f3d0', 
+                      padding: '2px 8px', 
+                      borderRadius: '4px', 
+                      fontSize: '11.5px', 
+                      fontWeight: 700 
+                    }}>
+                      🏷️ {activeSlip.discountPercent}% Discount Applied (Saved ₹{Number(activeSlip.discountAmount || 0).toLocaleString('en-IN')})
                     </span>
                   )}
                 </div>
@@ -774,7 +863,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
                 <div>
                   <div className="batch-title-main">Linked Invoice Line Batches</div>
                   <div className="batch-title-sub">
-                    Invoices generated for {activeSlip.customerName} subscriptions and CPQ packages
+                    Invoices synchronized with all customer CPQ quotes, contracts, and delivery batches
                   </div>
                 </div>
 
@@ -796,7 +885,9 @@ export default function Invoices({ user, onNavigate, onLogout }) {
                     <tr>
                       <th>INVOICE #</th>
                       <th>DESCRIPTION / BILLING CATEGORY</th>
-                      <th>AMOUNT</th>
+                      <th>GROSS LIST PRICE</th>
+                      <th>DISCOUNT</th>
+                      <th>NET INVOICE</th>
                       <th>STATUS</th>
                       <th>DUE DATE</th>
                       <th style={{ textAlign: 'right' }}>ACTIONS</th>
@@ -843,7 +934,32 @@ export default function Invoices({ user, onNavigate, onLogout }) {
                             </div>
                           </td>
 
-                          {/* Amount */}
+                          {/* Gross List Price */}
+                          <td style={{ color: '#64748b', fontSize: '13px', fontWeight: 500 }}>
+                            ₹{Number(batch.baseAmount || batch.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+
+                          {/* Discount */}
+                          <td>
+                            {batch.discountPercent > 0 || batch.discountAmount > 0 ? (
+                              <span style={{ 
+                                background: '#ecfdf5', 
+                                color: '#047857', 
+                                border: '1px solid #a7f3d0', 
+                                padding: '2px 7px', 
+                                borderRadius: '4px', 
+                                fontSize: '11.5px', 
+                                fontWeight: 700,
+                                display: 'inline-block'
+                              }}>
+                                {batch.discountPercent}% (-₹{Number(batch.discountAmount || 0).toLocaleString('en-IN')})
+                              </span>
+                            ) : (
+                              <span style={{ color: '#94a3b8', fontSize: '12px' }}>0% (List)</span>
+                            )}
+                          </td>
+
+                          {/* Net Amount */}
                           <td style={{ fontWeight: 700, color: '#0f172a' }}>
                             ₹{batch.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
@@ -928,13 +1044,23 @@ export default function Invoices({ user, onNavigate, onLogout }) {
               {/* Table Summary Footer */}
               <div className="inv-summary-footer-row">
                 <div className="inv-account-details-left">
-                  <div><strong>Account:</strong> {activeSlip.customerName} {activeSlip.customerEmail ? `(${activeSlip.customerEmail})` : ''}</div>
-                  <div><strong>Billing Policy:</strong> Commercial Net 30 Terms Apply (INR)</div>
+                  <div><strong>Active Account:</strong> {activeSlip.customerName} {activeSlip.customerEmail ? `(${activeSlip.customerEmail})` : ''}</div>
+                  <div><strong>Commercial Policy:</strong> Net 30 Terms Apply (INR) • Real-time CPQ Sync</div>
                 </div>
 
                 <div className="inv-totals-box-right">
                   <div className="inv-totals-sub-row">
-                    <span>Subtotal (Invoiced items):</span>
+                    <span>Gross List Total:</span>
+                    <span>₹{totalGross.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  {totalDiscounts > 0 && (
+                    <div className="inv-totals-sub-row" style={{ color: '#059669', fontWeight: 600 }}>
+                      <span>Discounts Provided:</span>
+                      <span>-₹{totalDiscounts.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
+                  <div className="inv-totals-sub-row">
+                    <span>Net Invoiced Subtotal:</span>
                     <span>₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                   {settledCredit > 0 && (
@@ -1085,7 +1211,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
                     <option value="">-- Select Quotation --</option>
                     {availableQuotes.map(q => (
                       <option key={q.id} value={q.id}>
-                        #{q.id} — {q.customer_name || q.customerName} (₹{Number(q.total_amount || q.totalAmount || 0).toLocaleString('en-IN')})
+                        #{q.id} — {q.customer_name || q.customerName} ({Number(q.discount_percent || 0)}% disc • ₹{Number(q.total_amount || q.totalAmount || 0).toLocaleString('en-IN')})
                       </option>
                     ))}
                   </select>
@@ -1117,9 +1243,35 @@ export default function Invoices({ user, onNavigate, onLogout }) {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                 <div className="form-group">
-                  <label className="form-label">Invoice Amount (₹ INR)</label>
+                  <label className="form-label">Gross List (₹)</label>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    className="form-input"
+                    placeholder="e.g. 150000"
+                    value={genBaseAmount}
+                    onChange={(e) => handleBaseOrDiscountChange(e.target.value, genDiscountPercent)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Discount (%)</label>
+                  <input 
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    className="form-input"
+                    placeholder="0"
+                    value={genDiscountPercent}
+                    onChange={(e) => handleBaseOrDiscountChange(genBaseAmount, e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Net Total (₹ INR)</label>
                   <input 
                     type="number"
                     step="0.01"
@@ -1130,7 +1282,9 @@ export default function Invoices({ user, onNavigate, onLogout }) {
                     required
                   />
                 </div>
+              </div>
 
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                 <div className="form-group">
                   <label className="form-label">Due Date</label>
                   <input 
@@ -1141,20 +1295,20 @@ export default function Invoices({ user, onNavigate, onLogout }) {
                     required
                   />
                 </div>
-              </div>
 
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label className="form-label">Payment Terms & Method</label>
-                <select 
-                  className="form-input"
-                  value={genPaymentMethod}
-                  onChange={(e) => setGenPaymentMethod(e.target.value)}
-                >
-                  <option value="ACH Wire">ACH / RTGS Bank Wire (Net 30)</option>
-                  <option value="Corporate Credit Card">Corporate Credit Card</option>
-                  <option value="UPI / Instant">UPI / Instant Corporate Gateway</option>
-                  <option value="Cheque">Commercial Cheque</option>
-                </select>
+                <div className="form-group">
+                  <label className="form-label">Payment Terms & Method</label>
+                  <select 
+                    className="form-input"
+                    value={genPaymentMethod}
+                    onChange={(e) => setGenPaymentMethod(e.target.value)}
+                  >
+                    <option value="ACH Wire">ACH / RTGS Bank Wire (Net 30)</option>
+                    <option value="Corporate Credit Card">Corporate Credit Card</option>
+                    <option value="UPI / Instant">UPI / Instant Corporate Gateway</option>
+                    <option value="Cheque">Commercial Cheque</option>
+                  </select>
+                </div>
               </div>
 
               <div className="form-group" style={{ marginBottom: '20px' }}>
@@ -1333,8 +1487,15 @@ export default function Invoices({ user, onNavigate, onLogout }) {
               </table>
 
               <div style={{ textAlign: 'right', borderTop: '1.5px solid #e2e8f0', paddingTop: '12px' }}>
-                <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '4px' }}>Subtotal: ₹{Number(activeSlip.amount || 0).toLocaleString('en-IN')}</div>
-                <span style={{ fontSize: '14px', color: '#64748b' }}>Invoice Total Due: </span>
+                <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '4px' }}>
+                  Gross List Price: ₹{Number(activeSlip.baseAmount || activeSlip.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </div>
+                {(activeSlip.discountPercent > 0 || activeSlip.discountAmount > 0) && (
+                  <div style={{ fontSize: '13px', color: '#059669', fontWeight: 600, marginBottom: '4px' }}>
+                    Applied Commercial Discount ({activeSlip.discountPercent || 0}%): -₹{Number(activeSlip.discountAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </div>
+                )}
+                <span style={{ fontSize: '14px', color: '#64748b' }}>Net Invoice Total Due: </span>
                 <strong style={{ fontSize: '20px', color: '#0f172a', marginLeft: '6px' }}>
                   ₹{Number(activeSlip.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} INR
                 </strong>
