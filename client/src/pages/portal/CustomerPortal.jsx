@@ -149,7 +149,7 @@ export default function CustomerPortal({ token, onBack, onGoToInvoices, backLabe
     }
   };
 
-  const handleConfirmOrder = async () => {
+  const handleConfirm = async () => {
     if (confirming || confirmed) return;
     setConfirming(true);
     try {
@@ -164,6 +164,8 @@ export default function CustomerPortal({ token, onBack, onGoToInvoices, backLabe
       setConfirming(false);
     }
   };
+
+  const handleConfirmOrder = handleConfirm;
 
   const formatTime = (dateStr) => {
     if (!dateStr) return "";
