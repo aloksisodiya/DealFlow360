@@ -221,7 +221,7 @@ async function main() {
     quotationList.push({
       id: qId,
       customer_name: comp.name,
-      customer_email: comp.email,
+      _customer_email: comp.email,
       customer_tier: comp.tier,
       base_amount: baseAmount,
       discount_percent: discountPct,
@@ -244,7 +244,8 @@ async function main() {
   }
 
   for (const q of quotationList) {
-    await db("quotations").insert(q).onConflict("id").merge();
+    const { _customer_email, ...quotationRow } = q;
+    await db("quotations").insert(quotationRow).onConflict("id").merge();
   }
 
   // 5. Generate 45 Invoices
@@ -262,7 +263,7 @@ async function main() {
       invoice_number: invNum,
       quotation_id: quote.id,
       customer_name: quote.customer_name,
-      customer_email: quote.customer_email,
+      customer_email: quote._customer_email,
       amount: quote.total_amount,
       status: status,
       issue_date: new Date(Date.now() - (45 - i) * 86400000),
@@ -302,7 +303,6 @@ async function main() {
       id: `wrn-${100 + i}`,
       subscription_code: subCode,
       customer_name: comp.name,
-      customer_email: comp.email,
       tier: tier,
       plan_name: `${tier} Extended Hardware Protection`,
       amount: totalSubAmount,
@@ -337,19 +337,15 @@ async function main() {
     const q = quotationList[i];
     await db("portal_messages").insert([
       {
-        quotation_id: q.id,
-        sender_type: "customer",
-        sender_name: q.customer_name,
-        sender_email: q.customer_email,
-        message: `Hello! We are reviewing proposal ${q.id}. Could we apply an additional volume discount if we confirm before Friday?`,
+        quote_id: q.id,
+        sender: "customer",
+        message: `Hello! We are reviewing proposal ${q.id}. Could we apply an additional volume discount if we confirm before Friday? — ${q.customer_name}`,
         created_at: new Date(Date.now() - 3600000 * 5)
       },
       {
-        quotation_id: q.id,
-        sender_type: "rep",
-        sender_name: q.assigned_to,
-        sender_email: "sales@dealflow360.com",
-        message: `Hi ${q.customer_name}, absolutely! I have factored in your customer tier benefits and authorized special quarterly pricing.`,
+        quote_id: q.id,
+        sender: "rep",
+        message: `Hi ${q.customer_name}, absolutely! I have factored in your customer tier benefits and authorized special quarterly pricing. — ${q.assigned_to}`,
         created_at: new Date(Date.now() - 3600000 * 2)
       }
     ]).catch(() => {});
