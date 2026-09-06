@@ -164,17 +164,25 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
     showToast('Inventory CSV exported successfully!');
   };
 
+  const getWhId = (name = '') => {
+    const n = String(name).toLowerCase();
+    if (n === 'wh-east' || n.includes('bengaluru') || n.includes('east') || n.includes('blr') || n.includes('karnataka')) return 'wh-east';
+    if (n === 'wh-west' || n.includes('delhi') || n.includes('west') || n.includes('ncr') || n.includes('gurugram') || n.includes('haryana')) return 'wh-west';
+    return 'wh-main';
+  };
+
   // Open Transfer Modal
   const handleOpenTransfer = (item) => {
     setSelectedInventory(item);
     setTransferOrigin(item.warehouse);
-    const defaultDest = item.warehouse.includes('Mumbai') 
+    const originWhId = item.warehouseId || getWhId(item.warehouse);
+    const defaultDest = originWhId === 'wh-main' 
       ? 'Bengaluru Tech Depot' 
-      : item.warehouse.includes('Bengaluru') 
+      : originWhId === 'wh-east' 
       ? 'Delhi NCR Logistics Hub' 
       : 'Mumbai Central Hub';
     setTransferDest(defaultDest);
-    setTransferQty(Math.min(5, item.available || 5));
+    setTransferQty(Math.min(5, Math.max(1, item.available || item.inStock || 1)));
     setActiveModal('transfer');
   };
 
@@ -187,7 +195,7 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
     } else {
       setSelectedInventory(null);
       setRestockProduct(uniqueProducts[0]?.productName || 'Enterprise Server Rack X1');
-      setRestockWarehouse('Main Warehouse');
+      setRestockWarehouse('Mumbai Central Hub');
     }
     setRestockQty(25);
     setActiveModal('restock');
@@ -195,7 +203,7 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
 
   // Open New Stock Allocation Modal
   const handleOpenNewAllocation = () => {
-    setNewAllocWarehouse('Main Warehouse');
+    setNewAllocWarehouse('Mumbai Central Hub');
     setNewAllocProduct(uniqueProducts[0]?.productName || 'Enterprise Server Rack X1');
     setNewAllocQty(30);
     setActiveModal('newAllocation');
@@ -208,19 +216,15 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
       showToast('Please enter a valid transfer quantity.');
       return;
     }
-    if (transferOrigin === transferDest) {
+
+    const fromWhId = selectedInventory?.warehouseId || getWhId(transferOrigin);
+    const toWhId = getWhId(transferDest);
+
+    if (fromWhId === toWhId) {
       showToast('Origin and Destination warehouse must be different.');
       return;
     }
 
-    const getWhId = (name) => {
-      if (name.includes('East')) return 'wh-east';
-      if (name.includes('West')) return 'wh-west';
-      return 'wh-main';
-    };
-
-    const fromWhId = getWhId(transferOrigin);
-    const toWhId = getWhId(transferDest);
     const prodId = selectedInventory?.productId || 'prod-1';
 
     try {
@@ -249,15 +253,9 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
       return;
     }
 
-    const getWhId = (name) => {
-      if ((name || '').includes('East')) return 'wh-east';
-      if ((name || '').includes('West')) return 'wh-west';
-      return 'wh-main';
-    };
-
     const targetWh = selectedInventory?.warehouse || restockWarehouse;
     const targetProd = selectedInventory?.product || restockProduct;
-    const whId = getWhId(targetWh);
+    const whId = selectedInventory?.warehouseId || getWhId(targetWh);
 
     const foundProd = uniqueProducts.find(p => p.productName === targetProd);
     const prodId = selectedInventory?.productId || foundProd?.productId || 'prod-1';
@@ -287,12 +285,6 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
       showToast('Quantity must be greater than zero.');
       return;
     }
-
-    const getWhId = (name) => {
-      if ((name || '').includes('East')) return 'wh-east';
-      if ((name || '').includes('West')) return 'wh-west';
-      return 'wh-main';
-    };
 
     const whId = getWhId(newAllocWarehouse);
     const foundProd = uniqueProducts.find(p => p.productName === newAllocProduct);
@@ -1085,7 +1077,7 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
                   onChange={(e) => setTransferDest(e.target.value)}
                 >
                   {['Mumbai Central Hub', 'Bengaluru Tech Depot', 'Delhi NCR Logistics Hub']
-                    .filter(w => !w.toLowerCase().includes((selectedInventory.warehouse || '').toLowerCase().replace(' hub', '').replace(' depot', '')))
+                    .filter(w => getWhId(w) !== (selectedInventory.warehouseId || getWhId(selectedInventory.warehouse)))
                     .map(w => (
                       <option key={w} value={w}>{w}</option>
                     ))}
