@@ -12,10 +12,18 @@ import { getUpsellSuggestions } from "./upsell.services.js";
 // ──────────────────────────────────────────────────────────────────────
 export async function generatePortalToken(quoteId, customerEmail) {
   const token = uuidv4();
+  const quote = await db("quotations").where({ id: quoteId }).first();
+  const newStage = (!quote?.stage || String(quote.stage).toLowerCase() === "draft")
+    ? "Sent to Customer"
+    : quote.stage;
+
   await db("quotations").where({ id: quoteId }).update({
     portal_token: token,
     portal_customer_email: customerEmail,
+    customer_email: customerEmail || quote?.customer_email,
     portal_sent_at: db.fn.now(),
+    stage: newStage,
+    updated_at: db.fn.now(),
   });
   return token;
 }
@@ -31,9 +39,6 @@ export async function getQuotationByToken(token) {
     .first();
 
   if (!quote) throw new Error("Invalid or expired portal link");
-  if (String(quote.stage || "").toLowerCase() === "draft") {
-    throw new Error("This quotation is currently in Draft stage and has not been sent for final approval yet.");
-  }
 
   let upsellSuggestions = [];
   if (quote.stage === "Confirmed") {
@@ -82,16 +87,39 @@ export async function getQuotationByToken(token) {
 
   let lineItems = [];
   let parsedUpsell = [];
+
+  if (typeof quote.items === "string" && quote.items) {
+    try { lineItems = JSON.parse(quote.items); } catch {}
+  } else if (Array.isArray(quote.items)) {
+    lineItems = quote.items;
+  }
+
   if (typeof quote.upsell_items === "string" && quote.upsell_items) {
     try { parsedUpsell = JSON.parse(quote.upsell_items); } catch {}
   } else if (Array.isArray(quote.upsell_items)) {
     parsedUpsell = quote.upsell_items;
   }
 
-  if (Array.isArray(quote.items) && quote.items.length > 0) {
-    lineItems = quote.items;
-  } else if (parsedUpsell && parsedUpsell.length > 0) {
+  if ((!lineItems || lineItems.length === 0) && parsedUpsell && parsedUpsell.length > 0) {
     lineItems = parsedUpsell;
+  }
+
+  // Format and validate line items
+  if (Array.isArray(lineItems) && lineItems.length > 0) {
+    lineItems = lineItems.map((it, idx) => ({
+      id: it.id || `item-${idx + 1}`,
+      productId: it.productId || it.product_id,
+      name: it.name || it.productName || it.title || "Quotation Product Item",
+      sku: it.sku || `SKU-${it.id || idx + 1}`,
+      category: it.category || "Hardware & Equipment",
+      description: it.description || it.desc || "",
+      quantity: Number(it.quantity || it.qty || 1),
+      unitPrice: Number(it.unitPrice || it.unit_price || (it.totalPrice ? it.totalPrice / (it.quantity || 1) : baseAmt)),
+      totalPrice: Number(it.totalPrice || it.total_price || ((it.quantity || 1) * (it.unitPrice || baseAmt))),
+      inStock: it.inStock !== false && !it.isBackorder,
+      isBackorder: Boolean(it.isBackorder),
+      warehouseAvailability: it.warehouseAvailability || (it.isBackorder ? "⚠️ Backorder (Estimated Lead Time: 5-7 days)" : "Mumbai Central Hub (In Stock)"),
+    }));
   } else {
     lineItems = [
       {
@@ -100,9 +128,9 @@ export async function getQuotationByToken(token) {
         category: "Hardware & Platform",
         quantity: 1,
         unitPrice: baseAmt,
-        totalPrice: totalAmt,
+        totalPrice: baseAmt,
         inStock: true,
-        warehouseAvailability: "Main Warehouse (In Stock), East Depot",
+        warehouseAvailability: "Mumbai Central Hub (In Stock)",
       }
     ];
   }

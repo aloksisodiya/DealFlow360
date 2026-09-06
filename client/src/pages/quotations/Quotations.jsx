@@ -199,6 +199,9 @@ export default function Quotations({ user, onNavigate, onLogout }) {
       ...q,
       id: q.id || `Q-${Math.random().toString().slice(2, 8)}`,
       client: q.customer_name || q.client || q.customerName || 'Valued Client',
+      customer_email: q.customer_email || q.customerEmail || q.portal_customer_email || '',
+      portal_token: q.portal_token || q.portalToken || null,
+      portal_customer_email: q.portal_customer_email || q.portalCustomerEmail || q.customer_email || q.customerEmail || '',
       amount,
       baseAmount,
       desc: q.notes || q.desc || productNames,
@@ -280,8 +283,16 @@ export default function Quotations({ user, onNavigate, onLogout }) {
     const normalized = normalizeQuote(quote);
     setSelectedQuote(normalized);
     setRepDiscountPct(normalized.discountPercent || 0);
-    setPortalEmail(normalized.customer_email || normalized.customerEmail || '');
-    setPortalSent(null);
+    const targetEmail = normalized.customer_email || normalized.customerEmail || normalized.portal_customer_email || '';
+    setPortalEmail(targetEmail);
+    if (normalized.portal_token) {
+      setPortalSent({
+        url: `${window.location.origin}/portal/${normalized.portal_token}`,
+        email: targetEmail
+      });
+    } else {
+      setPortalSent(null);
+    }
     setCopiedLink(false);
     try {
       const msgs = await fetchQuoteMessages(normalized.id);
@@ -311,7 +322,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
 
   const handleSendPortal = async () => {
     if (!selectedQuote) return;
-    const targetEmail = (portalEmail || selectedQuote.customerEmail || selectedQuote.customer_email || '').trim();
+    const targetEmail = (portalEmail || selectedQuote.customerEmail || selectedQuote.customer_email || selectedQuote.portal_customer_email || '').trim();
     if (!targetEmail) {
       showToast('Please enter customer email address.');
       return;
@@ -321,12 +332,42 @@ export default function Quotations({ user, onNavigate, onLogout }) {
       const res = await sendPortalLink(selectedQuote.id, targetEmail);
       if (res.portalUrl) {
         setPortalSent({ url: res.portalUrl, email: targetEmail });
+        setSelectedQuote(prev => prev ? { ...prev, portal_token: res.token, portal_customer_email: targetEmail } : prev);
         showToast(`Quotation portal link sent to ${targetEmail}!`);
       } else {
         showToast(res.message || 'Portal link generated.');
       }
+      await loadQuotations(true);
     } catch (err) {
       showToast(err.message || 'Failed to send portal link');
+    } finally {
+      setSendingPortal(false);
+    }
+  };
+
+  const handleOpenCustomerPortal = async () => {
+    if (!selectedQuote) return;
+    let url = portalSent?.url;
+    if (!url && selectedQuote.portal_token) {
+      url = `${window.location.origin}/portal/${selectedQuote.portal_token}`;
+    }
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    const targetEmail = (portalEmail || selectedQuote.customerEmail || selectedQuote.customer_email || selectedQuote.portal_customer_email || 'customer@dealflow360.com').trim();
+    setSendingPortal(true);
+    try {
+      const res = await sendPortalLink(selectedQuote.id, targetEmail);
+      if (res.portalUrl) {
+        setPortalSent({ url: res.portalUrl, email: targetEmail });
+        setSelectedQuote(prev => prev ? { ...prev, portal_token: res.token, portal_customer_email: targetEmail } : prev);
+        window.open(res.portalUrl, '_blank', 'noopener,noreferrer');
+        showToast(`Opened Customer Negotiation Screen in new tab!`);
+      }
+      await loadQuotations(true);
+    } catch (err) {
+      showToast(err.message || 'Failed to open customer portal');
     } finally {
       setSendingPortal(false);
     }
@@ -1414,16 +1455,15 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                       {copiedLink ? <CheckCircle2 size={13} color="#16a34a" /> : <Copy size={13} />}
                       <span>{copiedLink ? 'Copied' : 'Copy'}</span>
                     </button>
-                    <a
-                      href={portalSent.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      onClick={handleOpenCustomerPortal}
                       className="btn-new-quote"
-                      style={{ height: '36px', padding: '0 12px', gap: '5px', textDecoration: 'none', display: 'flex', alignItems: 'center' }}
+                      style={{ height: '36px', padding: '0 14px', gap: '5px', display: 'flex', alignItems: 'center', cursor: 'pointer' }}
                     >
                       <ExternalLink size={13} />
                       <span>Open</span>
-                    </a>
+                    </button>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <input
@@ -1451,7 +1491,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                   <p style={{ fontSize: '12px', color: '#475569', margin: '0 0 8px' }}>
                     Enter customer's Gmail or company email to mail them their personalized negotiation & one-click confirmation link:
                   </p>
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
                     <input
                       type="email"
                       className="form-input"
@@ -1472,6 +1512,16 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                       <span>{sendingPortal ? 'Sending…' : 'Send to Customer'}</span>
                     </button>
                   </div>
+                  <button
+                    type="button"
+                    className="btn-dash-secondary"
+                    onClick={handleOpenCustomerPortal}
+                    disabled={sendingPortal}
+                    style={{ width: '100%', height: '36px', fontSize: '12.5px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
+                  >
+                    <ExternalLink size={13} />
+                    <span>Open Customer Negotiation Screen Directly</span>
+                  </button>
                 </div>
               )}
             </div>
