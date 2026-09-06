@@ -106,15 +106,16 @@ export const listQuotations = async (adminId, role) => {
       } catch (e) {}
     }
 
-    if (!customerEmail && !customerName) {
-      return [];
-    }
+    const emailHandle = customerEmail ? customerEmail.split("@")[0] : null;
 
-    query.whereRaw("LOWER(COALESCE(q.stage, '')) NOT IN ('draft')");
     query.where(function() {
       if (customerEmail) {
         this.whereRaw("LOWER(COALESCE(q.customer_email, '')) = ?", [customerEmail])
-            .orWhereRaw("LOWER(COALESCE(q.portal_customer_email, '')) = ?", [customerEmail]);
+            .orWhereRaw("LOWER(COALESCE(q.portal_customer_email, '')) = ?", [customerEmail])
+            .orWhereRaw("LOWER(COALESCE(q.customer_email, '')) LIKE ?", [`%${customerEmail}%`]);
+      }
+      if (emailHandle && emailHandle.length > 2) {
+        this.orWhereRaw("LOWER(COALESCE(q.customer_name, '')) LIKE ?", [`%${emailHandle}%`]);
       }
       if (customerName) {
         this.orWhereRaw("LOWER(COALESCE(q.customer_name, '')) LIKE ?", [`%${customerName}%`]);

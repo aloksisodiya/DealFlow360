@@ -42,7 +42,7 @@ import './Subscriptions.css';
  * 
  * Displays full details of all current enrolled subscribers per warranty plan.
  */
-export const WARRANTY_PLANS = [
+export const DEFAULT_WARRANTY_PLANS = [
   {
     id: 'plan-3m',
     tier: '3 Months',
@@ -50,8 +50,8 @@ export const WARRANTY_PLANS = [
     shortName: '3 Months Plan',
     durationMonths: 3,
     durationLabel: '3 Months Protection',
-    price: 2999,
-    priceFormatted: '₹2,999',
+    price: 1500,
+    priceFormatted: '₹1,500',
     unitLabel: '/ product unit',
     badge: 'Quarterly Protection',
     badgeClass: 'badge-blue',
@@ -72,8 +72,8 @@ export const WARRANTY_PLANS = [
     shortName: '6 Months Plan',
     durationMonths: 6,
     durationLabel: '6 Months Protection',
-    price: 5499,
-    priceFormatted: '₹5,499',
+    price: 3000,
+    priceFormatted: '₹3,000',
     unitLabel: '/ product unit',
     badge: 'Half-Year Care',
     badgeClass: 'badge-purple',
@@ -94,8 +94,8 @@ export const WARRANTY_PLANS = [
     shortName: '12 Months Plan',
     durationMonths: 12,
     durationLabel: 'Full Year Care (Best Value)',
-    price: 9999,
-    priceFormatted: '₹9,999',
+    price: 5000,
+    priceFormatted: '₹5,000',
     unitLabel: '/ product unit',
     badge: '★ Best Value / Full Year',
     badgeClass: 'badge-amber',
@@ -111,6 +111,34 @@ export const WARRANTY_PLANS = [
   }
 ];
 
+export function getDynamicWarrantyPlans(products = []) {
+  return DEFAULT_WARRANTY_PLANS.map(plan => {
+    const prod = (products || []).find(p => {
+      const pSku = String(p.sku || '').toUpperCase();
+      const pName = String(p.name || '').toLowerCase();
+      if (plan.tier === '3 Months' && (pSku.includes('3M') || pName.includes('3-month') || pName.includes('3 month') || pName.includes('3m'))) return true;
+      if (plan.tier === '6 Months' && (pSku.includes('6M') || pName.includes('6-month') || pName.includes('6 month') || pName.includes('6m'))) return true;
+      if (plan.tier === '12 Months' && (pSku.includes('12M') || pName.includes('12-month') || pName.includes('12 month') || pName.includes('12m') || pName.includes('1 year'))) return true;
+      return false;
+    });
+
+    if (prod && prod.price !== undefined && prod.price !== null) {
+      const livePrice = Number(prod.price);
+      return {
+        ...plan,
+        productId: prod.id,
+        name: prod.name || plan.name,
+        price: livePrice,
+        priceFormatted: `₹${livePrice.toLocaleString('en-IN')}`,
+        description: prod.description || plan.description
+      };
+    }
+    return plan;
+  });
+}
+
+export const WARRANTY_PLANS = DEFAULT_WARRANTY_PLANS;
+
 export default function Subscriptions({ user, onNavigate, onLogout }) {
   const [toastMessage, setToastMessage] = useState(null);
   const showToast = (msg) => {
@@ -123,6 +151,8 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
   const [customerQuotes, setCustomerQuotes] = useState([]);
   const [availableProducts, setAvailableProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const warrantyPlans = getDynamicWarrantyPlans(availableProducts);
 
   // Filters & Tabs
   const [activePlanTab, setActivePlanTab] = useState('all'); // 'all' | '3 Months' | '6 Months' | '12 Months'
@@ -143,6 +173,8 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
   const [newUnitQty, setNewUnitQty] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const isCustomerUser = String(user?.role || '').toLowerCase().includes('customer');
+
   const loadData = async () => {
     try {
       setIsLoading(true);
@@ -152,25 +184,23 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
         fetchProducts().catch(() => [])
       ]);
 
-      setAvailableProducts(prodsData || []);
+      const currentProds = prodsData || [];
+      setAvailableProducts(currentProds);
+      const livePlans = getDynamicWarrantyPlans(currentProds);
 
-      const isCustomerUser = String(user?.role || '').toLowerCase().includes('customer');
       const userEmail = String(user?.email || '').toLowerCase().trim();
       const userName = String(user?.name || '').toLowerCase().trim();
       const userHandle = userEmail ? userEmail.split('@')[0] : '';
 
       // Filter quotations
       const nonDraftQuotes = (quotesData || []).filter(q => {
-        const stage = String(q.stage || q.status || '').toLowerCase().replace(/[\s_-]+/g, '');
-        if (stage === 'draft') return false;
-
         if (isCustomerUser) {
           const qEmail = String(q.customer_email || q.customerEmail || q.portal_customer_email || '').toLowerCase().trim();
           const qName = String(q.customer_name || q.client || q.customerName || '').toLowerCase().trim();
 
-          const emailMatch = userEmail && (qEmail === userEmail || qEmail.includes(userEmail));
+          const emailMatch = userEmail && (qEmail === userEmail || qEmail.includes(userEmail) || userEmail.includes(qEmail));
           const nameMatch = userName && qName && (qName.includes(userName) || userName.includes(qName));
-          const handleMatch = userHandle && qName && qName.includes(userHandle);
+          const handleMatch = userHandle && (qName.includes(userHandle) || qEmail.includes(userHandle));
 
           return emailMatch || nameMatch || handleMatch;
         }
@@ -185,9 +215,9 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
         const sCustName = String(s.customer || s.customer_name || '').toLowerCase().trim();
         const sCustEmail = String(s.customerEmail || s.customer_email || '').toLowerCase().trim();
 
-        if (userEmail && sCustEmail && sCustEmail === userEmail) return true;
+        if (userEmail && sCustEmail && (sCustEmail === userEmail || sCustEmail.includes(userEmail))) return true;
         if (userName && sCustName && (sCustName.includes(userName) || userName.includes(sCustName))) return true;
-        if (userHandle && sCustName && sCustName.includes(userHandle)) return true;
+        if (userHandle && (sCustName.includes(userHandle) || sCustEmail.includes(userHandle))) return true;
 
         return false;
       });
@@ -201,7 +231,7 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
         }
 
         const tierName = s.tier || (String(s.plan || '').includes('12') ? '12 Months' : String(s.plan || '').includes('6') ? '6 Months' : '3 Months');
-        const planObj = WARRANTY_PLANS.find(p => p.tier === tierName) || WARRANTY_PLANS[0];
+        const planObj = livePlans.find(p => p.tier === tierName) || livePlans[0];
 
         // Days remaining calculation
         let daysRemaining = 90;
@@ -291,7 +321,7 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
       return;
     }
 
-    const plan = WARRANTY_PLANS.find(p => p.tier === selectedPlanTier) || WARRANTY_PLANS[0];
+    const plan = warrantyPlans.find(p => p.tier === selectedPlanTier) || warrantyPlans[0];
     const prod = availableProducts.find(p => String(p.id) === String(selectedProdId));
 
     const prodName = prod ? prod.name : 'Enterprise Hardware';
@@ -350,7 +380,7 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
 
   const handleRenewWarranty = async (sub) => {
     try {
-      const plan = WARRANTY_PLANS.find(p => p.tier === sub.tier) || WARRANTY_PLANS[0];
+      const plan = warrantyPlans.find(p => p.tier === sub.tier) || warrantyPlans[0];
       const durationMs = plan.durationMonths * 30 * 24 * 60 * 60 * 1000;
       const newExpiry = new Date(Date.now() + durationMs).toISOString().split('T')[0];
 
@@ -453,7 +483,7 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
           </div>
 
           <div className="warranty-plans-grid">
-            {WARRANTY_PLANS.map((plan) => {
+            {warrantyPlans.map((plan) => {
               const enrolledList = subscriptions.filter(s => s.tier === plan.tier);
               const isTabActive = activePlanTab === plan.tier;
 
@@ -517,6 +547,139 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
             })}
           </div>
         </div>
+
+        {/* ── CUSTOMER PROPOSALS & QUOTATION NEGOTIATIONS SECTION ── */}
+        {(isCustomerUser || customerQuotes.length > 0) && (
+          <div className="warranty-plans-section" style={{ marginTop: '24px', marginBottom: '24px' }}>
+            <div className="section-title-wrap">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Layers size={20} color="#714b67" />
+                <h2 className="section-title">
+                  {isCustomerUser ? "Your Active Quotations & Negotiation Proposals" : `Customer Quotation Proposals (${customerQuotes.length})`}
+                </h2>
+              </div>
+              <span className="section-tagline">
+                Review tailored proposals, chat live with your account manager, and confirm orders with one click
+              </span>
+            </div>
+
+            {customerQuotes.length === 0 ? (
+              <div style={{ background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '12px', padding: '28px 20px', textAlign: 'center' }}>
+                <FileCheck size={30} color="#94a3b8" style={{ margin: '0 auto 8px' }} />
+                <h4 style={{ margin: '0 0 4px', fontSize: '15px', color: '#334155' }}>No Active Proposals Found</h4>
+                <p style={{ margin: 0, fontSize: '12.5px', color: '#64748b' }}>
+                  When your account manager creates and sends a quotation, you can review pricing, ask questions, and negotiate terms here.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+                {customerQuotes.map(q => {
+                  const portalUrl = q.portal_token ? `${window.location.origin}/portal/${q.portal_token}` : null;
+                  const discountPct = Number(q.discount_percent || q.discountPercent || 0);
+                  const totalAmt = Number(q.total_amount || q.totalAmount || q.amount || 0);
+                  const stage = q.stage || q.status || 'Active';
+
+                  return (
+                    <div key={q.id} style={{
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      padding: '18px',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between'
+                    }}>
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 700, color: '#714b67', background: '#faf5f8', padding: '3px 8px', borderRadius: '6px' }}>
+                            Quote #{q.id}
+                          </span>
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            padding: '3px 8px',
+                            borderRadius: '12px',
+                            background: stage.toLowerCase().includes('confirm') ? '#dcfce7' : stage.toLowerCase().includes('negoti') ? '#fef3c7' : '#e0f2fe',
+                            color: stage.toLowerCase().includes('confirm') ? '#166534' : stage.toLowerCase().includes('negoti') ? '#b45309' : '#0369a1'
+                          }}>
+                            ● {stage}
+                          </span>
+                        </div>
+
+                        <h4 style={{ margin: '0 0 6px', fontSize: '15px', color: '#0f172a', fontWeight: 700 }}>
+                          {q.customer_name || q.client || q.customerName || 'Valued Client'}
+                        </h4>
+                        <p style={{ margin: '0 0 12px', fontSize: '12.5px', color: '#64748b', lineHeight: 1.4 }}>
+                          {q.notes || q.desc || 'Custom Hardware & Platform Solution'}
+                        </p>
+
+                        <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', marginBottom: '14px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>
+                            <span>Quoted Net Total:</span>
+                            <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '14px' }}>
+                              ₹{totalAmt.toLocaleString('en-IN')}
+                            </span>
+                          </div>
+                          {discountPct > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: '#16a34a' }}>
+                              <span>Discount Applied:</span>
+                              <strong>{discountPct}% OFF</strong>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        {portalUrl ? (
+                          <a
+                            href={portalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn-new-plan"
+                            style={{
+                              flex: 1,
+                              height: '36px',
+                              fontSize: '12.5px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px',
+                              textDecoration: 'none'
+                            }}
+                          >
+                            <ExternalLink size={13} />
+                            <span>Open Negotiation Portal</span>
+                          </a>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn-new-plan"
+                            onClick={() => {
+                              if (onNavigate) onNavigate('quotations');
+                            }}
+                            style={{
+                              flex: 1,
+                              height: '36px',
+                              fontSize: '12.5px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px'
+                            }}
+                          >
+                            <ExternalLink size={13} />
+                            <span>View Proposal</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── CURRENT SUBSCRIBERS TABLE SECTION ── */}
         <div className="warranty-subscribers-section">

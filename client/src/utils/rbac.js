@@ -20,8 +20,9 @@ export function normalizeRole(role) {
 
 export const ROLE_PERMISSIONS = {
   // Customer:
-  // - Direct access to active subscriptions, recurring billing details, and customer portal
+  // - Direct access to active proposals & quotations, subscriptions, recurring billing details, and customer portal
   customer: [
+    'quotations',
     'subscriptions',
     'invoices'
   ],
