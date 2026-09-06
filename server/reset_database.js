@@ -12,6 +12,9 @@ async function resetAndSequenceDatabase() {
   try {
     console.log("1. Dropping existing tables cleanly in foreign-key dependency order...");
     await k.raw(`
+      DROP TABLE IF EXISTS "portal_line_comments" CASCADE;
+      DROP TABLE IF EXISTS "portal_messages" CASCADE;
+      DROP TABLE IF EXISTS "deal_health_rules" CASCADE;
       DROP TABLE IF EXISTS "recent_activities" CASCADE;
       DROP TABLE IF EXISTS "deal_health_alerts" CASCADE;
       DROP TABLE IF EXISTS "credit_notes" CASCADE;

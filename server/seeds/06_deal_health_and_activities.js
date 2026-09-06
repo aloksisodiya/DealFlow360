@@ -5,6 +5,18 @@
  * @returns { Promise<void> }
  */
 export async function seed(knex) {
+  // 0. Deal Health Rules
+  const existingRules = await knex("deal_health_rules").where({ id: "default" }).first();
+  if (!existingRules) {
+    await knex("deal_health_rules").insert({
+      id: "default",
+      max_discount_threshold: 15.0,
+      idle_days_threshold: 7,
+      delivery_sla_buffer: 3,
+      auto_nudge_enabled: true,
+    });
+  }
+
   // 1. Deal Health Alerts
   await knex("deal_health_alerts").del();
   await knex("deal_health_alerts").insert([
