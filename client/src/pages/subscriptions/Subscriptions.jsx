@@ -3,85 +3,163 @@ import {
   Upload, 
   Plus, 
   Search, 
-  MoreVertical, 
   CheckCircle2, 
   X, 
-  FileText, 
-  Layers, 
-  Clock, 
   ShieldCheck, 
   Calendar, 
-  CreditCard, 
-  DollarSign, 
   AlertTriangle,
   Play,
   Pause,
   Filter,
   RefreshCw,
-  Sliders,
-  ChevronDown,
-  ChevronLeft,
+  Clock,
+  Package,
+  Award,
+  FileCheck,
+  Printer,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  ChevronLeft,
+  Sliders,
+  Check,
+  Sparkles,
+  Layers,
+  HardDrive
 } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
 import { fetchSubscriptions, createSubscription, updateSubscriptionStatus } from '../../services/subscriptionService';
 import { fetchQuotations } from '../../services/quotationService';
+import { fetchProducts } from '../../services/productService';
 import './Subscriptions.css';
 
+/**
+ * DealFlow360 - Product Warranty Extension Subscriptions
+ * 
+ * Focused on 3 specific warranty extension tiers:
+ * 1. 3 Months Hardware Extended Warranty (₹2,999)
+ * 2. 6 Months Extended Care Warranty (₹5,499)
+ * 3. 12 Months Comprehensive Full Care Warranty (₹9,999)
+ * 
+ * Displays full details of all current enrolled subscribers per warranty plan.
+ */
+export const WARRANTY_PLANS = [
+  {
+    id: 'plan-3m',
+    tier: '3 Months',
+    name: '3-Month Hardware Extended Warranty',
+    shortName: '3 Months Plan',
+    durationMonths: 3,
+    durationLabel: '3 Months Protection',
+    price: 2999,
+    priceFormatted: '₹2,999',
+    unitLabel: '/ product unit',
+    badge: 'Quarterly Protection',
+    badgeClass: 'badge-blue',
+    description: 'Essential component and diagnostic coverage for fast-paced project rollouts and temporary hardware deployments.',
+    features: [
+      'Express 48-hour parts replacement SLA',
+      'Phone & chat technical diagnostics support',
+      'Free inbound & outbound return courier shipping',
+      'Zero labor diagnostic and repair charges',
+      'Genuine OEM spare component guarantee'
+    ],
+    recommendedFor: 'Short-term deployments, pilot rollouts, and accessories'
+  },
+  {
+    id: 'plan-6m',
+    tier: '6 Months',
+    name: '6-Month Extended Care Warranty',
+    shortName: '6 Months Plan',
+    durationMonths: 6,
+    durationLabel: '6 Months Protection',
+    price: 5499,
+    priceFormatted: '₹5,499',
+    unitLabel: '/ product unit',
+    badge: 'Half-Year Care',
+    badgeClass: 'badge-purple',
+    description: 'Extended component, motherboard, and optical transceiver protection with regional hub spare stocking.',
+    features: [
+      '24-hour priority dispatch from regional warehouse hubs',
+      'Full motherboard, screen & optical component coverage',
+      'Bi-monthly automated health check & telemetry diagnostics',
+      'Free firmware flashing & recalibration services',
+      'Dedicated technical account coordinator'
+    ],
+    recommendedFor: 'Mid-sized office servers, executive laptops, and core switches'
+  },
+  {
+    id: 'plan-12m',
+    tier: '12 Months',
+    name: '12-Month Comprehensive Full Care Warranty',
+    shortName: '12 Months Plan',
+    durationMonths: 12,
+    durationLabel: 'Full Year Care (Best Value)',
+    price: 9999,
+    priceFormatted: '₹9,999',
+    unitLabel: '/ product unit',
+    badge: '★ Best Value / Full Year',
+    badgeClass: 'badge-amber',
+    description: 'Bumper-to-bumper VIP warranty with same-day onsite engineer dispatch across 12 Indian metros and annual overhaul kit.',
+    features: [
+      'Same-day onsite technician replacement SLA (12 Metros)',
+      '100% component uptime guarantee with advance hardware replacement',
+      'Free annual preventive maintenance & thermal overhaul kit',
+      'Direct Level-3 engineering hotline & dedicated TAM',
+      'Accidental damage protection & power-surge coverage'
+    ],
+    recommendedFor: 'Mission-critical enterprise server racks, core infrastructure & high-value hardware'
+  }
+];
+
 export default function Subscriptions({ user, onNavigate, onLogout }) {
-  // Toast notifications
   const [toastMessage, setToastMessage] = useState(null);
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Live Subscriptions & Quotations List State from PostgreSQL database
+  // State
   const [subscriptions, setSubscriptions] = useState([]);
   const [customerQuotes, setCustomerQuotes] = useState([]);
+  const [availableProducts, setAvailableProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Filters & Search State
-  const [activeFilterPill, setActiveFilterPill] = useState('all');
-  const [filterActiveOnly, setFilterActiveOnly] = useState(false);
+  // Filters & Tabs
+  const [activePlanTab, setActivePlanTab] = useState('all'); // 'all' | '3 Months' | '6 Months' | '12 Months'
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'Active' | 'Expiring Soon' | 'Paused'
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCycle, setSelectedCycle] = useState('all');
-  const [currentPage, setCurrentPage] = useState(1);
 
-  // Modals & Active item state
-  const [activeModal, setActiveModal] = useState(null);
-  const [selectedSub, setSelectedSub] = useState(null);
-  const [footerModalType, setFooterModalType] = useState('');
-  const [openActionMenuId, setOpenActionMenuId] = useState(null);
+  // Modals
+  const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
+  const [certificateSub, setCertificateSub] = useState(null);
+  const [renewSub, setRenewSub] = useState(null);
 
-  // New Plan Blueprint Form State
-  const [newCustomer, setNewCustomer] = useState('');
-  const [newPlanName, setNewPlanName] = useState('Enterprise Tier Pro');
-  const [newPlanCycle, setNewPlanCycle] = useState('Monthly');
-  const [newPlanAmount, setNewPlanAmount] = useState(3500);
-  const [newPlanSeats, setNewPlanSeats] = useState(20);
+  // Form State for Enrolling New Warranty Subscriber
+  const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerEmail, setNewCustomerEmail] = useState('');
+  const [selectedPlanTier, setSelectedPlanTier] = useState('12 Months');
+  const [selectedProdId, setSelectedProdId] = useState('');
+  const [newSerialNumbers, setNewSerialNumbers] = useState('');
+  const [newUnitQty, setNewUnitQty] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Edit Subscription in Manage Modal
-  const [editSeats, setEditSeats] = useState(24);
-  const [editAmount, setEditAmount] = useState(4200);
-
-  const loadSubscriptions = async () => {
+  const loadData = async () => {
     try {
       setIsLoading(true);
-      const [data, quotesData] = await Promise.all([
-        fetchSubscriptions({
-          status: activeFilterPill === 'all' ? undefined : activeFilterPill,
-          search: searchQuery || undefined
-        }),
-        fetchQuotations().catch(() => [])
+      const [subsData, quotesData, prodsData] = await Promise.all([
+        fetchSubscriptions({ search: searchQuery || undefined }),
+        fetchQuotations().catch(() => []),
+        fetchProducts().catch(() => [])
       ]);
+
+      setAvailableProducts(prodsData || []);
 
       const isCustomerUser = String(user?.role || '').toLowerCase().includes('customer');
       const userEmail = String(user?.email || '').toLowerCase().trim();
       const userName = String(user?.name || '').toLowerCase().trim();
       const userHandle = userEmail ? userEmail.split('@')[0] : '';
 
+      // Filter quotations
       const nonDraftQuotes = (quotesData || []).filter(q => {
         const stage = String(q.stage || q.status || '').toLowerCase().replace(/[\s_-]+/g, '');
         if (stage === 'draft') return false;
@@ -101,7 +179,8 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
       });
       setCustomerQuotes(nonDraftQuotes);
 
-      const filteredSubs = (data || []).filter(s => {
+      // Filter and format subscriptions
+      const filteredSubs = (subsData || []).filter(s => {
         if (!isCustomerUser) return true;
         const sCustName = String(s.customer || s.customer_name || '').toLowerCase().trim();
         const sCustEmail = String(s.customerEmail || s.customer_email || '').toLowerCase().trim();
@@ -113,150 +192,174 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
         return false;
       });
 
-      const formatted = filteredSubs.map(s => ({
-        id: s.code || s.id,
-        realId: s.id,
-        customer: s.customer,
-        avatar: s.customer.slice(0, 2).toUpperCase(),
-        avatarColor: s.status === 'Active' ? 'gray' : s.status === 'Paused' ? 'amber' : 'red',
-        plan: s.plan,
-        planSub: `${s.tier} Tier • ${s.seats} Seats`,
-        cycle: s.billingCycle,
-        nextBill: s.status === 'Paused' ? 'Billing Paused' : s.nextBillingDate,
-        nextBillSub: s.status === 'Active' ? 'Auto-debit active' : s.status,
-        status: s.status,
-        amount: Number(s.amount),
-        unit: s.billingCycle === 'Annual' ? '/ yr' : '/ mo',
-        seats: s.seats,
-        churnProbability: s.status === 'Active' ? 'Low (1.2%)' : 'Attention Required',
-        paymentMethod: 'Corporate Direct Billing',
-        createdDate: s.startDate || s.createdAt,
-        prorationPolicy: 'Pro-rata on mid-month changes',
-        auditHistory: s.auditLogs && s.auditLogs.length > 0 ? s.auditLogs : [
-          { date: s.startDate || '2026-01-01', action: 'Subscription Initialized' }
-        ]
-      }));
+      const formatted = filteredSubs.map(s => {
+        let feat = {};
+        if (typeof s.features === 'object' && s.features !== null && !Array.isArray(s.features)) {
+          feat = s.features;
+        } else if (typeof s.features === 'string') {
+          try { feat = JSON.parse(s.features); } catch (e) { feat = {}; }
+        }
+
+        const tierName = s.tier || (String(s.plan || '').includes('12') ? '12 Months' : String(s.plan || '').includes('6') ? '6 Months' : '3 Months');
+        const planObj = WARRANTY_PLANS.find(p => p.tier === tierName) || WARRANTY_PLANS[0];
+
+        // Days remaining calculation
+        let daysRemaining = 90;
+        if (s.nextBillingDate) {
+          const diffMs = new Date(s.nextBillingDate) - new Date();
+          daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+        }
+
+        const status = s.status === 'Active' && daysRemaining <= 20 ? 'Expiring Soon' : s.status;
+
+        const productName = feat.productName || s.plan || 'Hardware Product';
+        const productSku = feat.productSku || 'SKU-GEN-HDW';
+        const warehouseHub = feat.warehouseHub || 'Mumbai Central Hub';
+        const serialNumbers = Array.isArray(feat.serialNumbers) ? feat.serialNumbers : feat.serialNumbers ? [feat.serialNumbers] : [`SN-${s.code || s.id}`];
+
+        return {
+          id: s.code || s.id,
+          realId: s.id,
+          customer: s.customer,
+          customerEmail: s.customerEmail,
+          tier: tierName,
+          planName: s.plan || planObj.name,
+          planObj,
+          amount: Number(s.amount),
+          mrr: Number(s.mrr),
+          billingCycle: s.billingCycle || tierName,
+          status,
+          rawStatus: s.status,
+          startDate: s.startDate ? new Date(s.startDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent',
+          expiryDate: s.nextBillingDate ? new Date(s.nextBillingDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : 'In 90 days',
+          daysRemaining,
+          seats: s.seats || 1,
+          productName,
+          productSku,
+          warehouseHub,
+          serialNumbers,
+          coverageScope: feat.coverageScope || planObj.description,
+          auditHistory: s.auditLogs || []
+        };
+      });
 
       setSubscriptions(formatted);
     } catch (err) {
-      showToast('Failed to load subscriptions from database');
+      console.error('Failed to load warranty subscriptions:', err);
+      showToast('Failed to load warranty subscriptions from database');
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadSubscriptions();
-  }, [activeFilterPill, searchQuery]);
+    loadData();
+  }, [searchQuery]);
 
-  // Filter calculation
-  const filteredSubscriptions = subscriptions.filter(sub => {
-    if (activeFilterPill !== 'all' && sub.status !== activeFilterPill) return false;
-    if (filterActiveOnly && sub.status !== 'Active') return false;
-    if (selectedCycle !== 'all' && sub.cycle !== selectedCycle) return false;
+  // Calculations
+  const subs3M = subscriptions.filter(s => s.tier === '3 Months');
+  const subs6M = subscriptions.filter(s => s.tier === '6 Months');
+  const subs12M = subscriptions.filter(s => s.tier === '12 Months');
+
+  const totalRevenue = subscriptions.reduce((sum, s) => sum + s.amount, 0);
+  const activeCount = subscriptions.filter(s => s.rawStatus === 'Active').length;
+  const expiringCount = subscriptions.filter(s => s.status === 'Expiring Soon').length;
+  const pausedCount = subscriptions.filter(s => s.rawStatus === 'Paused').length;
+
+  // Filtered List for Table
+  const displaySubscriptions = subscriptions.filter(sub => {
+    if (activePlanTab !== 'all' && sub.tier !== activePlanTab) return false;
+    if (statusFilter !== 'all' && sub.status !== statusFilter) return false;
     return true;
   });
 
-  // Count stats
-  const activeCount = subscriptions.filter(s => s.status === 'Active').length;
-  const pausedCount = subscriptions.filter(s => s.status === 'Paused').length;
-  const cancelledCount = subscriptions.filter(s => s.status === 'Cancelled').length;
-
-  const handleOpenManage = (sub) => {
-    setSelectedSub(sub);
-    setEditSeats(sub.seats || 10);
-    setEditAmount(sub.amount || 1000);
-    setActiveModal('manage');
+  const handleToggleStatus = async (sub) => {
+    const nextStatus = sub.rawStatus === 'Active' ? 'Paused' : 'Active';
+    try {
+      await updateSubscriptionStatus(sub.realId, nextStatus, user?.name || 'Sales Rep');
+      showToast(`Warranty ${sub.id} status changed to ${nextStatus}!`);
+      await loadData();
+    } catch (err) {
+      showToast(err.message || 'Failed to update warranty status');
+    }
   };
 
-  const handleOpenAudit = (sub) => {
-    setSelectedSub(sub);
-    setActiveModal('audit');
-  };
-
-  const handleOpenPortal = (sub) => {
-    const targetToken = sub?.portalToken || 'f3098be5-6b5c-4870-a877-50d84c62cc68';
-    showToast(`Launching Customer Portal for ${sub?.customer || 'Account'}...`);
-    window.open(`/portal/${targetToken}`, '_blank');
-  };
-
-  const handleSaveManageChanges = async (e) => {
+  const handleEnrollSubscriber = async (e) => {
     e.preventDefault();
-    if (!selectedSub) return;
-    try {
-      showToast(`Billing details and seat allocations updated for ${selectedSub.id}!`);
-      setActiveModal(null);
-      await loadSubscriptions();
-    } catch (err) {
-      showToast(err.message || 'Failed to update subscription');
-    }
-  };
-
-  const handleResumeSubscription = async (sub) => {
-    try {
-      await updateSubscriptionStatus(sub.realId || sub.id, 'Active');
-      showToast(`Subscription ${sub.id} resumed in database!`);
-      await loadSubscriptions();
-    } catch (err) {
-      showToast(err.message || 'Failed to resume subscription');
-    }
-  };
-
-  const handlePauseSubscription = async (sub) => {
-    try {
-      await updateSubscriptionStatus(sub.realId || sub.id, 'Paused');
-      showToast(`Subscription ${sub.id} paused in database!`);
-      await loadSubscriptions();
-    } catch (err) {
-      showToast(err.message || 'Failed to pause subscription');
-    }
-  };
-
-  const handleExportCSV = () => {
-    const headers = ['ID', 'Customer', 'Plan', 'Cycle', 'Amount', 'Status', 'Next Bill', 'Seats'];
-    const rows = subscriptions.map(s => [
-      s.id,
-      s.customer,
-      s.plan,
-      s.cycle,
-      s.amount,
-      s.status,
-      s.nextBill,
-      s.seats
-    ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' +
-      [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `DealFlow360_Subscriptions_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast('Subscriptions exported as CSV!');
-  };
-
-  const handleCreateNewBlueprint = async (e) => {
-    e.preventDefault();
-    if (!newCustomer.trim()) {
-      showToast('Please enter customer name.');
+    if (!newCustomerName.trim()) {
+      showToast('Please enter subscriber/company name.');
       return;
     }
 
+    const plan = WARRANTY_PLANS.find(p => p.tier === selectedPlanTier) || WARRANTY_PLANS[0];
+    const prod = availableProducts.find(p => String(p.id) === String(selectedProdId));
+
+    const prodName = prod ? prod.name : 'Enterprise Hardware';
+    const prodSku = prod ? prod.sku : 'SKU-HDW-ENT';
+    const qty = Number(newUnitQty) || 1;
+    const totalAmount = plan.price * qty;
+
+    const serials = newSerialNumbers
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    const fallbackSerials = serials.length > 0 
+      ? serials 
+      : Array.from({ length: qty }, (_, i) => `SN-${prodSku.slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`);
+
+    setIsSubmitting(true);
     try {
+      const durationMs = plan.durationMonths * 30 * 24 * 60 * 60 * 1000;
+      const expiryDateStr = new Date(Date.now() + durationMs).toISOString().split('T')[0];
+
       await createSubscription({
-        customer: newCustomer.trim(),
-        plan: newPlanName,
-        billingCycle: newPlanCycle,
-        amount: Number(newPlanAmount),
-        seats: Number(newPlanSeats) || 10
+        customer: newCustomerName.trim(),
+        customerEmail: newCustomerEmail.trim() || undefined,
+        tier: plan.tier,
+        plan: plan.name,
+        billingCycle: plan.tier,
+        amount: totalAmount,
+        seats: qty,
+        status: 'Active',
+        nextBillingDate: expiryDateStr,
+        features: {
+          productName: prodName,
+          productSku: prodSku,
+          warrantyDuration: plan.tier,
+          coverageScope: plan.description,
+          warehouseHub: 'Mumbai Central Hub',
+          serialNumbers: fallbackSerials
+        }
       });
-      setActiveModal(null);
-      setNewCustomer('');
-      showToast('New subscription contract created in database!');
-      await loadSubscriptions();
+
+      showToast(`Enrolled ${newCustomerName} in ${plan.name}!`);
+      setIsEnrollModalOpen(false);
+      setNewCustomerName('');
+      setNewCustomerEmail('');
+      setSelectedProdId('');
+      setNewSerialNumbers('');
+      setNewUnitQty(1);
+      await loadData();
     } catch (err) {
-      showToast(err.message || 'Failed to create subscription');
+      showToast(err.message || 'Failed to enroll warranty subscriber');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRenewWarranty = async (sub) => {
+    try {
+      const plan = WARRANTY_PLANS.find(p => p.tier === sub.tier) || WARRANTY_PLANS[0];
+      const durationMs = plan.durationMonths * 30 * 24 * 60 * 60 * 1000;
+      const newExpiry = new Date(Date.now() + durationMs).toISOString().split('T')[0];
+
+      await updateSubscriptionStatus(sub.realId, 'Active', user?.name || 'Sales Rep');
+      showToast(`Warranty ${sub.id} renewed for another ${sub.tier}! New Expiry: ${newExpiry}`);
+      setRenewSub(null);
+      await loadData();
+    } catch (err) {
+      showToast(err.message || 'Failed to renew warranty');
     }
   };
 
@@ -281,963 +384,646 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
         onToast={showToast}
       />
 
-      {/* Main Subscriptions Page Content */}
       <main className="subscriptions-main animate-fade-in">
-
-        {/* Category kicker & Title Row */}
+        
+        {/* Page Header */}
         <div className="subscriptions-header-row">
           <div className="subscriptions-title-group">
-            <div className="subscriptions-kicker">Recurring Revenue • Contracts Engine</div>
-            <h1 className="subscriptions-title">Subscriptions (List)</h1>
+            <div className="subscriptions-kicker">Extended Care & Hardware Protection</div>
+            <h1 className="subscriptions-title">Product Warranty Subscriptions</h1>
             <p className="subscriptions-subtitle">
-              Every recurring plan across every customer, regardless of which order it came from
+              Active warranty extension plans (3M, 6M & 12M) with live customer subscriber details and regional hub dispatch SLAs
             </p>
           </div>
 
           <div className="subscriptions-actions-group">
             <button 
-              className="btn-export-subs"
-              onClick={handleExportCSV}
-              title="Download subscriptions list as CSV"
-            >
-              <Upload size={15} style={{ transform: 'rotate(180deg)' }} />
-              <span>Export CSV</span>
-            </button>
-
-            <button 
               className="btn-new-plan"
-              onClick={() => setActiveModal('newPlan')}
+              onClick={() => setIsEnrollModalOpen(true)}
             >
               <Plus size={16} />
-              <span>New Plan (Admin)</span>
+              <span>Enroll New Warranty Subscriber</span>
             </button>
           </div>
         </div>
 
-        {/* Customer Quotations & Counter Proposals Slidable Banner Section */}
-        {customerQuotes && customerQuotes.length > 0 && (
-          <div style={{
-            background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
-            borderRadius: '12px',
-            padding: '18px 22px',
-            marginBottom: '22px',
-            color: '#ffffff',
-            boxShadow: '0 8px 24px rgba(49, 46, 129, 0.25)',
-            border: '1px solid rgba(255, 255, 255, 0.1)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-              <div>
-                <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 800, color: '#a5b4fc' }}>
-                  CUSTOMER QUOTATIONS & PROPOSALS
-                </div>
-                <h3 style={{ fontSize: '17px', fontWeight: 800, margin: '2px 0 0 0', color: '#ffffff' }}>
-                  Active Quotations & Commercial Proposals ({customerQuotes.length})
-                </h3>
-              </div>
-
-              {/* Slidable Carousel Navigation Arrows */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '11.5px', color: '#cbd5e1', fontWeight: 600 }}>
-                  Showing All {customerQuotes.length} Proposals (Slide ➔)
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const el = document.getElementById('cust-quotes-carousel');
-                    if (el) el.scrollBy({ left: -320, behavior: 'smooth' });
-                  }}
-                  style={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-                    color: '#ffffff',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    borderRadius: '6px',
-                    width: '32px',
-                    height: '32px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer'
-                  }}
-                  title="Slide Left"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const el = document.getElementById('cust-quotes-carousel');
-                    if (el) el.scrollBy({ left: 320, behavior: 'smooth' });
-                  }}
-                  style={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-                    color: '#ffffff',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    borderRadius: '6px',
-                    width: '32px',
-                    height: '32px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer'
-                  }}
-                  title="Slide Right"
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
+        {/* 4 Metric Pill Cards */}
+        <div className="warranty-metrics-bar">
+          <div className="metric-pill-card">
+            <div className="metric-pill-info">
+              <span className="metric-pill-label">Total Warranty Revenue</span>
+              <span className="metric-pill-value green">₹{totalRevenue.toLocaleString('en-IN')}</span>
             </div>
+            <span className="metric-dot green"></span>
+          </div>
 
-            {/* Slidable Horizontal Cards Carousel Container */}
-            <div
-              id="cust-quotes-carousel"
-              style={{
-                display: 'flex',
-                gap: '14px',
-                overflowX: 'auto',
-                scrollBehavior: 'smooth',
-                paddingBottom: '8px',
-                WebkitOverflowScrolling: 'touch',
-                scrollbarWidth: 'thin'
-              }}
-            >
-              {customerQuotes.map(q => {
-                const total = Number(q.total_amount || q.amount || 0);
-                const discPct = Number(q.discount_percent || q.discountPercent || 0);
-                const base = Number(q.base_amount || q.baseAmount || (discPct > 0 && discPct < 100 ? total / (1 - discPct / 100) : total));
-                const savings = Math.max(0, base - total);
+          <div className="metric-pill-card">
+            <div className="metric-pill-info">
+              <span className="metric-pill-label">3-Month Subscribers</span>
+              <span className="metric-pill-value blue">{subs3M.length} Active ({subs3M.reduce((s, i) => s + i.seats, 0)} units)</span>
+            </div>
+            <span className="metric-dot blue"></span>
+          </div>
 
-                const rawRole = String(q.owner_role || q.ownerRole || '').toLowerCase();
-                const ownerEmail = q.owner_email || q.ownerEmail || '';
-                const isManager = rawRole.includes('manager') || rawRole.includes('approver') || ownerEmail.includes('rjav');
-                const ownerRoleTitle = isManager ? 'Sales Manager' : (rawRole.includes('admin') ? 'Platform Admin' : 'Sales Representative');
-                let ownerName = ownerEmail ? ownerEmail.split('@')[0] : (q.owner || 'Sales Executive');
-                ownerName = ownerName.charAt(0).toUpperCase() + ownerName.slice(1);
+          <div className="metric-pill-card">
+            <div className="metric-pill-info">
+              <span className="metric-pill-label">6-Month Subscribers</span>
+              <span className="metric-pill-value purple">{subs6M.length} Active ({subs6M.reduce((s, i) => s + i.seats, 0)} units)</span>
+            </div>
+            <span className="metric-dot purple"></span>
+          </div>
 
-                return (
-                  <div
-                    key={q.id}
-                    style={{
-                      minWidth: '310px',
-                      maxWidth: '320px',
-                      flexShrink: 0,
-                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                      backdropFilter: 'blur(10px)',
-                      borderRadius: '10px',
-                      padding: '16px',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between'
-                    }}
-                  >
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '13px', fontWeight: 800, color: '#e0e7ff' }}>{q.id}</span>
-                        <span style={{
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          padding: '3px 9px',
-                          borderRadius: '12px',
-                          backgroundColor: (q.stage || '').toLowerCase().includes('confirm') ? '#059669' : (q.stage || '').toLowerCase().includes('negoti') ? '#7c3aed' : '#d97706',
-                          color: '#ffffff'
-                        }}>
-                          {q.stage || 'Draft'}
-                        </span>
-                      </div>
+          <div className="metric-pill-card">
+            <div className="metric-pill-info">
+              <span className="metric-pill-label">12-Month Subscribers</span>
+              <span className="metric-pill-value amber">{subs12M.length} Active ({subs12M.reduce((s, i) => s + i.seats, 0)} units)</span>
+            </div>
+            <span className="metric-dot amber"></span>
+          </div>
+        </div>
 
-                      <div style={{ fontSize: '14.5px', fontWeight: 700, color: '#ffffff', marginBottom: '6px' }}>
-                        {q.customer_name || q.client || 'Enterprise Quotation'}
-                      </div>
+        {/* ── 3 DEDICATED WARRANTY SUBSCRIPTION PLANS ── */}
+        <div className="warranty-plans-section">
+          <div className="section-title-wrap">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShieldCheck size={20} color="#714b67" />
+              <h2 className="section-title">Available Warranty Extension Plans</h2>
+            </div>
+            <span className="section-tagline">3 Tiered Protection Plans Available Across All Products</span>
+          </div>
 
-                      {/* Pricing & Discount Savings Breakdown */}
-                      <div style={{ marginTop: '6px' }}>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                          <span style={{ fontSize: '20px', fontWeight: 800, color: '#38bdf8' }}>
-                            ₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </span>
-                          {discPct > 0 && base > total && (
-                            <span style={{ fontSize: '13px', textDecoration: 'line-through', color: '#94a3b8' }}>
-                              ₹{base.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                          )}
-                        </div>
+          <div className="warranty-plans-grid">
+            {WARRANTY_PLANS.map((plan) => {
+              const enrolledList = subscriptions.filter(s => s.tier === plan.tier);
+              const isTabActive = activePlanTab === plan.tier;
 
-                        {discPct > 0 ? (
-                          <div style={{
-                            fontSize: '11.5px',
-                            color: '#4ade80',
-                            fontWeight: 700,
-                            marginTop: '4px',
-                            background: 'rgba(74, 222, 128, 0.15)',
-                            border: '1px solid rgba(74, 222, 128, 0.3)',
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                            display: 'inline-block'
-                          }}>
-                            🏷️ {discPct}% Discount Applied (-₹{savings.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} savings)
-                          </div>
-                        ) : (
-                          <div style={{ fontSize: '11.5px', color: '#a5b4fc', marginTop: '4px' }}>
-                            Standard List Pricing
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Quoted By Owner Role Badge */}
-                      <div style={{
-                        fontSize: '11.5px',
-                        color: '#cbd5e1',
-                        marginTop: '10px',
-                        paddingTop: '8px',
-                        borderTop: '1px solid rgba(255, 255, 255, 0.1)'
-                      }}>
-                        👤 Quoted by: <strong style={{ color: '#ffffff' }}>{ownerName}</strong> ({ownerRoleTitle})
-                      </div>
-                    </div>
-
-                    {/* Action Button */}
-                    <div style={{ marginTop: '14px' }}>
-                      <button
-                        style={{
-                          width: '100%',
-                          backgroundColor: '#38bdf8',
-                          color: '#0f172a',
-                          border: 'none',
-                          borderRadius: '6px',
-                          padding: '8px 12px',
-                          fontSize: '12.5px',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px',
-                          boxShadow: '0 2px 6px rgba(56, 189, 248, 0.3)'
-                        }}
-                        onClick={() => {
-                          if (q.portal_token) {
-                            window.open(`/portal/${q.portal_token}`, '_blank');
-                          } else {
-                            showToast(`Opening proposal portal for ${q.id}...`);
-                            window.open(`/portal/f3098be5-6b5c-4870-a877-50d84c62cc68`, '_blank');
-                          }
-                        }}
-                      >
-                        <span>Open Proposal Portal</span>
-                        <ExternalLink size={13} />
-                      </button>
-                    </div>
+              return (
+                <div 
+                  key={plan.id} 
+                  className={`warranty-plan-card ${plan.tier === '12 Months' ? 'featured-plan' : ''} ${isTabActive ? 'selected-plan-border' : ''}`}
+                >
+                  <div className="plan-card-header">
+                    <span className={`plan-badge ${plan.badgeClass}`}>{plan.badge}</span>
+                    <span className="plan-subscribers-count">
+                      👥 <strong>{enrolledList.length}</strong> Current Subscribers
+                    </span>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
-        {/* Filter and Search Bar */}
-        <div className="subs-filter-bar">
-          {/* Left Pill Stats */}
-          <div className="subs-filter-pills-left">
-            <button 
-              className={`pill-stat active-pill ${activeFilterPill === 'Active' ? 'selected' : ''}`}
-              onClick={() => setActiveFilterPill(activeFilterPill === 'Active' ? 'all' : 'Active')}
-            >
-              <span className="subs-status-dot active"></span>
-              <span>{activeCount} Active</span>
-            </button>
+                  <h3 className="plan-name">{plan.name}</h3>
+                  <div className="plan-price-row">
+                    <span className="plan-price">{plan.priceFormatted}</span>
+                    <span className="plan-unit">{plan.unitLabel}</span>
+                  </div>
 
-            <button 
-              className={`pill-stat paused-pill ${activeFilterPill === 'Paused' ? 'selected' : ''}`}
-              onClick={() => setActiveFilterPill(activeFilterPill === 'Paused' ? 'all' : 'Paused')}
-            >
-              <span className="subs-status-dot paused"></span>
-              <span>{pausedCount} Paused</span>
-            </button>
+                  <p className="plan-desc">{plan.description}</p>
 
-            <button 
-              className={`pill-stat cancelled-pill ${activeFilterPill === 'Cancelled' ? 'selected' : ''}`}
-              onClick={() => setActiveFilterPill(activeFilterPill === 'Cancelled' ? 'all' : 'Cancelled')}
-            >
-              <span className="subs-status-dot cancelled"></span>
-              <span>{cancelledCount} Cancelled</span>
-            </button>
+                  <div className="plan-features-list">
+                    <div className="plan-features-label">Included Coverage Scope:</div>
+                    {plan.features.map((feat, idx) => (
+                      <div key={idx} className="plan-feature-item">
+                        <Check size={14} color="#16a34a" className="plan-check-icon" />
+                        <span>{feat}</span>
+                      </div>
+                    ))}
+                  </div>
 
-            <div className="subs-pill-divider"></div>
+                  <div className="plan-recommended-box">
+                    <strong>Recommended for:</strong> {plan.recommendedFor}
+                  </div>
 
-            <button 
-              className={`btn-filter-toggle ${filterActiveOnly ? 'active' : ''}`}
-              onClick={() => setFilterActiveOnly(!filterActiveOnly)}
-            >
-              <Filter size={13} />
-              <span>Filter: Active Only</span>
-            </button>
-          </div>
-
-          {/* Right Search & Cycle Dropdown */}
-          <div className="subs-filter-controls-right">
-            <div className="subs-search-box">
-              <Search size={14} className="subs-search-icon" />
-              <input 
-                type="text" 
-                className="subs-search-input"
-                placeholder="Search customer or plan..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-
-            <select 
-              className="subs-cycle-select"
-              value={selectedCycle}
-              onChange={(e) => setSelectedCycle(e.target.value)}
-            >
-              <option value="all">All Billing Cycles</option>
-              <option value="Monthly">Monthly</option>
-              <option value="Quarterly">Quarterly</option>
-              <option value="Annual">Annual</option>
-            </select>
+                  <div className="plan-card-footer">
+                    <button
+                      type="button"
+                      className={`btn-plan-action ${isTabActive ? 'active' : ''}`}
+                      onClick={() => {
+                        setActivePlanTab(activePlanTab === plan.tier ? 'all' : plan.tier);
+                      }}
+                    >
+                      {isTabActive ? (
+                        <>
+                          <Check size={14} />
+                          <span>Showing Enrolled Subscribers ({enrolledList.length})</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>View {plan.shortName} Subscribers ({enrolledList.length})</span>
+                          <ChevronRight size={14} />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Subscriptions Table Card */}
-        <div className="subs-table-card">
-          <div className="table-responsive">
-            <table className="subs-table">
-              <thead>
-                <tr>
-                  <th>Customer</th>
-                  <th>Plan</th>
-                  <th>Cycle</th>
-                  <th>Next Bill</th>
-                  <th>Status</th>
-                  <th>Recurring Value</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredSubscriptions.length === 0 ? (
+        {/* ── CURRENT SUBSCRIBERS TABLE SECTION ── */}
+        <div className="warranty-subscribers-section">
+          <div className="subscribers-header-row">
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Award size={18} color="#714b67" />
+                <h2 className="section-title">
+                  Current Warranty Subscribers Ledger ({displaySubscriptions.length})
+                </h2>
+              </div>
+              <p className="section-subtitle">
+                Comprehensive tracking of customer product serial numbers, warranty expiry dates, and replacement status
+              </p>
+            </div>
+
+            {/* Filter Tabs & Search */}
+            <div className="subscribers-controls">
+              <div className="plan-tabs-group">
+                <button
+                  className={`btn-plan-tab ${activePlanTab === 'all' ? 'active' : ''}`}
+                  onClick={() => setActivePlanTab('all')}
+                >
+                  All Plans ({subscriptions.length})
+                </button>
+                <button
+                  className={`btn-plan-tab ${activePlanTab === '3 Months' ? 'active' : ''}`}
+                  onClick={() => setActivePlanTab('3 Months')}
+                >
+                  3 Months ({subs3M.length})
+                </button>
+                <button
+                  className={`btn-plan-tab ${activePlanTab === '6 Months' ? 'active' : ''}`}
+                  onClick={() => setActivePlanTab('6 Months')}
+                >
+                  6 Months ({subs6M.length})
+                </button>
+                <button
+                  className={`btn-plan-tab ${activePlanTab === '12 Months' ? 'active' : ''}`}
+                  onClick={() => setActivePlanTab('12 Months')}
+                >
+                  12 Months ({subs12M.length})
+                </button>
+              </div>
+
+              <div className="search-and-status-wrap">
+                <div className="subs-search-box">
+                  <Search size={14} className="subs-search-icon" />
+                  <input
+                    type="text"
+                    className="subs-search-input"
+                    placeholder="Search subscriber, product, serial #..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+
+                <select
+                  className="subs-cycle-select"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="Active">Active Only</option>
+                  <option value="Expiring Soon">Expiring Soon (≤20 days)</option>
+                  <option value="Paused">Paused</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Subscribers Ledger Table */}
+          {displaySubscriptions.length === 0 ? (
+            <div className="empty-subscribers-box">
+              <ShieldCheck size={36} color="#94a3b8" />
+              <h3>No warranty subscribers found</h3>
+              <p>Try clearing your filters or enroll a new subscriber into a warranty plan.</p>
+              <button className="btn-new-plan" onClick={() => setIsEnrollModalOpen(true)}>
+                <Plus size={14} />
+                <span>Enroll First Subscriber</span>
+              </button>
+            </div>
+          ) : (
+            <div className="subscribers-table-card">
+              <table className="subscribers-table">
+                <thead>
                   <tr>
-                    <td colSpan="7" style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
-                      No subscriptions match your search or filter criteria.
-                    </td>
+                    <th>Warranty ID & Subscriber</th>
+                    <th>Covered Product & Serials</th>
+                    <th>Plan & Duration</th>
+                    <th>Warehouse Logistics Hub</th>
+                    <th>Validity Timeline</th>
+                    <th>Fee Paid</th>
+                    <th>Status</th>
+                    <th>Actions</th>
                   </tr>
-                ) : (
-                  filteredSubscriptions.map(sub => (
-                    <tr 
-                      key={sub.id}
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => handleOpenManage(sub)}
-                    >
-                      {/* Customer */}
+                </thead>
+                <tbody>
+                  {displaySubscriptions.map((sub) => (
+                    <tr key={sub.id}>
+                      {/* Subscriber */}
                       <td>
-                        <div className="subs-customer-cell">
-                          <div className={`subs-customer-avatar ${sub.avatarColor}`}>
-                            {sub.avatar}
+                        <div className="subscriber-cell">
+                          <div className="subscriber-avatar">
+                            {sub.customer.slice(0, 2).toUpperCase()}
                           </div>
                           <div>
-                            <div className="subs-customer-name">{sub.customer}</div>
-                            <div className="subs-customer-id">ID: {sub.id}</div>
+                            <div className="subscriber-name">{sub.customer}</div>
+                            <span className="subscriber-code">{sub.id}</span>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Product & Serials */}
+                      <td>
+                        <div className="product-coverage-cell">
+                          <div className="product-covered-name">{sub.productName}</div>
+                          <div className="product-sku-tag">SKU: {sub.productSku} • {sub.seats} unit(s)</div>
+                          <div className="serial-tags-list">
+                            {sub.serialNumbers.map((sn, i) => (
+                              <span key={i} className="serial-tag">
+                                SN: {sn}
+                              </span>
+                            ))}
                           </div>
                         </div>
                       </td>
 
                       {/* Plan */}
                       <td>
-                        <div className="subs-plan-title">{sub.plan}</div>
-                        <div className="subs-plan-sub">{sub.planSub}</div>
+                        <span className={`plan-tier-badge ${sub.tier === '12 Months' ? 'gold' : sub.tier === '6 Months' ? 'purple' : 'blue'}`}>
+                          {sub.tier} Warranty
+                        </span>
+                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '3px' }}>
+                          {sub.planName}
+                        </div>
                       </td>
 
-                      {/* Cycle */}
+                      {/* Warehouse Hub */}
                       <td>
-                        <span className="subs-cycle-badge">{sub.cycle}</span>
+                        <div className="warehouse-hub-cell">
+                          <span className="hub-dot"></span>
+                          <span>{sub.warehouseHub}</span>
+                        </div>
                       </td>
 
-                      {/* Next Bill */}
+                      {/* Validity Timeline */}
                       <td>
-                        {sub.status === 'Paused' ? (
-                          <div className="subs-next-bill-sub paused" style={{ textDecoration: 'underline' }}>
-                            Billing Paused
+                        <div className="validity-cell">
+                          <div className="validity-dates">
+                            <span>{sub.startDate}</span>
+                            <span className="arrow">➔</span>
+                            <strong>{sub.expiryDate}</strong>
                           </div>
-                        ) : sub.status === 'Cancelled' ? (
-                          <div>
-                            <div className="subs-next-bill-main" style={{ color: '#94a3b8' }}>{sub.nextBill}</div>
-                            <div className="subs-next-bill-sub terminated">Terminated</div>
+                          <div className={`countdown-badge ${sub.daysRemaining <= 20 ? 'urgent' : 'good'}`}>
+                            <Clock size={11} />
+                            <span>
+                              {sub.daysRemaining <= 0 ? 'Expired' : `${sub.daysRemaining} days left`}
+                            </span>
                           </div>
-                        ) : (
-                          <div>
-                            <div className="subs-next-bill-main">{sub.nextBill}</div>
-                            <div className="subs-next-bill-sub">{sub.nextBillSub}</div>
-                          </div>
-                        )}
+                        </div>
+                      </td>
+
+                      {/* Fee Paid */}
+                      <td>
+                        <div className="fee-cell">
+                          <strong className="fee-amount">₹{sub.amount.toLocaleString('en-IN')}</strong>
+                          <span className="fee-cycle">{sub.tier} Full Coverage</span>
+                        </div>
                       </td>
 
                       {/* Status */}
                       <td>
-                        <span className={`subs-status-pill ${sub.status.toLowerCase()}`}>
-                          <span className={`subs-status-dot ${sub.status.toLowerCase()}`}></span>
-                          <span>{sub.status}</span>
+                        <span className={`warranty-status-tag ${sub.status === 'Active' ? 'status-active' : sub.status === 'Expiring Soon' ? 'status-expiring' : 'status-paused'}`}>
+                          {sub.status.toUpperCase()}
                         </span>
                       </td>
 
-                      {/* Recurring Value */}
-                      <td>
-                        {sub.status === 'Cancelled' ? (
-                          <span className="subs-value-cancelled">
-                            ₹{sub.amount.toLocaleString('en-IN')} {sub.unit}
-                          </span>
-                        ) : (
-                          <span className="subs-value-cell">
-                            ₹{sub.amount.toLocaleString('en-IN')} <span className="subs-value-muted">{sub.unit}</span>
-                          </span>
-                        )}
-                      </td>
-
                       {/* Actions */}
-                      <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                          {sub.status === 'Active' && (
-                            <button 
-                              className="btn-subs-manage"
-                              onClick={() => handleOpenManage(sub)}
-                            >
-                              Manage
-                            </button>
-                          )}
+                      <td>
+                        <div className="action-buttons-group">
+                          <button
+                            type="button"
+                            className="btn-cert-action"
+                            onClick={() => setCertificateSub(sub)}
+                            title="View Official Warranty Certificate"
+                          >
+                            <FileCheck size={14} />
+                            <span>Certificate</span>
+                          </button>
 
-                          {sub.status === 'Paused' && (
-                            <button 
-                              className="btn-subs-resume"
-                              onClick={() => handleResumeSubscription(sub)}
-                            >
-                              Resume
-                            </button>
-                          )}
-
-                          {sub.status === 'Cancelled' && (
-                            <button 
-                              className="btn-subs-audit"
-                              onClick={() => handleOpenAudit(sub)}
-                            >
-                              Audit Log
-                            </button>
-                          )}
-
-                          {/* Context Menu */}
-                          <div style={{ position: 'relative' }}>
-                            <button 
-                              style={{ 
-                                background: 'none', 
-                                border: 'none', 
-                                color: '#94a3b8', 
-                                cursor: 'pointer',
-                                padding: '4px',
-                                display: 'flex',
-                                alignItems: 'center'
-                              }}
-                              onClick={() => setOpenActionMenuId(openActionMenuId === sub.id ? null : sub.id)}
-                            >
-                              <MoreVertical size={16} />
-                            </button>
-
-                            {openActionMenuId === sub.id && (
-                              <div style={{
-                                position: 'absolute',
-                                right: 0,
-                                top: '100%',
-                                backgroundColor: '#ffffff',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '8px',
-                                boxShadow: '0 4px 14px rgba(0,0,0,0.1)',
-                                padding: '4px 0',
-                                zIndex: 10,
-                                minWidth: '180px'
-                              }}>
-                                <button 
-                                  style={{
-                                    width: '100%',
-                                    padding: '8px 14px',
-                                    textAlign: 'left',
-                                    background: 'none',
-                                    border: 'none',
-                                    fontSize: '12.5px',
-                                    color: '#334155',
-                                    cursor: 'pointer'
-                                  }}
-                                  onClick={() => {
-                                    setOpenActionMenuId(null);
-                                    handleOpenAudit(sub);
-                                  }}
-                                >
-                                  View Audit Timeline
-                                </button>
-                                <button 
-                                  style={{
-                                    width: '100%',
-                                    padding: '8px 14px',
-                                    textAlign: 'left',
-                                    background: 'none',
-                                    border: 'none',
-                                    fontSize: '12.5px',
-                                    color: '#334155',
-                                    cursor: 'pointer'
-                                  }}
-                                  onClick={() => {
-                                    setOpenActionMenuId(null);
-                                    showToast(`Synced payment gateway token for ${sub.id}`);
-                                  }}
-                                >
-                                  Sync Gateway Token
-                                </button>
-                                {sub.status === 'Active' && (
-                                  <button 
-                                    style={{
-                                      width: '100%',
-                                      padding: '8px 14px',
-                                      textAlign: 'left',
-                                      background: 'none',
-                                      border: 'none',
-                                      fontSize: '12.5px',
-                                      color: '#d97706',
-                                      cursor: 'pointer'
-                                    }}
-                                    onClick={() => {
-                                      setOpenActionMenuId(null);
-                                      handlePauseSubscription(sub);
-                                    }}
-                                  >
-                                    Pause Subscription
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
+                          <button
+                            type="button"
+                            className="btn-toggle-status"
+                            onClick={() => handleToggleStatus(sub)}
+                            title={sub.rawStatus === 'Active' ? 'Pause Warranty' : 'Resume Warranty'}
+                          >
+                            {sub.rawStatus === 'Active' ? <Pause size={13} /> : <Play size={13} />}
+                          </button>
                         </div>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination Footer */}
-          <div className="subs-pagination-row">
-            <div>
-              Showing <strong style={{ color: '#0f172a' }}>{filteredSubscriptions.length > 0 ? 1 : 0}</strong> to <strong style={{ color: '#0f172a' }}>{filteredSubscriptions.length}</strong> of <strong style={{ color: '#0f172a' }}>{subscriptions.length}</strong> subscriptions
+                  ))}
+                </tbody>
+              </table>
             </div>
-
-            <div className="subs-pagination-btns">
-              <button className="btn-page-step" disabled>Previous</button>
-              <button className={`btn-page-num ${currentPage === 1 ? 'active' : ''}`} onClick={() => setCurrentPage(1)}>1</button>
-              <button className="btn-page-step" disabled>Next</button>
-            </div>
-          </div>
-        </div>
-
-        {/* Informational Callout Tip Banner */}
-        <div className="subs-tip-card">
-          <div className="subs-tip-left">
-            <div className="subs-tip-icon">i</div>
-            <div>
-              <div className="subs-tip-text-title">
-                Click a subscription row to open its billing detail and proration history.
-              </div>
-              <div className="subs-tip-text-sub">
-                View churn probability, gateway payment sync, and upgrade pathways.
-              </div>
-            </div>
-          </div>
-
-          <div className="subs-tip-badge">
-            Shortcut: Enter ↵
-          </div>
-        </div>
-
-        {/* Custom Subscription Blueprint Card */}
-        <div className="subs-blueprint-card">
-          <div className="subs-blueprint-left">
-            <div className="subs-blueprint-icon-box">
-              <Layers size={22} />
-            </div>
-            <div>
-              <div className="subs-blueprint-title">Custom Subscription Blueprint</div>
-              <div className="subs-blueprint-desc">
-                Create bespoke billing cadences, trial periods, and proration schedules
-              </div>
-            </div>
-          </div>
-
-          <button 
-            className="btn-blueprint-new"
-            onClick={() => setActiveModal('newPlan')}
-          >
-            <Plus size={15} />
-            <span>New Plan (Admin)</span>
-          </button>
+          )}
         </div>
 
       </main>
 
-      {/* Universal Footer */}
+      {/* ── MODAL: ENROLL NEW WARRANTY SUBSCRIBER ── */}
+      {isEnrollModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsEnrollModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '540px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ShieldCheck size={22} color="#714b67" />
+                <h3 style={{ fontSize: '19px', fontWeight: 800, color: '#0f172a' }}>
+                  Enroll New Warranty Subscriber
+                </h3>
+              </div>
+              <button className="modal-close-btn" onClick={() => setIsEnrollModalOpen(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleEnrollSubscriber}>
+              <div className="form-group">
+                <label className="form-label">Subscriber / Company Name *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. Acme Corp / Tata Consultancy"
+                  value={newCustomerName}
+                  onChange={(e) => setNewCustomerName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Customer Email (for Warranty Certificate)</label>
+                <input
+                  type="email"
+                  className="form-input"
+                  placeholder="e.g. warranty-admin@company.com"
+                  value={newCustomerEmail}
+                  onChange={(e) => setNewCustomerEmail(e.target.value)}
+                />
+              </div>
+
+              {/* Product Selection */}
+              <div className="form-group">
+                <label className="form-label">Select Covered Product *</label>
+                <select
+                  className="form-input"
+                  value={selectedProdId}
+                  onChange={(e) => setSelectedProdId(e.target.value)}
+                  required
+                  style={{ cursor: 'pointer' }}
+                >
+                  <option value="">-- Choose Product from Catalog ({availableProducts.length} items) --</option>
+                  {availableProducts.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      [{p.sku}] {p.name} — (List: ₹{Number(p.price || 0).toLocaleString('en-IN')})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Warranty Plan Tier Selection */}
+              <div className="form-group">
+                <label className="form-label">Select Warranty Extension Plan *</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginTop: '4px' }}>
+                  {WARRANTY_PLANS.map((plan) => (
+                    <div
+                      key={plan.id}
+                      onClick={() => setSelectedPlanTier(plan.tier)}
+                      style={{
+                        border: selectedPlanTier === plan.tier ? '2px solid #714b67' : '1px solid #cbd5e1',
+                        backgroundColor: selectedPlanTier === plan.tier ? '#faf5f8' : '#ffffff',
+                        borderRadius: '8px',
+                        padding: '10px 8px',
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <div style={{ fontSize: '11px', fontWeight: 800, color: '#714b67' }}>{plan.tier}</div>
+                      <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', margin: '2px 0' }}>{plan.priceFormatted}</div>
+                      <div style={{ fontSize: '10px', color: '#64748b' }}>per unit</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Quantity and Serial Numbers */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px', marginBottom: '14px' }}>
+                <div className="form-group">
+                  <label className="form-label">Units Covered</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="form-input"
+                    value={newUnitQty}
+                    onChange={(e) => setNewUnitQty(Math.max(1, Number(e.target.value)))}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Product Serial Numbers</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. SN-9821, SN-9822 (Comma-separated)"
+                    value={newSerialNumbers}
+                    onChange={(e) => setNewSerialNumbers(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Calculation Summary Box */}
+              {(() => {
+                const plan = WARRANTY_PLANS.find(p => p.tier === selectedPlanTier) || WARRANTY_PLANS[0];
+                const total = plan.price * (Number(newUnitQty) || 1);
+                return (
+                  <div style={{
+                    background: '#f8fafc',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    padding: '12px 14px',
+                    marginBottom: '16px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
+                      <span style={{ color: '#64748b' }}>Plan Tier:</span>
+                      <strong style={{ color: '#0f172a' }}>{plan.name} ({plan.durationLabel})</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
+                      <span style={{ color: '#64748b' }}>Rate Calculation:</span>
+                      <span>{newUnitQty} unit(s) @ ₹{plan.price.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '6px', fontSize: '15px', fontWeight: 800 }}>
+                      <span style={{ color: '#714b67' }}>Total Warranty Premium:</span>
+                      <span style={{ color: '#059669' }}>₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <button
+                type="submit"
+                className="btn-new-plan"
+                disabled={isSubmitting}
+                style={{ width: '100%', height: '46px', justifyContent: 'center' }}
+              >
+                {isSubmitting ? 'Enrolling Subscriber...' : 'Activate Warranty Subscription'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: OFFICIAL WARRANTY CERTIFICATE ── */}
+      {certificateSub && (
+        <div className="modal-overlay" onClick={() => setCertificateSub(null)}>
+          <div className="modal-content certificate-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: '0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ShieldCheck size={22} color="#059669" />
+                <span style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', color: '#059669' }}>
+                  Official Product Warranty Certificate
+                </span>
+              </div>
+              <button className="modal-close-btn" onClick={() => setCertificateSub(null)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Printable Certificate Frame */}
+            <div className="certificate-frame">
+              <div className="certificate-watermark">DEALFLOW360 PROTECT</div>
+
+              <div className="cert-top-row">
+                <div>
+                  <div className="cert-brand">DealFlow<span>360</span> Protect</div>
+                  <div className="cert-doc-title">Certificate of Extended Hardware Warranty</div>
+                </div>
+                <div className="cert-badge">
+                  <ShieldCheck size={28} color="#059669" />
+                  <span>AUTHENTICATED</span>
+                </div>
+              </div>
+
+              <div className="cert-policy-number">
+                POLICY ID: <strong>{certificateSub.id}</strong> • DURATION: <strong>{certificateSub.tier}</strong>
+              </div>
+
+              <div className="cert-body-grid">
+                <div className="cert-field-group">
+                  <span className="cert-field-label">CERTIFIED SUBSCRIBER:</span>
+                  <span className="cert-field-value">{certificateSub.customer}</span>
+                </div>
+
+                <div className="cert-field-group">
+                  <span className="cert-field-label">COVERED PRODUCT MODEL:</span>
+                  <span className="cert-field-value">{certificateSub.productName}</span>
+                </div>
+
+                <div className="cert-field-group">
+                  <span className="cert-field-label">PRODUCT SKU CODE:</span>
+                  <span className="cert-field-value">{certificateSub.productSku}</span>
+                </div>
+
+                <div className="cert-field-group">
+                  <span className="cert-field-label">WAREHOUSE LOGISTICS HUB:</span>
+                  <span className="cert-field-value">{certificateSub.warehouseHub}</span>
+                </div>
+
+                <div className="cert-field-group">
+                  <span className="cert-field-label">COMMENCEMENT DATE:</span>
+                  <span className="cert-field-value">{certificateSub.startDate}</span>
+                </div>
+
+                <div className="cert-field-group">
+                  <span className="cert-field-label">EXPIRATION DATE:</span>
+                  <span className="cert-field-value highlight">{certificateSub.expiryDate}</span>
+                </div>
+              </div>
+
+              {/* Covered Serial Numbers */}
+              <div className="cert-serials-box">
+                <span className="cert-field-label">COVERED HARDWARE SERIAL NUMBERS:</span>
+                <div className="cert-serials-tags">
+                  {certificateSub.serialNumbers.map((sn, i) => (
+                    <span key={i} className="cert-serial-pill">
+                      SN: {sn}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Terms and Coverage Summary */}
+              <div className="cert-terms-box">
+                <strong>Warranty Protection Terms:</strong> {certificateSub.coverageScope}
+              </div>
+
+              {/* Signatures */}
+              <div className="cert-signatures-row">
+                <div>
+                  <div className="cert-sign-line">Arjav Dariya</div>
+                  <span className="cert-sign-role">VP, Hardware Quality & Logistics</span>
+                </div>
+                <div>
+                  <div className="cert-sign-line">DealFlow360 Assurance</div>
+                  <span className="cert-sign-role">Enterprise Assurance seal</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+              <button
+                type="button"
+                className="btn-new-plan"
+                style={{ flex: 1, justifyContent: 'center' }}
+                onClick={() => {
+                  window.print();
+                  showToast('Preparing certificate for printing / download...');
+                }}
+              >
+                <Printer size={15} />
+                <span>Print / Save Certificate PDF</span>
+              </button>
+              <button
+                type="button"
+                className="btn-export-subs"
+                onClick={() => setCertificateSub(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Footer */}
       <footer className="app-footer">
         <div className="footer-inner">
           <div className="footer-left">
-            <span className="pulse-dot"></span>
-            <span>DealFlow360 • © 2025 DealFlow360 Technologies, Inc. All rights reserved.</span>
+            <span style={{ fontWeight: 700, color: '#0f172a' }}>DealFlow360</span>
+            <span>© 2026 DealFlow360 Technologies, Inc. All rights reserved.</span>
           </div>
 
           <div className="footer-links">
-            <div className="status-badge" style={{ marginRight: '8px' }}>
-              <span className="pulse-dot"></span>
-              <span>Systems Operational</span>
-            </div>
-            <button 
-              className="footer-link"
-              onClick={() => { setFooterModalType('terms'); setActiveModal('footerModal'); }}
-            >
+            <button className="footer-link" onClick={() => showToast('Terms of Service')}>
               Terms of Service
             </button>
-            <button 
-              className="footer-link"
-              onClick={() => { setFooterModalType('privacy'); setActiveModal('footerModal'); }}
-            >
+            <button className="footer-link" onClick={() => showToast('Privacy Policy')}>
               Privacy Policy
             </button>
-            <button 
-              className="footer-link"
-              onClick={() => { setFooterModalType('security'); setActiveModal('footerModal'); }}
-            >
-              Security & Compliance
-            </button>
-            <button 
-              className="footer-link"
-              onClick={() => { setFooterModalType('audit'); setActiveModal('footerModal'); }}
-            >
-              Audit Logs
-            </button>
+            <div className="status-badge">
+              <span className="pulse-dot"></span>
+              <span>Warranty Engine Operational</span>
+            </div>
           </div>
         </div>
       </footer>
-
-      {/* MODAL 1: Billing Detail & Subscription Management */}
-      {activeModal === 'manage' && selectedSub && (
-        <div className="modal-overlay" onClick={() => setActiveModal(null)}>
-          <div className="modal-content" style={{ maxWidth: '620px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div>
-                <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
-                  Billing Details — {selectedSub.id}
-                </h3>
-                <div style={{ fontSize: '13px', color: '#64748b' }}>
-                  {selectedSub.customer} • {selectedSub.plan}
-                </div>
-              </div>
-              <button className="modal-close-btn" onClick={() => setActiveModal(null)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveManageChanges}>
-              {/* Customer Portal Action Banner */}
-              <div style={{
-                background: 'linear-gradient(135deg, #714b67 0%, #4a2e44 100%)',
-                borderRadius: '10px',
-                padding: '14px 18px',
-                marginBottom: '18px',
-                color: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}>
-                <div>
-                  <div style={{ fontSize: '14px', fontWeight: 700 }}>Customer Portal Access</div>
-                  <div style={{ fontSize: '12px', opacity: 0.9, marginTop: '2px' }}>
-                    View itemized breakdown, line-item discounts, and contract confirmation.
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  style={{
-                    backgroundColor: '#ffffff',
-                    color: '#714b67',
-                    border: 'none',
-                    borderRadius: '6px',
-                    padding: '8px 14px',
-                    fontSize: '12.5px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-                  }}
-                  onClick={() => handleOpenPortal(selectedSub)}
-                >
-                  <span>Open Customer Portal</span>
-                  <ExternalLink size={14} />
-                </button>
-              </div>
-
-              {/* Overview Stats Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '16px' }}>
-                <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '10.5px', color: '#64748b', fontWeight: 600 }}>STATUS</div>
-                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#059669', marginTop: '2px' }}>{selectedSub.status}</div>
-                </div>
-                <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '10.5px', color: '#64748b', fontWeight: 600 }}>BILLING CYCLE</div>
-                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>{selectedSub.cycle}</div>
-                </div>
-                <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '10.5px', color: '#64748b', fontWeight: 600 }}>NEXT RENEWAL</div>
-                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>{selectedSub.nextBill}</div>
-                </div>
-                <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '10.5px', color: '#64748b', fontWeight: 600 }}>CHURN RISK</div>
-                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>{selectedSub.churnProbability}</div>
-                </div>
-              </div>
-
-              {/* Adjust Seats & Recurring Rate */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
-                <div className="form-group">
-                  <label className="form-label">Licensed User Seats</label>
-                  <input 
-                    type="number"
-                    min="1"
-                    className="form-input"
-                    value={editSeats}
-                    onChange={(e) => setEditSeats(e.target.value)}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Recurring Billing Rate (₹ INR)</label>
-                  <input 
-                    type="number"
-                    min="1"
-                    className="form-input"
-                    value={editAmount}
-                    onChange={(e) => setEditAmount(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {/* Billing Method & Details Box */}
-              <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '18px', fontSize: '12.5px', color: '#475569' }}>
-                <div><strong>Payment Method:</strong> {selectedSub.paymentMethod}</div>
-                <div style={{ marginTop: '4px' }}><strong>Proration Terms:</strong> {selectedSub.prorationPolicy}</div>
-                <div style={{ marginTop: '4px' }}><strong>Contract Initialized:</strong> {selectedSub.createdDate}</div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button 
-                  type="button" 
-                  className="btn-dash-secondary"
-                  style={{ flex: 1 }}
-                  onClick={() => handlePauseSubscription(selectedSub)}
-                >
-                  Pause Plan
-                </button>
-                <button 
-                  type="submit" 
-                  className="btn-new-allocation"
-                  style={{ flex: 1, justifyContent: 'center' }}
-                >
-                  Save Subscription Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 2: Audit Log */}
-      {activeModal === 'audit' && selectedSub && (
-        <div className="modal-overlay" onClick={() => setActiveModal(null)}>
-          <div className="modal-content" style={{ maxWidth: '560px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div>
-                <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
-                  Subscription Audit History
-                </h3>
-                <div style={{ fontSize: '13px', color: '#64748b' }}>
-                  {selectedSub.id} — {selectedSub.customer}
-                </div>
-              </div>
-              <button className="modal-close-btn" onClick={() => setActiveModal(null)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <div style={{ margin: '12px 0 20px' }}>
-              {selectedSub.auditHistory.map((item, idx) => (
-                <div key={idx} style={{ 
-                  display: 'flex', 
-                  gap: '12px', 
-                  padding: '12px 0', 
-                  borderBottom: idx < selectedSub.auditHistory.length - 1 ? '1px solid #f1f5f9' : 'none' 
-                }}>
-                  <div style={{ 
-                    width: '8px', 
-                    height: '8px', 
-                    borderRadius: '50%', 
-                    backgroundColor: '#714b67', 
-                    marginTop: '6px',
-                    flexShrink: 0 
-                  }}></div>
-                  <div>
-                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>{item.date}</div>
-                    <div style={{ fontSize: '13px', color: '#1e293b', marginTop: '2px' }}>{item.action}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <button 
-              type="button" 
-              className="btn-dash-secondary" 
-              style={{ width: '100%', justifyContent: 'center' }}
-              onClick={() => setActiveModal(null)}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 3: New Plan Blueprint (Admin) */}
-      {activeModal === 'newPlan' && (
-        <div className="modal-overlay" onClick={() => setActiveModal(null)}>
-          <div className="modal-content" style={{ maxWidth: '580px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Layers size={20} color="#714b67" />
-                <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
-                  Create Custom Subscription Blueprint
-                </h3>
-              </div>
-              <button className="modal-close-btn" onClick={() => setActiveModal(null)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateNewBlueprint}>
-              <p style={{ fontSize: '13.5px', color: '#64748b', marginBottom: '16px' }}>
-                Design a custom recurring contract schedule with specialized seats and billing frequency.
-              </p>
-
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label className="form-label">Customer Company Name</label>
-                <input 
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. Apex Global Logistics"
-                  value={newCustomer}
-                  onChange={(e) => setNewCustomer(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label className="form-label">Plan Blueprint Name</label>
-                <input 
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. Enterprise Cloud SLA Tier 3"
-                  value={newPlanName}
-                  onChange={(e) => setNewPlanName(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
-                <div className="form-group">
-                  <label className="form-label">Billing Cycle</label>
-                  <select 
-                    className="form-input"
-                    value={newPlanCycle}
-                    onChange={(e) => setNewPlanCycle(e.target.value)}
-                  >
-                    <option value="Monthly">Monthly</option>
-                    <option value="Quarterly">Quarterly</option>
-                    <option value="Annual">Annual</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Licensed Seats</label>
-                  <input 
-                    type="number"
-                    min="1"
-                    className="form-input"
-                    value={newPlanSeats}
-                    onChange={(e) => setNewPlanSeats(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '20px' }}>
-                <label className="form-label">Recurring Amount (₹ INR)</label>
-                <input 
-                  type="number"
-                  min="100"
-                  step="50"
-                  className="form-input"
-                  value={newPlanAmount}
-                  onChange={(e) => setNewPlanAmount(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button 
-                  type="button" 
-                  className="btn-dash-secondary" 
-                  style={{ flex: 1 }}
-                  onClick={() => setActiveModal(null)}
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  className="btn-new-allocation"
-                  style={{ flex: 1, justifyContent: 'center' }}
-                >
-                  Launch Blueprint Plan
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* FOOTER MODAL */}
-      {activeModal === 'footerModal' && (
-        <div className="modal-overlay" onClick={() => setActiveModal(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
-                {footerModalType === 'privacy' && 'Privacy Policy'}
-                {footerModalType === 'terms' && 'Terms of Service'}
-                {footerModalType === 'security' && 'Security & Compliance'}
-                {footerModalType === 'audit' && 'System Audit Logs'}
-              </h3>
-              <button className="modal-close-btn" onClick={() => setActiveModal(null)}>
-                <X size={18} />
-              </button>
-            </div>
-            <div style={{ fontSize: '14px', color: '#475569', lineHeight: 1.65 }}>
-              <p style={{ marginBottom: '12px' }}>
-                DealFlow360 guarantees SOC 2 Type II compliance, continuous revenue reconciliation, automated seat proration, and multi-gateway card tokenization.
-              </p>
-              <p>
-                All contract events, renewal notices, and payment webhook syncs are cryptographically logged with tamper-evident audit trails.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }
