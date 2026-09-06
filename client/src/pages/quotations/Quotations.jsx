@@ -104,6 +104,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
   const normalizeQuote = (q) => {
     if (!q) return null;
     const rawStage = String(q.stage || q.status || 'draft').toLowerCase().replace(/[\s_-]+/g, '');
+    const rawApprovalStatus = String(q.approval_status || q.approvalStatus || '').toLowerCase().replace(/[\s_-]+/g, '');
     const hasNegotiationReq = Boolean(q.negotiation_request || q.negotiationRequest);
     const stageMatchesNegotiation = 
       rawStage.includes('negotiat') || 
@@ -116,7 +117,11 @@ export default function Quotations({ user, onNavigate, onLogout }) {
       stage = 'negotiation';
     } else if (rawStage.includes('pending')) {
       stage = 'pending';
-    } else if (rawStage.includes('approved') || rawStage.includes('confirmed')) {
+    } else if (
+      rawApprovalStatus.includes('approved') ||
+      rawStage.includes('approved') ||
+      rawStage.includes('confirmed')
+    ) {
       stage = 'approved';
     }
 

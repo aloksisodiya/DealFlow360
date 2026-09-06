@@ -94,12 +94,24 @@ export default function Approvals({ user, onNavigate, onLogout }) {
   // Handle Approval Decisions with Database Persistence
   const handleApprove = async (recordId) => {
     try {
-      await decideApproval(recordId, 'approve', reviewComment || 'Approved by Manager');
-      setRecords(records.map(r => r.id === recordId ? { ...r, status: 'approved', stage: 'Approved', stageClass: 'auto-appr' } : r));
+      const approvedQuote = await decideApproval(
+        recordId,
+        'approve',
+        reviewComment || 'Approved by Manager',
+      );
+      setRecords((currentRecords) => currentRecords.map((record) =>
+        record.id === recordId
+          ? {
+              ...record,
+              status: 'approved',
+              stage: approvedQuote.stage || 'Approved',
+              stageClass: 'auto-appr',
+            }
+          : record,
+      ));
       setReviewingItem(null);
       setReviewComment('');
       showToast(`Quotation ${recordId} approved in database!`);
-      loadApprovals();
     } catch (err) {
       showToast(`Approval failed: ${err.message}`);
     }

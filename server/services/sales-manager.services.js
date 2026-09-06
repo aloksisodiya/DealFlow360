@@ -3,7 +3,20 @@ import db from "../config/db.js";
 export const listPendingApprovals = async () => {
   const quotes = await db("quotations")
     .where("approval_required", true)
-    .orWhereIn("stage", ["Pending Approval", "Under Review", "At Risk", "Approved", "Draft", "Returned"])
+    .orWhereIn("approval_status", [
+      "Pending Manager Review",
+      "Approved",
+      "Rejected",
+      "Returned for Revision",
+    ])
+    .orWhereIn("stage", [
+      "Pending Approval",
+      "Under Review",
+      "At Risk",
+      "Approved",
+      "Draft",
+      "Returned",
+    ])
     .orderBy("created_at", "desc");
 
   return quotes.map((q) => {
@@ -38,7 +51,7 @@ export const listPendingApprovals = async () => {
 export const decideQuotation = async (managerId, quotationId, decision, remarks) => {
   const approved = decision === "approve";
   const status = approved ? "Approved" : "Returned for Revision";
-  const stage = approved ? "Fulfillment" : "Returned";
+  const stage = approved ? "Approved" : "Returned";
 
   let [updated] = await db("quotations")
     .where({ id: quotationId })
