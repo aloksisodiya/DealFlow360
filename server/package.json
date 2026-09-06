@@ -9,6 +9,9 @@
     "db:check": "node scripts/check-db.js",
     "db:migrate": "knex migrate:latest --env development",
     "db:seed": "knex seed:run --env development",
+    "db:seed:full": "node scripts/seed_comprehensive_data.js",
+    "db:dump": "node scripts/dump_db.js",
+    "db:restore": "node scripts/restore_db.js",
     "db:reset": "node reset_database.js"
   },
   "keywords": [],
