@@ -21,7 +21,16 @@ import {
   ChevronRight
 } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
-import { fetchDealHealthAlerts, resolveAlert, createAlert } from '../../services/dealHealthService';
+import { 
+  fetchDealHealthAlerts, 
+  fetchGovernanceRules, 
+  updateGovernanceRules, 
+  sendDealNudge, 
+  escalateDeal, 
+  performBulkAction, 
+  resolveAlert, 
+  createAlert 
+} from '../../services/dealHealthService';
 import './DealHealth.css';
 
 export default function DealHealth({ user, onNavigate, onLogout }) {
@@ -58,12 +67,24 @@ export default function DealHealth({ user, onNavigate, onLogout }) {
   const [autoNudgeEnabled, setAutoNudgeEnabled] = useState(true);
 
   // Escalate Form State
-  const [escalateTarget, setEscalateTarget] = useState('VP Sales (Rjav Dariya)');
+  const [escalateTarget, setEscalateTarget] = useState('VP Sales (Arjav Dariya)');
   const [escalateReason, setEscalateReason] = useState('Deal is exceeding discount boundaries and requires urgent executive approval.');
 
   // Nudge Form State
-  const [nudgeChannel, setNudgeChannel] = useState('Slack & Email');
+  const [nudgeChannel, setNudgeChannel] = useState('Email & In-App');
   const [nudgeMessage, setNudgeMessage] = useState('Friendly nudge: Client viewed quote proposal. Please log next action or schedule follow-up.');
+
+  const loadRules = async () => {
+    try {
+      const r = await fetchGovernanceRules();
+      if (r) {
+        setMaxDiscountThreshold(r.maxDiscountThreshold ?? 15);
+        setIdleDaysThreshold(r.idleDaysThreshold ?? 7);
+        setDeliverySlaBuffer(r.deliverySlaBuffer ?? 3);
+        setAutoNudgeEnabled(r.autoNudgeEnabled ?? true);
+      }
+    } catch {}
+  };
 
   const loadAlerts = async () => {
     try {
@@ -72,25 +93,26 @@ export default function DealHealth({ user, onNavigate, onLogout }) {
         severity: severityFilter === 'all' ? undefined : severityFilter
       });
 
-      const formatted = data.map((a, i) => ({
-        id: `ANOM-${a.id}`,
+      const formatted = (data || []).map((a, i) => ({
+        id: a.id ? (String(a.id).startsWith('dyn-') ? a.id : `ANOM-${a.id}`) : `ANOM-${i}`,
         realId: a.id,
-        account: a.customer,
+        quoteId: a.quoteId,
+        account: a.customer || 'Enterprise Client',
         dealCode: a.quoteId ? `Quote ${a.quoteId}` : 'Quote #Q-1042',
-        dealValue: 45000 + i * 15000,
-        issueCategory: a.issue.toLowerCase().includes('discount') ? 'discount' : a.issue.toLowerCase().includes('delivery') ? 'delivery' : 'stalled',
-        issueTitle: a.issue,
+        dealValue: a.dealValue || (45000 + i * 15000),
+        issueCategory: (a.issue || '').toLowerCase().includes('discount') ? 'discount' : (a.issue || '').toLowerCase().includes('delivery') ? 'delivery' : 'stalled',
+        issueTitle: a.issue || 'Anomaly Flagged',
         issueDotColor: a.severity === 'CRITICAL' ? 'red' : a.severity === 'HIGH' ? 'red' : 'amber',
         issueSub: a.recommendation || 'Action required',
         severity: a.severity === 'CRITICAL' ? 'Critical' : a.severity === 'HIGH' ? 'High Risk' : 'Medium',
         severityClass: a.severity === 'CRITICAL' ? 'critical' : a.severity === 'HIGH' ? 'high-risk' : 'medium',
         flaggedDate: 'Recently',
-        flaggedTimeAgo: `${a.inactiveDays}d ago`,
+        flaggedTimeAgo: `${a.inactiveDays || 3}d ago`,
         status: a.resolved ? 'Resolved' : 'Active Anomaly',
         statusDotColor: a.resolved ? 'green' : 'amber',
         statusSub: a.recommendation || 'Under Review',
-        rep: 'Sales Team',
-        repInitials: 'ST',
+        rep: a.repName || 'Sales Team',
+        repInitials: a.repName ? a.repName.slice(0, 2).toUpperCase() : 'ST',
         repColor: 'purple'
       }));
 
@@ -103,7 +125,12 @@ export default function DealHealth({ user, onNavigate, onLogout }) {
   };
 
   useEffect(() => {
+    loadRules();
     loadAlerts();
+    const interval = setInterval(() => {
+      loadAlerts();
+    }, 5000);
+    return () => clearInterval(interval);
   }, [severityFilter]);
 
   // Filter calculation
@@ -197,36 +224,112 @@ export default function DealHealth({ user, onNavigate, onLogout }) {
     setActiveModal('expedite');
   };
 
-  const handleSaveRules = (e) => {
+  const handleSaveRules = async (e) => {
     e.preventDefault();
-    showToast(`Governance rules updated! Max discount threshold set to ${maxDiscountThreshold}%.`);
-    setActiveModal(null);
+    try {
+      await updateGovernanceRules({
+        maxDiscountThreshold: Number(maxDiscountThreshold),
+        idleDaysThreshold: Number(idleDaysThreshold),
+        deliverySlaBuffer: Number(deliverySlaBuffer),
+        autoNudgeEnabled: Boolean(autoNudgeEnabled),
+      });
+      showToast(`Governance rules saved! Max discount: ${maxDiscountThreshold}%, Stalled limit: ${idleDaysThreshold}d.`);
+      setActiveModal(null);
+      await loadAlerts();
+    } catch (err) {
+      showToast(err.message || 'Failed to update governance rules');
+    }
   };
 
-  const handleSendNudgeSubmit = (e) => {
+  const handleSendNudgeSubmit = async (e) => {
     e.preventDefault();
-    showToast(`Nudge notification dispatched to ${selectedAnomaly?.rep || 'sales rep'} via ${nudgeChannel}!`);
-    setActiveModal(null);
+    try {
+      const quoteId = selectedAnomaly?.quoteId || selectedAnomaly?.dealCode?.replace(/[^0-9A-Za-z-]/g, '') || 'Q-1042';
+      await sendDealNudge({
+        quoteId,
+        channel: nudgeChannel,
+        message: nudgeMessage,
+      });
+      showToast(`Nudge notification dispatched for ${selectedAnomaly?.dealCode} via ${nudgeChannel}!`);
+      setActiveModal(null);
+      await loadAlerts();
+    } catch (err) {
+      showToast(err.message || 'Failed to dispatch nudge');
+    }
   };
 
-  const handleSendEscalateSubmit = (e) => {
+  const handleSendEscalateSubmit = async (e) => {
     e.preventDefault();
-    showToast(`Deal escalated to ${escalateTarget}! High-priority alert triggered.`);
-    setActiveModal(null);
+    try {
+      const quoteId = selectedAnomaly?.quoteId || selectedAnomaly?.dealCode?.replace(/[^0-9A-Za-z-]/g, '') || 'Q-1042';
+      await escalateDeal({
+        quoteId,
+        target: escalateTarget,
+        reason: escalateReason,
+      });
+      showToast(`Quote #${quoteId} escalated to ${escalateTarget}! High-priority approval triggered.`);
+      setActiveModal(null);
+      await loadAlerts();
+    } catch (err) {
+      showToast(err.message || 'Failed to escalate deal');
+    }
   };
 
-  const handleBulkEscalate = () => {
-    showToast(`Bulk escalated ${selectedIds.length} flagged deals to VP Sales!`);
+  const handleBulkEscalate = async () => {
+    if (!selectedIds.length) return;
+    try {
+      await performBulkAction({
+        action: 'bulk-escalate',
+        ids: selectedIds,
+        data: { target: 'VP Sales (Arjav Dariya)', reason: 'Bulk escalation from Deal Health dashboard' }
+      });
+      showToast(`Bulk escalated ${selectedIds.length} flagged deals to VP Sales!`);
+      setSelectedIds([]);
+      await loadAlerts();
+    } catch (err) {
+      showToast(err.message || 'Bulk escalate failed');
+    }
   };
 
-  const handleBulkNudge = () => {
-    showToast(`Sent bulk reminder nudges to ${selectedIds.length} assigned sales reps!`);
+  const handleBulkNudge = async () => {
+    if (!selectedIds.length) return;
+    try {
+      await performBulkAction({
+        action: 'bulk-nudge',
+        ids: selectedIds,
+        data: { channel: 'Email & In-App', message: 'Automated follow-up nudge from Deal Health governance' }
+      });
+      showToast(`Sent bulk reminder nudges to ${selectedIds.length} assigned sales reps!`);
+      setSelectedIds([]);
+      await loadAlerts();
+    } catch (err) {
+      showToast(err.message || 'Bulk nudge failed');
+    }
   };
 
-  const handleBulkDismiss = () => {
-    setAnomalies(prev => prev.filter(a => !selectedIds.includes(a.id)));
-    setSelectedIds([]);
-    showToast('Selected anomaly flags dismissed.');
+  const handleBulkDismiss = async () => {
+    if (!selectedIds.length) return;
+    try {
+      await performBulkAction({
+        action: 'bulk-dismiss',
+        ids: selectedIds,
+      });
+      showToast(`Selected ${selectedIds.length} anomaly flags dismissed.`);
+      setSelectedIds([]);
+      await loadAlerts();
+    } catch (err) {
+      showToast(err.message || 'Bulk dismiss failed');
+    }
+  };
+
+  const handleDismissSingle = async (item) => {
+    try {
+      await resolveAlert(item.realId || item.id, 'Dismissed by user');
+      showToast(`Anomaly flag on ${item.dealCode} resolved.`);
+      await loadAlerts();
+    } catch (err) {
+      showToast(err.message || 'Failed to dismiss anomaly');
+    }
   };
 
   return (
