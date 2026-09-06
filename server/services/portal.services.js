@@ -211,10 +211,28 @@ export async function counterDiscountByToken(token, proposedDiscountPercent, not
   const quote = await db("quotations").where({ portal_token: token }).first();
   if (!quote) throw new Error("Invalid portal token");
 
+  const totalAmt = Number(quote.total_amount || 0);
+  const currentDisc = Number(quote.discount_percent || 0);
+  let baseAmt = Number(quote.base_amount || 0);
+  if (baseAmt <= 0 || (currentDisc > 0 && baseAmt === totalAmt)) {
+    if (currentDisc > 0 && currentDisc < 100) {
+      baseAmt = Number((totalAmt / (1 - currentDisc / 100)).toFixed(2));
+    } else {
+      baseAmt = totalAmt;
+    }
+  }
+
+  const demandedPrice = Number((baseAmt * (1 - proposed / 100)).toFixed(2));
+  const savings = Math.max(0, baseAmt - demandedPrice);
+
+  const formattedDemanded = `₹${demandedPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formattedBase = `₹${baseAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formattedSavings = `₹${savings.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
   const requiresApproval = proposed > 10;
   const newStage = "Under Negotiation";
   const approvalStatus = proposed > 15 ? "Pending Finance Review" : "Pending Manager Review";
-  const reqText = `Customer requested ${proposed}% discount.${note ? ` Note: ${note}` : ""}`;
+  const reqText = `Customer requested ${proposed}% discount (Demanded: ${formattedDemanded} vs List: ${formattedBase}).${note ? ` Note: ${note}` : ""}`;
 
   await db("quotations").where({ id: quote.id }).update({
     stage: newStage,
@@ -225,11 +243,11 @@ export async function counterDiscountByToken(token, proposedDiscountPercent, not
     updated_at: db.fn.now(),
   });
 
-  // Log to message thread
+  // Log to message thread with clear Demanded Price breakdown
   await db("portal_messages").insert({
     quote_id: quote.id,
     sender: "Customer",
-    message: `Counter proposal: requesting ${proposed}% discount.${note ? ` Note: ${note}` : ""}`,
+    message: `🏷️ Counter Proposal: Requesting ${proposed}% discount\n• Demanded Total: ${formattedDemanded}\n• Gross List Price: ${formattedBase}\n• Customer Savings: -${formattedSavings}${note ? `\n• Reasoning: "${note}"` : ""}`,
   });
 
   // Audit log
@@ -238,18 +256,23 @@ export async function counterDiscountByToken(token, proposedDiscountPercent, not
       quote_id: quote.id,
       reviewer_role: "Customer",
       action: "COUNTER_PROPOSAL",
-      reason: `Customer counter discount: ${proposed}%. Note: ${note || "none"}`,
+      reason: `Customer counter discount: ${proposed}% (Demanded ${formattedDemanded}). Note: ${note || "none"}`,
     });
   } catch {}
 
   return {
     quoteId: quote.id,
     proposedDiscountPercent: proposed,
+    demandedPrice,
+    baseAmount: baseAmt,
+    formattedDemanded,
+    formattedBase,
+    formattedSavings,
     newStage,
     requiresApproval,
     message: requiresApproval
-      ? `Your ${proposed}% counter proposal has been sent for manager review.`
-      : `Your counter proposal of ${proposed}% has been submitted.`,
+      ? `Your counter proposal of ${proposed}% (${formattedDemanded}) has been sent for manager review.`
+      : `Your counter proposal of ${proposed}% (${formattedDemanded}) has been submitted.`,
   };
 }
 
@@ -264,17 +287,12 @@ export async function confirmOrderByToken(token) {
     return { alreadyConfirmed: true, quoteId: quote.id, upsellSuggestions: [] };
   }
 
-  let newStage = "Confirmed";
-  let autoReentry = false;
-
-  if (Number(quote.blended_risk_score) > 12 || quote.approval_required) {
-    newStage = "Pending Final Approval";
-    autoReentry = true;
-  }
+  const newStage = "Confirmed";
 
   await db("quotations").where({ id: quote.id }).update({
     stage: newStage,
-    approval_status: autoReentry ? "Pending Finance Review" : "Confirmed",
+    approval_status: "Confirmed",
+    approval_required: false,
     updated_at: db.fn.now(),
   });
 
@@ -282,7 +300,7 @@ export async function confirmOrderByToken(token) {
   await db("portal_messages").insert({
     quote_id: quote.id,
     sender: "Customer",
-    message: "I have confirmed the quotation terms. Please proceed.",
+    message: "✓ I have confirmed the quotation terms. Please proceed with fulfillment.",
   });
 
   try {
@@ -290,9 +308,7 @@ export async function confirmOrderByToken(token) {
       quote_id: quote.id,
       reviewer_role: "Customer",
       action: "CONFIRM_ORDER",
-      reason: autoReentry
-        ? "Customer confirmed. High risk score auto-routed to Finance."
-        : "Customer confirmed terms with one-click acceptance.",
+      reason: "Customer confirmed terms with one-click acceptance.",
     });
   } catch {}
 
@@ -310,10 +326,8 @@ export async function confirmOrderByToken(token) {
   return {
     quoteId: quote.id,
     confirmedStage: newStage,
-    autoReentry,
+    autoReentry: false,
     upsellSuggestions,
-    message: autoReentry
-      ? "Thank you! Your order is confirmed and has been sent for final finance review."
-      : "Thank you! Your order is confirmed and has been sent to fulfillment.",
+    message: "Thank you! Your order is confirmed and has been sent to our regional hubs for fulfillment.",
   };
 }

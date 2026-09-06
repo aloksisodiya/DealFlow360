@@ -10,6 +10,11 @@ export async function createQuotation(data) {
   return res.data;
 }
 
+export async function updateQuotation(id, data) {
+  const res = await api.put(`/sales/rep/quotations/${id}`, data);
+  return res.data;
+}
+
 export async function requestNegotiation(id, requestNotes) {
   const res = await api.post(`/sales/rep/quotations/${id}/negotiation`, { request: requestNotes });
   return res.data;

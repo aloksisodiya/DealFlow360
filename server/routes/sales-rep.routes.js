@@ -1,6 +1,7 @@
 import express from "express";
 import {
   createQuote,
+  updateQuote,
   getQuotes,
   negotiate,
   sendPortalLink,
@@ -18,6 +19,7 @@ const salesRepAccess = [
 
 router.get("/quotations", ...salesRepAccess, getQuotes);
 router.post("/quotations", ...salesRepAccess, createQuote);
+router.put("/quotations/:id", ...salesRepAccess, updateQuote);
 router.post("/quotations/:id/negotiation", ...salesRepAccess, negotiate);
 
 // Apply or counter discount with sales manager approval threshold check

@@ -508,48 +508,93 @@ export default function CustomerPortal({ token }) {
         </div>
 
         {/* ── Counter Discount ── */}
-        {!confirmed && (
-          <div className="portal-section">
-            <div className="portal-section-title">
-              <TrendingDown size={14} />
-              Propose Counter Discount
-            </div>
-            <div className="portal-counter-card">
-              <div className="portal-counter-label">
-                <span>Requested Discount</span>
-                <span>{counterPct}%</span>
+        {!confirmed && (() => {
+          const totalAmt = Number(quotation?.totalAmount || 0);
+          const discPct = Number(quotation?.discountPercent || 0);
+          let baseAmt = Number(quotation?.baseAmount || 0);
+          if (baseAmt <= 0 || (discPct > 0 && baseAmt === totalAmt)) {
+            if (discPct > 0 && discPct < 100) {
+              baseAmt = Number((totalAmt / (1 - discPct / 100)).toFixed(2));
+            } else {
+              baseAmt = totalAmt;
+            }
+          }
+          const demandedPrice = Number((baseAmt * (1 - counterPct / 100)).toFixed(2));
+          const savings = Math.max(0, baseAmt - demandedPrice);
+
+          return (
+            <div className="portal-section">
+              <div className="portal-section-title">
+                <TrendingDown size={14} />
+                Propose Counter Discount & Custom Price
               </div>
-              <input
-                type="range"
-                className="portal-slider"
-                min={1}
-                max={30}
-                value={counterPct}
-                onChange={(e) => setCounterPct(Number(e.target.value))}
-              />
-              <textarea
-                className="portal-counter-note"
-                rows={2}
-                placeholder="Optional: explain your reasoning (e.g. 'We are committing to a 2-year deal')…"
-                value={counterNote}
-                onChange={(e) => setCounterNote(e.target.value)}
-                disabled={counterSent}
-              />
-              <button
-                className="portal-counter-submit"
-                onClick={handleCounterSubmit}
-                disabled={submittingCounter || counterSent}
-              >
-                {submittingCounter
-                  ? <><Loader2 size={15} /> Submitting…</>
-                  : counterSent
-                  ? <><CheckCircle size={15} /> Counter Proposal Sent</>
-                  : <><TrendingDown size={15} /> Submit {counterPct}% Counter Proposal</>
-                }
-              </button>
+              <div className="portal-counter-card">
+                <div className="portal-counter-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontWeight: 600, color: '#334155' }}>Demanded Discount Percentage:</span>
+                  <span style={{ fontSize: '18px', fontWeight: 800, color: '#714b67', background: '#faf5f8', padding: '2px 10px', borderRadius: '6px', border: '1px solid #e9d5e3' }}>
+                    {counterPct}%
+                  </span>
+                </div>
+                
+                <input
+                  type="range"
+                  className="portal-slider"
+                  min={1}
+                  max={35}
+                  value={counterPct}
+                  onChange={(e) => setCounterPct(Number(e.target.value))}
+                  style={{ marginBottom: '12px' }}
+                />
+
+                {/* Demanded Price Live Calculation Box */}
+                <div style={{
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  padding: '12px',
+                  marginBottom: '12px',
+                  fontSize: '13px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: '#64748b' }}>Gross List Price:</span>
+                    <strong style={{ color: '#0f172a' }}>₹{baseAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', color: '#e11d48' }}>
+                    <span>Requested Discount ({counterPct}%):</span>
+                    <strong>-₹{savings.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #cbd5e1', paddingTop: '6px', fontSize: '14.5px' }}>
+                    <span style={{ fontWeight: 700, color: '#0f172a' }}>Demanded Total Price:</span>
+                    <strong style={{ color: '#059669', fontSize: '16px' }}>
+                      ₹{demandedPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </strong>
+                  </div>
+                </div>
+
+                <textarea
+                  className="portal-counter-note"
+                  rows={2}
+                  placeholder="Optional: explain your reasoning (e.g. 'We are committing to a 2-year deal or bulk quantity')…"
+                  value={counterNote}
+                  onChange={(e) => setCounterNote(e.target.value)}
+                  disabled={counterSent}
+                />
+                <button
+                  className="portal-counter-submit"
+                  onClick={handleCounterSubmit}
+                  disabled={submittingCounter || counterSent}
+                >
+                  {submittingCounter
+                    ? <><Loader2 size={15} /> Submitting…</>
+                    : counterSent
+                    ? <><CheckCircle size={15} /> Counter Proposal Sent (₹{demandedPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</>
+                    : <><TrendingDown size={15} /> Propose ₹{demandedPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({counterPct}% Off)</>
+                  }
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ── Confirm Order ── */}
         <div className="portal-section">

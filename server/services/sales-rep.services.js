@@ -247,6 +247,81 @@ export const applyQuotationDiscount = async (adminId, quotationId, discountPerce
   };
 };
 
+export const updateQuotation = async (ownerId, quoteId, input) => {
+  const quote = await db("quotations").where({ id: quoteId }).first();
+  if (!quote) {
+    throw new Error("Quotation not found");
+  }
+
+  let discountPercent = Number(input.discountPercent ?? input.discount_percent ?? quote.discount_percent ?? 0);
+  const customerTier = input.customerTier || input.customer_tier || quote.customer_tier || "Bronze";
+
+  let baseAmount = Number(input.baseAmount ?? input.base_amount ?? input.amount ?? quote.base_amount ?? 0);
+  let totalAmount = Number(input.totalAmount ?? input.total_amount ?? quote.total_amount ?? 0);
+
+  if (baseAmount > 0 && discountPercent > 0 && (totalAmount <= 0 || totalAmount === baseAmount)) {
+    totalAmount = Number((baseAmount * (1 - discountPercent / 100)).toFixed(2));
+  } else if (totalAmount > 0 && discountPercent > 0 && (baseAmount <= 0 || baseAmount === totalAmount)) {
+    baseAmount = Number((totalAmount / (1 - discountPercent / 100)).toFixed(2));
+  } else if (baseAmount > 0 && totalAmount > 0 && discountPercent <= 0 && baseAmount > totalAmount) {
+    discountPercent = Number((((baseAmount - totalAmount) / baseAmount) * 100).toFixed(2));
+  }
+
+  if (baseAmount <= 0 && totalAmount > 0) baseAmount = totalAmount;
+  if (totalAmount <= 0 && baseAmount > 0) totalAmount = baseAmount;
+
+  const ownerUser = ownerId ? await db("admins").where({ id: ownerId }).select("role", "work_email").first() : null;
+  const ownerRole = (ownerUser?.role || "").toLowerCase();
+  const ownerEmail = (ownerUser?.work_email || "").toLowerCase();
+  const isManagerOrAdmin = ownerRole.includes("manager") || ownerRole.includes("admin") || ownerRole.includes("approver") || ownerEmail.includes("rjav") || ownerEmail.includes("arjav");
+
+  const limit = isManagerOrAdmin ? 100 : await discountLimit(customerTier);
+  const approvalRequired = discountPercent > limit;
+
+  const items = input.items || input.upsellItems || input.upsell_items || (quote.items ? (typeof quote.items === "string" ? JSON.parse(quote.items) : quote.items) : []);
+  const upsellItems = input.upsellItems || input.upsell_items || (quote.upsell_items ? (typeof quote.upsell_items === "string" ? JSON.parse(quote.upsell_items) : quote.upsell_items) : items);
+
+  const newStage = approvalRequired
+    ? "Pending Approval"
+    : (input.stage || quote.stage || "Draft");
+
+  const newApprovalStatus = approvalRequired
+    ? "Pending Manager Review"
+    : (quote.approval_status || "Auto-Approved");
+
+  await db("quotations")
+    .where({ id: quoteId })
+    .update({
+      customer_name: input.customerName || input.customer_name || quote.customer_name,
+      customer_email: input.customerEmail !== undefined ? (input.customerEmail || null) : quote.customer_email,
+      customer_tier: customerTier,
+      base_amount: baseAmount,
+      total_amount: totalAmount,
+      discount_percent: discountPercent,
+      notes: input.notes !== undefined ? input.notes : (input.scopeDetails || input.description || quote.notes),
+      items: JSON.stringify(items),
+      upsell_items: JSON.stringify(upsellItems),
+      stage: newStage,
+      approval_required: approvalRequired,
+      approval_status: newApprovalStatus,
+      updated_at: db.fn.now(),
+    });
+
+  const updated = await db("quotations as q")
+    .leftJoin("admins as a", "a.id", "q.owner_id")
+    .leftJoin("discount_tiers as dt", "dt.customer_tier", "q.customer_tier")
+    .where("q.id", quoteId)
+    .select(
+      "q.*",
+      "a.work_email as owner_email",
+      "a.role as owner_role",
+      db.raw("COALESCE(dt.max_discount_percent, 5.00) as max_allowed_discount")
+    )
+    .first();
+
+  return updated;
+};
+
 export const requestNegotiation = async (adminId, quotationId, request) => {
   const updated = await db("quotations")
     .where({ id: quotationId, owner_id: adminId })

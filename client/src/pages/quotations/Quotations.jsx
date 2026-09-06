@@ -16,7 +16,8 @@ import {
   CheckCircle2,
   TrendingDown,
   AlertTriangle,
-  ArrowUpRight
+  ArrowUpRight,
+  Edit3
 } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
 import { normalizeRole } from '../../utils/rbac';
@@ -24,6 +25,7 @@ import { fetchProducts } from '../../services/productService';
 import { 
   fetchQuotations, 
   createQuotation, 
+  updateQuotation,
   requestNegotiation, 
   sendPortalLink,
   fetchQuoteMessages,
@@ -54,6 +56,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedQuote, setSelectedQuote] = useState(null);
   const [isNewQuoteOpen, setIsNewQuoteOpen] = useState(false);
+  const [editingQuoteId, setEditingQuoteId] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -166,8 +169,25 @@ export default function Quotations({ user, onNavigate, onLogout }) {
       } catch (e) {}
     }
 
-    const alertText = q.negotiation_request || q.negotiationRequest 
-      ? `💬 Customer Request: ${q.negotiation_request || q.negotiationRequest}`
+    let demandedPrice = null;
+    let demandedPercent = null;
+    const negReq = String(q.negotiation_request || q.negotiationRequest || '');
+    if (negReq) {
+      const matchPct = negReq.match(/(\d+(?:\.\d+)?)\s*%/);
+      if (matchPct) {
+        demandedPercent = Number(matchPct[1]);
+        demandedPrice = Number((baseAmount * (1 - demandedPercent / 100)).toFixed(2));
+      }
+      const matchPrice = negReq.match(/Demanded(?:\s*Total)?:\s*₹?([\d,]+(?:\.\d+)?)/i);
+      if (matchPrice) {
+        demandedPrice = Number(matchPrice[1].replace(/,/g, ''));
+      }
+    }
+
+    const alertText = negReq
+      ? (demandedPrice 
+          ? `💬 Customer Demanded: ₹${demandedPrice.toLocaleString('en-IN')}${demandedPercent ? ` (${demandedPercent}% off)` : ''}`
+          : `💬 Customer Request: ${negReq}`)
       : (stage === 'negotiation' ? '💬 Customer counter proposal received' : (q.alert || null));
 
     return {
@@ -180,6 +200,9 @@ export default function Quotations({ user, onNavigate, onLogout }) {
       stage,
       rawStage: q.stage,
       alert: alertText,
+      negotiation_request: negReq,
+      demandedPrice,
+      demandedPercent,
       customerTier: q.customer_tier || q.customerTier || 'Bronze',
       discountPercent,
       owner: ownerName,
@@ -394,6 +417,40 @@ export default function Quotations({ user, onNavigate, onLogout }) {
     setNewAmount(newBaseSum);
   };
 
+  const handleOpenEditDraft = (quote) => {
+    const norm = normalizeQuote(quote);
+    setEditingQuoteId(norm.id);
+    setNewClient(norm.client || norm.customer_name || '');
+    setNewEmail(norm.customer_email || norm.customerEmail || '');
+    setNewAmount(norm.baseAmount || norm.amount || 0);
+    setNewDiscount(norm.discountPercent || 0);
+    setNewTier(norm.customerTier || 'Bronze');
+    setNewDesc(norm.notes || norm.desc || '');
+    setQuoteItems(norm.productItems && norm.productItems.length > 0 ? norm.productItems : []);
+    setNewStage(norm.stage || 'draft');
+    setSelectedProductId('');
+    setSelectedProductQty(1);
+    setSelectedProductUnitPrice(0);
+    setSelectedQuote(null);
+    setIsNewQuoteOpen(true);
+  };
+
+  const handleOpenNewQuote = (initialStage = 'draft') => {
+    setEditingQuoteId(null);
+    setNewClient('');
+    setNewEmail('');
+    setNewAmount('');
+    setNewDesc('');
+    setQuoteItems([]);
+    setSelectedProductId('');
+    setSelectedProductQty(1);
+    setSelectedProductUnitPrice(0);
+    setNewDiscount(0);
+    setNewTier('Bronze');
+    setNewStage(initialStage);
+    setIsNewQuoteOpen(true);
+  };
+
   const handleCreateNewQuote = async (e) => {
     e.preventDefault();
     if (!newClient) {
@@ -439,26 +496,44 @@ export default function Quotations({ user, onNavigate, onLogout }) {
       const productNamesSummary = lineItems.map(i => `${i.name}${i.quantity > 1 ? ` (${i.quantity}x)` : ''}`).join(', ');
       const finalNotes = newDesc.trim() || productNamesSummary || 'Custom Enterprise Package';
 
-      const res = await createQuotation({
-        customerName: newClient.trim(),
-        customerEmail: newEmail.trim() || undefined,
-        sendPortalEmail: false, // Do not send auto email
-        customerTier: newTier,
-        baseAmount: baseTotal,
-        totalAmount: netTotal,
-        discountPercent: discPct,
-        stage: newStage,
-        notes: finalNotes,
-        upsellItems: lineItems,
-      });
+      if (editingQuoteId) {
+        await updateQuotation(editingQuoteId, {
+          customerName: newClient.trim(),
+          customerEmail: newEmail.trim() || null,
+          customerTier: newTier,
+          baseAmount: baseTotal,
+          totalAmount: netTotal,
+          discountPercent: discPct,
+          stage: newStage,
+          notes: finalNotes,
+          items: lineItems,
+          upsellItems: lineItems,
+        });
 
-      const isDraftStage = String(newStage).toLowerCase() === 'draft';
-      showToast(isDraftStage
-        ? `Draft quotation created for ${newClient}! (Saved in your Drafts, not sent to customer)`
-        : `Quotation submitted for ${newClient}! (Published to Customer Portal & Approval list)`
-      );
+        showToast(`Quotation ${editingQuoteId} updated successfully!`);
+      } else {
+        await createQuotation({
+          customerName: newClient.trim(),
+          customerEmail: newEmail.trim() || undefined,
+          sendPortalEmail: false, // Do not send auto email
+          customerTier: newTier,
+          baseAmount: baseTotal,
+          totalAmount: netTotal,
+          discountPercent: discPct,
+          stage: newStage,
+          notes: finalNotes,
+          upsellItems: lineItems,
+        });
+
+        const isDraftStage = String(newStage).toLowerCase() === 'draft';
+        showToast(isDraftStage
+          ? `Draft quotation created for ${newClient}! (Saved in your Drafts, not sent to customer)`
+          : `Quotation submitted for ${newClient}! (Published to Customer Portal & Approval list)`
+        );
+      }
 
       setIsNewQuoteOpen(false);
+      setEditingQuoteId(null);
       setNewClient('');
       setNewEmail('');
       setNewAmount('');
@@ -471,7 +546,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
       setNewStage('draft');
       await loadQuotations();
     } catch (err) {
-      showToast(err.message || 'Failed to create quotation');
+      showToast(err.message || 'Failed to process quotation');
     } finally {
       setIsCreatingQuote(false);
     }
@@ -654,7 +729,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                 <button 
                   className="btn-col-add" 
                   title="Add Draft"
-                  onClick={() => { setNewStage('draft'); setIsNewQuoteOpen(true); }}
+                  onClick={() => handleOpenNewQuote('draft')}
                 >
                   +
                 </button>
@@ -675,6 +750,31 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                     <div className="card-company-name">{quote.client}</div>
                     <div className="card-desc">{quote.desc}</div>
 
+                    <div style={{ marginTop: '8px', marginBottom: '8px', display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        type="button"
+                        className="btn-dash-secondary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEditDraft(quote);
+                        }}
+                        style={{
+                          height: '26px',
+                          padding: '0 8px',
+                          fontSize: '11.5px',
+                          fontWeight: 700,
+                          gap: '4px',
+                          borderRadius: '4px',
+                          background: '#faf5f8',
+                          borderColor: '#e9d5e3',
+                          color: '#714b67'
+                        }}
+                      >
+                        <Edit3 size={11} />
+                        <span>Edit Draft</span>
+                      </button>
+                    </div>
+
                     <div className="card-bottom-row">
                       <span>● {quote.created}</span>
                       <div className="card-owner-badge">
@@ -688,7 +788,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
 
               <button 
                 className="btn-add-draft-column"
-                onClick={() => { setNewStage('draft'); setIsNewQuoteOpen(true); }}
+                onClick={() => handleOpenNewQuote('draft')}
               >
                 <Plus size={14} />
                 <span>Add Draft</span>
@@ -704,9 +804,9 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                   <span className="col-badge-count">{pendingQuotes.length}</span>
                 </div>
                 <button 
-                  className="btn-col-add"
+                  className="btn-col-add" 
                   title="Add Pending Quote"
-                  onClick={() => { setNewStage('pending'); setIsNewQuoteOpen(true); }}
+                  onClick={() => handleOpenNewQuote('pending')}
                 >
                   +
                 </button>
@@ -760,9 +860,9 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                   <span className="col-badge-count">{approvedQuotes.length}</span>
                 </div>
                 <button 
-                  className="btn-col-add"
+                  className="btn-col-add" 
                   title="Add Approved Quote"
-                  onClick={() => { setNewStage('approved'); setIsNewQuoteOpen(true); }}
+                  onClick={() => handleOpenNewQuote('approved')}
                 >
                   +
                 </button>
@@ -814,9 +914,9 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                   <span className="col-badge-count">{negotiationQuotes.length}</span>
                 </div>
                 <button 
-                  className="btn-col-add"
+                  className="btn-col-add" 
                   title="Add Negotiation Quote"
-                  onClick={() => { setNewStage('negotiation'); setIsNewQuoteOpen(true); }}
+                  onClick={() => handleOpenNewQuote('negotiation')}
                 >
                   +
                 </button>
@@ -837,7 +937,19 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                     <div className="card-company-name">{quote.client}</div>
                     <div className="card-desc">{quote.desc}</div>
 
-                    {quote.alert && (
+                    {quote.demandedPrice ? (
+                      <div className="card-alert-box purple" style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <strong style={{ fontSize: '12px' }}>Demanded: ₹{quote.demandedPrice.toLocaleString('en-IN')}</strong>
+                          <span style={{ fontSize: '10.5px', background: '#714b67', color: '#fff', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                            {quote.demandedPercent ? `${quote.demandedPercent}% off` : 'Counter Offer'}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#54324c' }}>
+                          List: ₹{quote.baseAmount.toLocaleString('en-IN')} • Save: ₹{Math.max(0, quote.baseAmount - quote.demandedPrice).toLocaleString('en-IN')}
+                        </div>
+                      </div>
+                    ) : quote.alert && (
                       <div className="card-alert-box purple">
                         {quote.alert}
                       </div>
@@ -884,9 +996,37 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                     <td style={{ fontWeight: 700 }}>{quote.client}</td>
                     <td style={{ maxWidth: '300px', fontSize: '12.5px', color: '#64748b' }}>{quote.desc}</td>
                     <td>
-                      <span className={`status-tag ${quote.stage === 'approved' ? 'approved' : quote.stage === 'pending' ? 'pending' : 'sync'}`}>
-                        {quote.stage.toUpperCase()}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span className={`status-tag ${quote.stage === 'approved' ? 'approved' : quote.stage === 'pending' ? 'pending' : 'sync'}`}>
+                          {quote.stage.toUpperCase()}
+                        </span>
+                        {quote.stage === 'draft' && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenEditDraft(quote);
+                            }}
+                            title="Edit Draft"
+                            style={{
+                              background: '#faf5f8',
+                              border: '1px solid #e9d5e3',
+                              color: '#714b67',
+                              borderRadius: '4px',
+                              padding: '2px 8px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px'
+                            }}
+                          >
+                            <Edit3 size={10} />
+                            <span>Edit</span>
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td style={{ fontWeight: 800, color: '#0f172a' }}>₹{quote.amount.toLocaleString('en-IN')}</td>
                     <td>
@@ -908,7 +1048,7 @@ export default function Quotations({ user, onNavigate, onLogout }) {
           <div className="bottom-actions-left">
             <button 
               className="btn-new-quote"
-              onClick={() => setIsNewQuoteOpen(true)}
+              onClick={() => handleOpenNewQuote('draft')}
             >
               <Plus size={16} />
               <span>New Quotation</span>
@@ -944,6 +1084,35 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                 <X size={18} />
               </button>
             </div>
+
+            {/* Quick Action: Edit Draft Button */}
+            {selectedQuote.stage === 'draft' && (
+              <div style={{ marginBottom: '14px' }}>
+                <button
+                  type="button"
+                  onClick={() => handleOpenEditDraft(selectedQuote)}
+                  style={{
+                    width: '100%',
+                    height: '38px',
+                    borderRadius: '8px',
+                    backgroundColor: '#faf5f8',
+                    border: '1.5px solid #e9d5e3',
+                    color: '#714b67',
+                    fontWeight: 700,
+                    fontSize: '13px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 3px rgba(113, 75, 103, 0.08)'
+                  }}
+                >
+                  <Edit3 size={14} />
+                  <span>✏️ Edit Draft Quotation & Line Items</span>
+                </button>
+              </div>
+            )}
 
             <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -984,7 +1153,28 @@ export default function Quotations({ user, onNavigate, onLogout }) {
               </div>
             )}
 
-            {selectedQuote.alert && (
+            {/* Demanded Price Banner if in negotiation */}
+            {selectedQuote.demandedPrice ? (
+              <div style={{
+                padding: '12px 14px',
+                borderRadius: '8px',
+                background: '#faf5f8',
+                border: '1.5px solid #d8b4fe',
+                color: '#581c87',
+                fontSize: '13px',
+                marginBottom: '14px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <strong style={{ fontSize: '13.5px' }}>💬 Customer Counter Proposal:</strong>
+                  <span style={{ fontWeight: 800, fontSize: '15px', color: '#714b67' }}>
+                    Demanded: ₹{selectedQuote.demandedPrice.toLocaleString('en-IN')}
+                  </span>
+                </div>
+                <div style={{ fontSize: '12px', color: '#6b21a8' }}>
+                  Gross List: ₹{selectedQuote.baseAmount.toLocaleString('en-IN')} • Customer requested {selectedQuote.demandedPercent || 0}% off (-₹{(selectedQuote.baseAmount - selectedQuote.demandedPrice).toLocaleString('en-IN')})
+                </div>
+              </div>
+            ) : selectedQuote.alert && (
               <div style={{ padding: '10px 12px', borderRadius: '8px', background: '#faf5f8', border: '1px solid #e9d5e3', color: '#54324c', fontSize: '12.5px', marginBottom: '14px', fontWeight: 500 }}>
                 ℹ️ {selectedQuote.alert}
               </div>
@@ -1378,15 +1568,15 @@ export default function Quotations({ user, onNavigate, onLogout }) {
         </div>
       )}
 
-      {/* Create New Quotation Modal */}
+      {/* Create / Edit Quotation Modal */}
       {isNewQuoteOpen && (
-        <div className="modal-overlay" onClick={() => setIsNewQuoteOpen(false)}>
+        <div className="modal-overlay" onClick={() => { setIsNewQuoteOpen(false); setEditingQuoteId(null); }}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
             <div className="modal-header">
               <h3 style={{ fontSize: '19px', fontWeight: 800, color: '#0f172a' }}>
-                Create New Quotation
+                {editingQuoteId ? `Edit Draft Quotation (${editingQuoteId})` : 'Create New Quotation'}
               </h3>
-              <button className="modal-close-btn" onClick={() => setIsNewQuoteOpen(false)}>
+              <button className="modal-close-btn" onClick={() => { setIsNewQuoteOpen(false); setEditingQuoteId(null); }}>
                 <X size={18} />
               </button>
             </div>
@@ -1725,24 +1915,36 @@ export default function Quotations({ user, onNavigate, onLogout }) {
                 </div>
               )}
 
-              <button 
-                type="submit" 
-                className="btn-new-quote"
-                disabled={isCreatingQuote}
-                style={{ width: '100%', justifyContent: 'center', height: '46px', marginTop: '6px' }}
-              >
-                {isCreatingQuote ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    <span>Creating & Dispatching...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Save & Add to Pipeline</span>
-                    <ArrowRight size={16} />
-                  </>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                <button 
+                  type="submit" 
+                  className="btn-new-quote"
+                  disabled={isCreatingQuote}
+                  style={{ flex: 1, justifyContent: 'center', height: '46px' }}
+                >
+                  {isCreatingQuote ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>{editingQuoteId ? 'Updating Quotation...' : 'Creating & Dispatching...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>{editingQuoteId ? 'Update Draft Quotation' : 'Save & Add to Pipeline'}</span>
+                      <ArrowRight size={16} />
+                    </>
+                  )}
+                </button>
+                {editingQuoteId && (
+                  <button
+                    type="button"
+                    className="btn-dash-secondary"
+                    onClick={() => { setIsNewQuoteOpen(false); setEditingQuoteId(null); }}
+                    style={{ height: '46px', padding: '0 16px', fontWeight: 600 }}
+                  >
+                    Cancel
+                  </button>
                 )}
-              </button>
+              </div>
             </form>
           </div>
         </div>

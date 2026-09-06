@@ -1,5 +1,6 @@
 import {
   createQuotation,
+  updateQuotation,
   listQuotations,
   requestNegotiation,
 } from "../services/sales-rep.services.js";
@@ -10,6 +11,20 @@ import { postSalesRepReply } from "./portal.controller.js";
 const required = (value, message) => {
   if (value === undefined || value === null || value === "") {
     throw new Error(message);
+  }
+};
+
+export const updateQuote = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updated = await updateQuotation(req.auth.adminId, id, req.body);
+    return res.json({
+      success: true,
+      data: updated,
+      message: "Quotation updated successfully",
+    });
+  } catch (error) {
+    return res.status(400).json({ success: false, message: error.message });
   }
 };
 
