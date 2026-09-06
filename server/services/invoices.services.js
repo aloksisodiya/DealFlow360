@@ -73,8 +73,39 @@ export async function listInvoices({ status, search, role, workEmail, adminId } 
 export async function createInvoice(data) {
   const id = data.id || `inv-${Date.now().toString().slice(-6)}`;
   const invoiceNumber = data.invoiceNumber || data.invoice_number || `INV-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
-  const customerName = data.customerName || data.customer_name || "Enterprise Customer";
-  const customerEmail = data.customerEmail || data.customer_email || null;
+  
+  let customerName = data.customerName || data.customer_name || "Enterprise Customer";
+  let customerEmail = data.customerEmail || data.customer_email || null;
+  let amount = Number(data.amount || 0);
+  let items = data.items || [];
+  let notes = data.notes || "";
+
+  // If quotationId is passed, pull quotation details from DB if missing
+  if (data.quotationId || data.quotation_id) {
+    const qId = data.quotationId || data.quotation_id;
+    const quote = await db("quotations").where({ id: qId }).first();
+    if (quote) {
+      if (!customerName || customerName === "Enterprise Customer") customerName = quote.customer_name;
+      if (!customerEmail) customerEmail = quote.customer_email;
+      if (!amount) amount = Number(quote.total_amount || 0);
+      if (items.length === 0) {
+        try {
+          const parsed = typeof quote.items === "string" ? JSON.parse(quote.items) : quote.items || [];
+          items = parsed.length > 0 ? parsed : [
+            { name: quote.notes || `${quote.customer_name} Commercial Hardware & Platform Order`, qty: 1, unitPrice: amount, total: amount }
+          ];
+        } catch {
+          items = [{ name: quote.notes || `${quote.customer_name} Commercial Hardware & Platform Order`, qty: 1, unitPrice: amount, total: amount }];
+        }
+      }
+      if (!notes) notes = `Generated from Quotation #${quote.id} (${quote.customer_tier || 'Commercial'} Tier)`;
+    }
+  }
+
+  if (items.length === 0 && amount > 0) {
+    items = [{ name: "Commercial Hardware & Services Package", qty: 1, unitPrice: amount, total: amount }];
+  }
+
   const dueDate = data.dueDate || data.due_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
   const paymentMethod = data.paymentMethod || data.payment_method || "ACH Wire";
   
@@ -85,14 +116,14 @@ export async function createInvoice(data) {
       quotation_id: data.quotationId || data.quotation_id || null,
       customer_name: customerName,
       customer_email: customerEmail,
-      amount: Number(data.amount || 0),
-      status: data.status || "Draft",
+      amount: amount,
+      status: data.status || "Unpaid",
       issue_date: data.issueDate || data.issue_date || db.fn.now(),
       due_date: dueDate,
       payment_method: paymentMethod,
-      payment_batch: data.paymentBatch || data.payment_batch || null,
-      items: JSON.stringify(data.items || []),
-      notes: data.notes || "",
+      payment_batch: data.paymentBatch || data.payment_batch || `BATCH-${Date.now().toString().slice(-4)}`,
+      items: JSON.stringify(items),
+      notes: notes,
     })
     .returning("*");
 
