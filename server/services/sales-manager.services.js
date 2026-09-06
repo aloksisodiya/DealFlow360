@@ -38,16 +38,17 @@ export const listPendingApprovals = async () => {
 export const decideQuotation = async (managerId, quotationId, decision, remarks) => {
   const approved = decision === "approve";
   const status = approved ? "Approved" : "Returned for Revision";
-  const stage = approved ? "Approved" : "Returned";
+  const stage = approved ? "Fulfillment" : "Returned";
 
   let [updated] = await db("quotations")
     .where({ id: quotationId })
     .update({
       approval_status: status,
+      approval_required: false,
       stage,
       approved_at: approved ? db.fn.now() : null,
       approved_by: approved ? managerId : null,
-      notes: remarks || (approved ? "Approved by Manager" : "Returned with feedback for revision"),
+      notes: remarks || (approved ? "Approved by Manager — Ready for Fulfillment" : "Returned with feedback for revision"),
       updated_at: db.fn.now()
     })
     .returning("*");
@@ -61,11 +62,32 @@ export const decideQuotation = async (managerId, quotationId, decision, remarks)
         total_amount: 50000,
         stage,
         approval_status: status,
+        approval_required: false,
         notes: remarks || "Approval updated"
       })
       .returning("*");
     updated = inserted;
   }
+
+  // Audit Log
+  try {
+    await db("approval_audit_logs").insert({
+      quote_id: quotationId,
+      reviewer_role: "Sales Manager",
+      reviewer_id: String(managerId || "mgr-1"),
+      action: approved ? "APPROVE" : "REJECT",
+      reason: remarks || (approved ? "Approved by Manager — Order routed to Fulfillment" : "Returned for revision")
+    });
+  } catch (e) {}
+
+  // Sync invoices
+  if (approved) {
+    try {
+      const { syncQuotationInvoices } = await import("./invoices.services.js");
+      await syncQuotationInvoices();
+    } catch (e) {}
+  }
+
   return updated;
 };
 

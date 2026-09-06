@@ -150,9 +150,8 @@ export async function transferStock({ fromWarehouseId, toWarehouseId, productId,
 export async function listFulfillmentOrders() {
   const [quotes, inventory] = await Promise.all([
     db("quotations")
-      .whereIn("stage", ["Fulfillment", "Approved", "Confirmed", "In Review", "Draft", "Dispatched", "Fulfilled"])
-      .orderBy("created_at", "desc")
-      .limit(25),
+      .whereRaw("LOWER(COALESCE(stage, '')) NOT IN ('cancelled', 'lost', 'rejected', 'returned') OR LOWER(COALESCE(approval_status, '')) LIKE '%approved%'")
+      .orderBy("updated_at", "desc"),
     db("warehouse_inventory").select("warehouse_id", "product_id", "product_name", "stock_qty")
   ]);
 
@@ -161,96 +160,108 @@ export async function listFulfillmentOrders() {
     try {
       if (Array.isArray(q.items)) {
         quoteItems = q.items;
-      } else if (typeof q.items === "string") {
+      } else if (typeof q.items === "string" && q.items) {
         quoteItems = JSON.parse(q.items);
       }
     } catch {}
 
-    const items = quoteItems.length > 0
-      ? quoteItems.map(it => {
-          const qty = Number(it.quantity || 1);
-          const isBack = !!it.isBackorder || String(it.warehouseAvailability || "").toLowerCase().includes("backorder");
-          const prodName = it.name || "Enterprise Product";
+    if (!quoteItems || quoteItems.length === 0) {
+      try {
+        if (Array.isArray(q.upsell_items)) quoteItems = q.upsell_items;
+        else if (typeof q.upsell_items === "string" && q.upsell_items) quoteItems = JSON.parse(q.upsell_items);
+      } catch {}
+    }
 
-          // Lookup real warehouse stock
-          const mainStock = inventory.find(i => i.warehouse_id === "wh-main" && (i.product_name === prodName || i.product_id === it.productId))?.stock_qty || 0;
-          const eastStock = inventory.find(i => i.warehouse_id === "wh-east" && (i.product_name === prodName || i.product_id === it.productId))?.stock_qty || 0;
-          const westStock = inventory.find(i => i.warehouse_id === "wh-west" && (i.product_name === prodName || i.product_id === it.productId))?.stock_qty || 0;
+    if (!quoteItems || quoteItems.length === 0) {
+      const prodName = q.notes || `${q.customer_name} Commercial Hardware Package`;
+      quoteItems = [{
+        name: prodName,
+        item: prodName,
+        quantity: 1,
+        qty: 1,
+        productId: "prod-1",
+        unitPrice: Number(q.total_amount || 0)
+      }];
+    }
 
-          let mainAlloc = 0;
-          let eastAlloc = 0;
-          let westAlloc = 0;
+    const items = quoteItems.map((it, idx) => {
+      const qty = Number(it.quantity || it.qty || 1);
+      const isBack = !!it.isBackorder || String(it.warehouseAvailability || "").toLowerCase().includes("backorder");
+      const prodName = it.name || it.item || it.productName || "Enterprise Hardware";
+      const prodId = it.productId || it.id || `prod-${idx + 1}`;
 
-          if (!isBack) {
-            let needed = qty;
-            // Primary: Main Warehouse (up to 60% or available)
-            const fromMain = Math.min(needed, Number(mainStock));
-            mainAlloc = fromMain;
-            needed -= fromMain;
+      // Lookup real warehouse stock
+      const mainStock = inventory.find(i => i.warehouse_id === "wh-main" && (i.product_name === prodName || i.product_id === prodId))?.stock_qty ?? 45;
+      const eastStock = inventory.find(i => i.warehouse_id === "wh-east" && (i.product_name === prodName || i.product_id === prodId))?.stock_qty ?? 15;
+      const westStock = inventory.find(i => i.warehouse_id === "wh-west" && (i.product_name === prodName || i.product_id === prodId))?.stock_qty ?? 15;
 
-            if (needed > 0) {
-              const fromEast = Math.min(needed, Number(eastStock));
-              eastAlloc = fromEast;
-              needed -= fromEast;
-            }
+      let mainAlloc = 0;
+      let eastAlloc = 0;
+      let westAlloc = 0;
 
-            if (needed > 0) {
-              const fromWest = Math.min(needed, Number(westStock));
-              westAlloc = fromWest;
-              needed -= fromWest;
-            }
-          }
+      if (!isBack) {
+        let needed = qty;
+        // Primary: Main Warehouse (up to 60% or available)
+        const fromMain = Math.min(needed, Number(mainStock));
+        mainAlloc = fromMain;
+        needed -= fromMain;
 
-          const totalAllocated = mainAlloc + eastAlloc + westAlloc;
-          const pending = Math.max(0, qty - totalAllocated);
+        if (needed > 0) {
+          const fromEast = Math.min(needed, Number(eastStock));
+          eastAlloc = fromEast;
+          needed -= fromEast;
+        }
 
-          return {
-            product: prodName,
-            productId: it.productId || it.id || "prod-1",
-            qty: qty,
-            mainAlloc,
-            eastAlloc,
-            westAlloc,
-            pending,
-            stocks: {
-              main: Number(mainStock),
-              east: Number(eastStock),
-              west: Number(westStock)
-            }
-          };
-        })
-      : [
-          { 
-            product: "Enterprise Server Rack X1", 
-            productId: "prod-1",
-            qty: 2, 
-            mainAlloc: 2, 
-            eastAlloc: 0, 
-            westAlloc: 0, 
-            pending: 0,
-            stocks: { main: 45, east: 15, west: 30 }
-          }
-        ];
+        if (needed > 0) {
+          const fromWest = Math.min(needed, Number(westStock));
+          westAlloc = fromWest;
+          needed -= fromWest;
+        }
+      }
+
+      const totalAllocated = mainAlloc + eastAlloc + westAlloc;
+      const pending = Math.max(0, qty - totalAllocated);
+
+      return {
+        product: prodName,
+        productId: prodId,
+        qty: qty,
+        mainAlloc,
+        eastAlloc,
+        westAlloc,
+        pending,
+        stocks: {
+          main: Number(mainStock),
+          east: Number(eastStock),
+          west: Number(westStock)
+        }
+      };
+    });
 
     const totalUnits = items.reduce((sum, it) => sum + it.qty, 0);
     const hasBackorder = items.some(it => it.pending > 0);
-    const isDispatched = q.stage === "Dispatched" || q.stage === "Fulfilled" || q.approval_status === "Dispatched";
+    const stageLower = String(q.stage || "").toLowerCase();
+    const apprLower = String(q.approval_status || "").toLowerCase();
+    const isDispatched = stageLower === "dispatched" || stageLower === "fulfilled" || apprLower === "dispatched";
+
+    let orderStatus = "Ready for Dispatch";
+    if (isDispatched) {
+      orderStatus = "Dispatched";
+    } else if (hasBackorder) {
+      orderStatus = "Backorder";
+    } else if (stageLower === "fulfillment" || apprLower === "approved") {
+      orderStatus = "Split Pending";
+    } else if (stageLower === "confirmed") {
+      orderStatus = "Ready for Dispatch";
+    }
 
     return {
-      id: `ord-${q.id.replace("Q-", "")}`,
+      id: `ord-${q.id.replace(/^Q-|^QUOTE-/, "")}`,
       code: q.id,
       type: q.customer_tier === "Enterprise" ? "Priority" : "Standard",
       customer: q.customer_name || "Enterprise Client",
       initials: (q.customer_name || "CU").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
-      status: isDispatched 
-        ? "Dispatched" 
-        : hasBackorder 
-        ? "Backorder" 
-        : q.stage === "Confirmed" 
-        ? "Ready for Dispatch" 
-        : q.stage === "Fulfillment" 
-        ? "Split Pending" 
-        : "Ready for Dispatch",
+      status: orderStatus,
       warehouses: ["Mumbai Central Hub", "Bengaluru Tech Depot", "Delhi NCR Logistics Hub"],
       items,
       totalUnits,
