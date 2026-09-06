@@ -2,7 +2,7 @@ import * as reportService from "../services/reports.services.js";
 
 export async function getPipelineReports(req, res) {
   try {
-    const data = await reportService.getPipelineReports();
+    const data = await reportService.getPipelineReports(req.query);
     return res.json({ success: true, data });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
