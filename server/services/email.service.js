@@ -26,15 +26,20 @@ async function getTransporter() {
       (SMTP_HOST && SMTP_HOST.includes("gmail")) ||
       (SMTP_USER && SMTP_USER.endsWith("@gmail.com"));
 
-    if (isGmail && !SMTP_HOST) {
+    if (isGmail) {
       transporter = nodemailer.createTransport({
-        service: "gmail",
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
         auth: {
           user: SMTP_USER,
           pass: SMTP_PASS,
         },
+        connectionTimeout: 10000,
+        greetingTimeout: 8000,
+        socketTimeout: 15000,
       });
-      console.log(`[EmailService] Connected to Gmail SMTP service for: ${SMTP_USER}`);
+      console.log(`[EmailService] Connected to Gmail SMTP (smtp.gmail.com:465) for: ${SMTP_USER}`);
     } else {
       transporter = nodemailer.createTransport({
         host: SMTP_HOST || "smtp.gmail.com",
@@ -44,6 +49,9 @@ async function getTransporter() {
           user: SMTP_USER,
           pass: SMTP_PASS,
         },
+        connectionTimeout: 10000,
+        greetingTimeout: 8000,
+        socketTimeout: 15000,
       });
       console.log(`[EmailService] Connected to SMTP server (${SMTP_HOST || "smtp.gmail.com"}) for: ${SMTP_USER}`);
     }
@@ -181,7 +189,7 @@ export async function sendPortalInviteEmail({ toEmail, customerName, quoteId, to
     const fromAddress = process.env.EMAIL_FROM ||
       (process.env.SMTP_USER ? `"DealFlow360" <${process.env.SMTP_USER}>` : '"DealFlow360" <noreply@dealflow360.com>');
 
-    const amountFormatted = `$${Number(totalAmount || 0).toLocaleString()}`;
+    const amountFormatted = `₹${Number(totalAmount || 0).toLocaleString('en-IN')}`;
 
     const htmlContent = `
       <!DOCTYPE html>
