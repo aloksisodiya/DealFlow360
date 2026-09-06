@@ -275,15 +275,276 @@ export default function Invoices({ user, onNavigate, onLogout }) {
 
   const handlePrintSlip = (batch) => {
     const target = batch || activeSlip;
-    if (target) {
-      setSelectedInvoiceId(target.realId || target.id);
-      setActiveModal('viewSlip');
-      setTimeout(() => {
-        window.print();
-      }, 300);
-    } else {
-      window.print();
+    if (!target) {
+      showToast('No invoice selected to print');
+      return;
     }
+
+    // Format items
+    let parsedItems = [];
+    try {
+      parsedItems = typeof target.items === 'string' ? JSON.parse(target.items) : target.items || [];
+    } catch {
+      parsedItems = [];
+    }
+    if (!parsedItems || parsedItems.length === 0) {
+      parsedItems = [
+        { name: target.notes || target.subtitle || `${target.customerName} Commercial CPQ Order`, qty: 1, unitPrice: Number(target.amount || 0), total: Number(target.amount || 0) }
+      ];
+    }
+
+    const itemsHtml = parsedItems.map((item, idx) => `
+      <tr style="border-bottom: 1px solid #f1f5f9;">
+        <td style="padding: 10px; font-size: 13px; color: #1e293b;">${item.name || item.item || 'Item ' + (idx + 1)}</td>
+        <td style="padding: 10px; text-align: center; font-size: 13px; color: #475569;">${item.qty || item.quantity || 1}</td>
+        <td style="padding: 10px; text-align: right; font-size: 13px; color: #475569;">₹${Number(item.unitPrice || item.price || item.total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+        <td style="padding: 10px; text-align: right; font-size: 13px; font-weight: 600; color: #0f172a;">₹${Number((item.qty || 1) * (item.unitPrice || item.price || item.total || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+      </tr>
+    `).join('');
+
+    const subtotalVal = Number(target.amount || 0);
+    const isSettled = target.status === 'Paid';
+
+    const printHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Tax Invoice - ${target.id || 'INV'}</title>
+          <style>
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+              color: #0f172a;
+              background: #ffffff;
+              padding: 32px 40px;
+              font-size: 14px;
+              line-height: 1.5;
+            }
+            .header {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+              border-bottom: 2px solid #e2e8f0;
+              padding-bottom: 20px;
+              margin-bottom: 24px;
+            }
+            .company-title {
+              font-size: 22px;
+              font-weight: 800;
+              color: #714b67;
+              letter-spacing: -0.02em;
+            }
+            .company-meta {
+              font-size: 12px;
+              color: #64748b;
+              margin-top: 4px;
+              line-height: 1.4;
+            }
+            .invoice-tag {
+              text-align: right;
+            }
+            .invoice-tag h1 {
+              font-size: 20px;
+              font-weight: 800;
+              color: #0f172a;
+            }
+            .meta-box {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 20px;
+              background: #f8fafc;
+              border: 1px solid #e2e8f0;
+              border-radius: 8px;
+              padding: 16px 20px;
+              margin-bottom: 24px;
+            }
+            .meta-box h4 {
+              font-size: 11px;
+              text-transform: uppercase;
+              letter-spacing: 0.05em;
+              color: #64748b;
+              margin-bottom: 6px;
+            }
+            .meta-box p {
+              font-size: 14px;
+              font-weight: 700;
+              color: #0f172a;
+            }
+            .badge {
+              display: inline-block;
+              padding: 3px 8px;
+              border-radius: 4px;
+              font-size: 11px;
+              font-weight: 700;
+              margin-top: 4px;
+            }
+            .badge-paid { background: #dcfce7; color: #15803d; }
+            .badge-unpaid { background: #fef3c7; color: #b45309; }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 24px;
+            }
+            th {
+              background: #f1f5f9;
+              color: #475569;
+              font-size: 12px;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 0.04em;
+              padding: 10px;
+              border-top: 1px solid #e2e8f0;
+              border-bottom: 1px solid #e2e8f0;
+            }
+            .summary-table {
+              width: 320px;
+              margin-left: auto;
+              margin-bottom: 24px;
+            }
+            .summary-table td {
+              padding: 6px 0;
+              font-size: 13.5px;
+            }
+            .total-row {
+              border-top: 2px solid #0f172a;
+              font-weight: 800;
+              font-size: 16px !important;
+              color: #0f172a;
+            }
+            .footer-note {
+              margin-top: 32px;
+              border-top: 1px solid #e2e8f0;
+              padding-top: 16px;
+              font-size: 11.5px;
+              color: #64748b;
+              display: flex;
+              justify-content: space-between;
+            }
+            @media print {
+              body { padding: 10mm 12mm; }
+              @page { margin: 10mm; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <div class="company-title">DealFlow360 Technologies Pvt. Ltd.</div>
+              <div class="company-meta">Enterprise Deal Intelligence & Commercial CPQ Platform</div>
+              <div class="company-meta">Bandra Kurla Complex (BKC), Mumbai, Maharashtra 400051</div>
+              <div class="company-meta">GSTIN: 27AAAAA0000A1Z5 | PAN: AAACD1234F</div>
+            </div>
+            <div class="invoice-tag">
+              <h1>TAX INVOICE</h1>
+              <div style="font-size: 14px; font-weight: 700; color: #714b67; margin-top: 2px;">${target.id || target.invoiceNumber || 'INV-001'}</div>
+              <div style="font-size: 12px; color: #64748b; margin-top: 4px;">Date: ${formatDate(target.issueDate || new Date())}</div>
+              <div style="font-size: 12px; color: #64748b;">Due Date: ${formatDate(target.dueDate || new Date())}</div>
+            </div>
+          </div>
+
+          <div class="meta-box">
+            <div>
+              <h4>Billed To:</h4>
+              <p>${target.customerName || 'Valued Customer'}</p>
+              ${target.customerEmail ? `<div style="font-size: 12.5px; color: #475569; margin-top: 2px;">${target.customerEmail}</div>` : ''}
+              <div style="font-size: 12px; color: #64748b; margin-top: 4px;">Terms: Net 30 Commercial</div>
+            </div>
+            <div style="text-align: right;">
+              <h4>Payment Status & Method:</h4>
+              <div>
+                <span class="badge ${isSettled ? 'badge-paid' : 'badge-unpaid'}">
+                  ${isSettled ? 'PAID / SETTLED' : 'PAYMENT DUE'}
+                </span>
+              </div>
+              <div style="font-size: 12.5px; color: #475569; margin-top: 6px;">
+                Method: <strong>${target.paymentMethod || 'ACH / Bank Wire'}</strong>
+              </div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align: left;">Item Description</th>
+                <th style="text-align: center; width: 60px;">Qty</th>
+                <th style="text-align: right; width: 140px;">Unit Price (₹)</th>
+                <th style="text-align: right; width: 140px;">Amount (₹)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <div class="summary-table">
+            <table style="margin-bottom: 0;">
+              <tr>
+                <td style="color: #64748b;">Subtotal:</td>
+                <td style="text-align: right; font-weight: 600;">₹${subtotalVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+              </tr>
+              <tr>
+                <td style="color: #64748b;">GST / Taxes (Included):</td>
+                <td style="text-align: right; font-weight: 600;">₹0.00</td>
+              </tr>
+              <tr class="total-row">
+                <td style="padding-top: 8px;">Total Amount:</td>
+                <td style="text-align: right; padding-top: 8px; color: #714b67;">₹${subtotalVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })} INR</td>
+              </tr>
+            </table>
+          </div>
+
+          <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 12px 16px; margin-top: 16px; font-size: 12px; color: #475569;">
+            <strong>Electronic Remittance Information:</strong><br/>
+            Bank: HDFC Bank Ltd | A/C No: 50200012345678 | IFSC: HDFC0000123 | Branch: BKC Corporate, Mumbai<br/>
+            <em>Please quote Invoice ${target.id || target.invoiceNumber} in the transaction narration.</em>
+          </div>
+
+          <div class="footer-note">
+            <div>This is an official computer-generated commercial tax invoice.</div>
+            <div>DealFlow360 • Finance & Revenue Engine</div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    try {
+      const printWindow = window.open('', '_blank', 'width=880,height=920');
+      if (printWindow && printWindow.document) {
+        printWindow.document.open();
+        printWindow.document.write(printHtml);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+        }, 350);
+        return;
+      }
+    } catch {
+      // ignore and fallback
+    }
+
+    // Fallback using invisible iframe
+    let iframe = document.getElementById('print-invoice-frame');
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.id = 'print-invoice-frame';
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      document.body.appendChild(iframe);
+    }
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(printHtml);
+    doc.close();
+    iframe.contentWindow.focus();
+    setTimeout(() => {
+      iframe.contentWindow.print();
+    }, 350);
   };
 
   return (
@@ -1085,9 +1346,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
                 type="button" 
                 className="btn-dash-secondary" 
                 style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                onClick={() => {
-                  window.print();
-                }}
+                onClick={() => handlePrintSlip(activeSlip)}
               >
                 <Printer size={16} />
                 Print Official Slip

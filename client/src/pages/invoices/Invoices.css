@@ -685,7 +685,6 @@
   .modal-close-btn,
   .btn-record-payment,
   .btn-dash-secondary,
-  .modal-overlay:not(:has(#printable-invoice)),
   button {
     display: none !important;
   }
@@ -696,6 +695,7 @@
     display: block !important;
     padding: 0 !important;
     margin: 0 !important;
+    width: 100% !important;
   }
 
   .modal-content.print-mode {
@@ -710,6 +710,7 @@
   }
 
   #printable-invoice {
+    display: block !important;
     border: 1.5px solid #cbd5e1 !important;
     border-radius: 8px !important;
     padding: 24px !important;
@@ -718,4 +719,5 @@
     page-break-inside: avoid !important;
   }
 }
+
 
