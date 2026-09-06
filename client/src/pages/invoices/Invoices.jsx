@@ -56,8 +56,8 @@ export default function Invoices({ user, onNavigate, onLogout }) {
 
   // Payment Modal State
   const [paymentAmount, setPaymentAmount] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState('ach');
-  const [paymentReference, setPaymentReference] = useState('TXN-ACM-98421');
+  const [paymentMethod, setPaymentMethod] = useState('upi');
+  const [paymentReference, setPaymentReference] = useState('');
 
   // Reminder Modal State
   const [reminderEmail, setReminderEmail] = useState('');
@@ -991,7 +991,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
               </div>
 
               <div style={{ background: '#faf8f9', padding: '10px 14px', borderRadius: '6px', marginBottom: '14px', fontSize: '12.5px' }}>
-                <div><strong>Billed To:</strong> {activeSlip.customerName} ({activeSlip.customerEmail || 'ap@enterprise.com'})</div>
+                <div><strong>Billed To:</strong> {activeSlip.customerName} {activeSlip.customerEmail ? `(${activeSlip.customerEmail})` : ''}</div>
                 <div style={{ marginTop: '3px', color: '#64748b' }}>Payment Mode: {activeSlip.paymentMethod || 'ACH Wire Transfer'} • Status: <span style={{ color: activeSlip.status === 'Paid' ? '#059669' : '#d97706', fontWeight: 700 }}>{activeSlip.status}</span></div>
               </div>
 
