@@ -15,6 +15,7 @@ import {
   ArrowRight,
   Info,
   AlertCircle,
+  AlertTriangle,
   Plus,
   RefreshCw,
   Search
@@ -23,6 +24,17 @@ import Navbar from '../../components/layout/Navbar';
 import { fetchInvoices, updateInvoiceStatus, createInvoice } from '../../services/invoiceService';
 import { fetchQuotations } from '../../services/quotationService';
 import './Invoices.css';
+
+function formatDate(dateStr) {
+  if (!dateStr) return 'N/A';
+  try {
+    const dt = new Date(dateStr);
+    if (isNaN(dt.getTime())) return String(dateStr);
+    return dt.toLocaleDateString('en-IN', { month: 'short', day: '2-digit', year: 'numeric' });
+  } catch {
+    return String(dateStr);
+  }
+}
 
 export default function Invoices({ user, onNavigate, onLogout }) {
   // Toast Notification state
@@ -34,7 +46,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
 
   // Active Modals & Selected Invoice
   const [activeModal, setActiveModal] = useState(null);
-  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState(null);
   const [footerModalType, setFooterModalType] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -90,8 +102,8 @@ export default function Invoices({ user, onNavigate, onLogout }) {
       });
 
       setInvoices(filteredInvoices);
-      if (filteredInvoices.length > 0 && !selectedInvoice) {
-        setSelectedInvoice(filteredInvoices[0]);
+      if (filteredInvoices.length > 0) {
+        setSelectedInvoiceId(prev => prev || filteredInvoices[0].id);
       }
       setAvailableQuotes(quotesData || []);
     } catch {
@@ -124,7 +136,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
       }
       if (!parsedItems || parsedItems.length === 0) {
         parsedItems = [
-          { name: inv.notes || 'Commercial CPQ Platform & Hardware Package', qty: 1, unitPrice: Number(inv.amount), total: Number(inv.amount) }
+          { name: inv.notes || `${inv.customerName} Commercial CPQ Order`, qty: 1, unitPrice: Number(inv.amount), total: Number(inv.amount) }
         ];
       }
 
@@ -136,7 +148,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
         title: `${inv.customerName} - Invoice (${inv.invoiceNumber})`,
         customerName: inv.customerName,
         customerEmail: inv.customerEmail,
-        subtitle: inv.notes || `Due on ${inv.dueDate}`,
+        subtitle: inv.notes || `Due on ${formatDate(inv.dueDate)}`,
         amount: Number(inv.amount || 0),
         status: inv.status,
         dueDate: inv.dueDate,
@@ -148,7 +160,16 @@ export default function Invoices({ user, onNavigate, onLogout }) {
       };
     });
 
-  // Computed totals
+  // Current Active Selected Invoice (defaults to selectedId or first batch)
+  const activeSlip = invoiceBatches.find(b => b.realId === selectedInvoiceId || b.id === selectedInvoiceId) || invoiceBatches[0] || {};
+  const isPaid = activeSlip.status === 'Paid';
+  const isOverdue = activeSlip.status === 'Overdue';
+
+  const activeSlipItems = activeSlip.items || [
+    { name: 'Commercial Hardware & Platform Package', qty: 1, unitPrice: activeSlip.amount || 124000, total: activeSlip.amount || 124000 }
+  ];
+
+  // Computed totals across all invoices
   const subtotal = invoiceBatches.reduce((acc, item) => acc + item.amount, 0);
   const settledCredit = invoiceBatches
     .filter(item => item.status === 'Paid')
@@ -179,7 +200,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
     }
 
     try {
-      await createInvoice({
+      const created = await createInvoice({
         quotationId: genQuoteId || null,
         customerName: genCustomerName,
         customerEmail: genCustomerEmail,
@@ -197,6 +218,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
       setGenCustomerEmail('');
       setGenAmount('');
       setGenNotes('');
+      if (created?.id) setSelectedInvoiceId(created.id);
       await loadInvoices();
     } catch (err) {
       showToast(err.message || 'Failed to generate invoice');
@@ -211,11 +233,11 @@ export default function Invoices({ user, onNavigate, onLogout }) {
     }
 
     try {
-      const targetId = selectedInvoice?.realId || selectedInvoice?.id || invoices[0]?.id;
+      const targetId = activeSlip?.realId || activeSlip?.id;
       if (targetId) {
-        await updateInvoiceStatus(targetId, 'Paid', `Payment settled via ${paymentMethod.toUpperCase()} (Ref: ${paymentReference})`);
+        await updateInvoiceStatus(targetId, 'Paid', `Payment settled via ${paymentMethod.toUpperCase()} (Ref: ${paymentReference || 'MANUAL-REC'})`);
       }
-      showToast(`Payment of ₹${Number(paymentAmount).toLocaleString('en-IN')} recorded and reconciled!`);
+      showToast(`Payment of ₹${Number(paymentAmount).toLocaleString('en-IN')} recorded & settled for ${activeSlip.customerName}!`);
       setActiveModal(null);
       await loadInvoices();
     } catch (err) {
@@ -225,7 +247,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
 
   const handleSendReminderSubmit = (e) => {
     e.preventDefault();
-    showToast(`Invoice reminder successfully dispatched to ${reminderEmail}!`);
+    showToast(`Invoice payment reminder successfully dispatched to ${reminderEmail}!`);
     setActiveModal(null);
   };
 
@@ -236,7 +258,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
       inv.customerName,
       inv.amount,
       inv.status,
-      inv.dueDate || 'N/A',
+      formatDate(inv.dueDate),
       inv.paymentMethod || 'ACH'
     ]);
     const csvContent = 'data:text/csv;charset=utf-8,' +
@@ -252,9 +274,9 @@ export default function Invoices({ user, onNavigate, onLogout }) {
   };
 
   const handlePrintSlip = (batch) => {
-    const target = batch || selectedInvoice || invoiceBatches[0];
+    const target = batch || activeSlip;
     if (target) {
-      setSelectedInvoice(target);
+      setSelectedInvoiceId(target.realId || target.id);
       setActiveModal('viewSlip');
       setTimeout(() => {
         window.print();
@@ -263,11 +285,6 @@ export default function Invoices({ user, onNavigate, onLogout }) {
       window.print();
     }
   };
-
-  const activeSlip = selectedInvoice || invoiceBatches[0] || {};
-  const activeSlipItems = activeSlip.items || [
-    { name: 'Commercial Hardware & Platform Package', qty: 1, unitPrice: activeSlip.amount || 124000, total: activeSlip.amount || 124000 }
-  ];
 
   return (
     <div className="invoices-container">
@@ -301,10 +318,14 @@ export default function Invoices({ user, onNavigate, onLogout }) {
               <span className="badge-active-record">ACCOUNTS RECEIVABLE</span>
             </div>
             <h1 className="invoices-title">
-              Invoices & Commercial Billing Statements
+              {activeSlip.id
+                ? `Invoice Detail: ${activeSlip.id} (${activeSlip.customerName})`
+                : 'Invoices & Commercial Billing Statements'}
             </h1>
             <p className="invoices-subtitle">
-              Issue commercial invoices, track payment reconciliations, and print official tax slips
+              {activeSlip.id
+                ? `Active billing lifecycle and payment settlement history for ${activeSlip.customerName}`
+                : 'View and manage commercial billing history and payment statements.'}
             </p>
           </div>
 
@@ -320,7 +341,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
 
             <button 
               className="btn-inv-outline"
-              onClick={() => handlePrintSlip(selectedInvoice || invoiceBatches[0])}
+              onClick={() => handlePrintSlip(activeSlip)}
               title="Print active invoice slip"
             >
               <Printer size={15} />
@@ -347,9 +368,10 @@ export default function Invoices({ user, onNavigate, onLogout }) {
           borderRadius: '10px',
           padding: '10px 16px',
           marginBottom: '20px',
-          gap: '12px'
+          gap: '12px',
+          flexWrap: 'wrap'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, maxWidth: '400px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '260px', maxWidth: '400px' }}>
             <Search size={16} color="#64748b" />
             <input 
               type="text"
@@ -414,14 +436,24 @@ export default function Invoices({ user, onNavigate, onLogout }) {
           </div>
         ) : (
           <>
-            {/* SECTION 1: Stepper Progress Pipeline */}
+            {/* SECTION 1: Stepper Progress Pipeline (Reacts to Tapped/Selected Order) */}
             <div className="invoices-stepper-card">
               <div className="stepper-header-row">
-                <div className="stepper-title-kicker">ORDER & FULFILLMENT BILLING PIPELINE</div>
+                <div className="stepper-title-kicker">ORDER & FULFILLMENT PIPELINE</div>
                 <div className="stepper-stage-indicator">
-                  Selected Invoice: <span className="stepper-stage-bold">
-                    {activeSlip.id || 'INV-1042'} ({activeSlip.status || 'Active'})
-                  </span>
+                  {isPaid ? (
+                    <span style={{ color: '#059669', fontWeight: 700 }}>
+                      Stage 4 of 4: <span className="stepper-stage-bold">Settled & Reconciled</span>
+                    </span>
+                  ) : isOverdue ? (
+                    <span style={{ color: '#dc2626', fontWeight: 700 }}>
+                      Stage 3 of 4: <span className="stepper-stage-bold">Payment Overdue</span>
+                    </span>
+                  ) : (
+                    <span>
+                      Stage 3 of 4: <span className="stepper-stage-bold">Awaiting Payment Settlement</span>
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -432,7 +464,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
                     <Check size={18} />
                   </div>
                   <div className="stepper-node-label">Order Confirmed</div>
-                  <div className="stepper-node-date">{activeSlip.issueDate ? new Date(activeSlip.issueDate).toLocaleDateString() : 'Confirmed'}</div>
+                  <div className="stepper-node-date">{formatDate(activeSlip.issueDate)}</div>
                 </div>
 
                 {/* Line 1 -> 2 */}
@@ -444,32 +476,32 @@ export default function Invoices({ user, onNavigate, onLogout }) {
                     <Check size={18} />
                   </div>
                   <div className="stepper-node-label">Provisioned</div>
-                  <div className="stepper-node-date">Fulfillment Active</div>
+                  <div className="stepper-node-date">Fulfillment Cleared</div>
                 </div>
 
                 {/* Line 2 -> 3 */}
                 <div className="stepper-connector-line active" style={{ left: '50%', width: '25%' }}></div>
 
                 {/* Step 3: Invoiced */}
-                <div className={`stepper-step ${activeSlip.status === 'Paid' ? 'completed' : 'current'}`}>
+                <div className={`stepper-step ${isPaid ? 'completed' : isOverdue ? 'current' : 'current'}`}>
                   <div className="stepper-node-icon">
-                    {activeSlip.status === 'Paid' ? <Check size={18} /> : <FileText size={18} />}
+                    {isPaid ? <Check size={18} /> : isOverdue ? <AlertTriangle size={18} color="#d97706" /> : <FileText size={18} />}
                   </div>
                   <div className="stepper-node-label">Invoiced</div>
-                  <div className="stepper-node-date">Due: {activeSlip.dueDate || 'Net 30'}</div>
+                  <div className="stepper-node-date">Due: {formatDate(activeSlip.dueDate)}</div>
                 </div>
 
                 {/* Line 3 -> 4 */}
-                <div className={`stepper-connector-line ${activeSlip.status === 'Paid' ? 'active' : 'inactive'}`} style={{ left: '75%', width: '25%' }}></div>
+                <div className={`stepper-connector-line ${isPaid ? 'active' : 'inactive'}`} style={{ left: '75%', width: '25%' }}></div>
 
                 {/* Step 4: Paid */}
-                <div className={`stepper-step ${activeSlip.status === 'Paid' ? 'completed' : 'pending'}`}>
+                <div className={`stepper-step ${isPaid ? 'completed' : 'pending'}`}>
                   <div className="stepper-node-icon">
-                    {activeSlip.status === 'Paid' ? <Check size={18} /> : <Clock size={18} />}
+                    {isPaid ? <Check size={18} /> : <Clock size={18} />}
                   </div>
                   <div className="stepper-node-label">Paid</div>
                   <div className="stepper-node-date">
-                    {activeSlip.status === 'Paid' ? 'Reconciled & Settled' : 'Pending Settlement'}
+                    {isPaid ? `Settled (${activeSlip.paymentMethod || 'Wire'})` : 'Pending Settlement'}
                   </div>
                 </div>
               </div>
@@ -479,16 +511,16 @@ export default function Invoices({ user, onNavigate, onLogout }) {
             <div className="invoices-batch-card">
               <div className="batch-card-header">
                 <div>
-                  <div className="batch-title-main">Commercial Invoices Ledger</div>
+                  <div className="batch-title-main">Linked Invoice Line Batches</div>
                   <div className="batch-title-sub">
-                    Click any invoice to view detailed slip, post payment settlement, or print
+                    Invoices generated for {activeSlip.customerName} subscriptions and CPQ packages
                   </div>
                 </div>
 
                 <div className="batch-pills-right">
                   {outstandingCount > 0 && (
                     <span className="batch-pill-outstanding">
-                      {outstandingCount} Outstanding
+                      {outstandingCount} Outstanding Invoice
                     </span>
                   )}
                   <span className="batch-pill-settled">
@@ -501,111 +533,133 @@ export default function Invoices({ user, onNavigate, onLogout }) {
                 <table className="invoices-table">
                   <thead>
                     <tr>
-                      <th>INVOICE # & CUSTOMER</th>
+                      <th>INVOICE #</th>
+                      <th>DESCRIPTION / BILLING CATEGORY</th>
+                      <th>AMOUNT</th>
                       <th>STATUS</th>
-                      <th>TOTAL AMOUNT</th>
                       <th>DUE DATE</th>
                       <th style={{ textAlign: 'right' }}>ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {invoiceBatches.map(batch => (
-                      <tr 
-                        key={batch.id} 
-                        style={{
-                          background: selectedInvoice?.id === batch.id ? '#faf7f9' : 'transparent',
-                          cursor: 'pointer'
-                        }}
-                        onClick={() => setSelectedInvoice(batch)}
-                      >
-                        {/* Invoice & Customer */}
-                        <td>
-                          <div className="inv-batch-cell">
-                            <span className={`status-dot ${batch.dotColor}`}></span>
+                    {invoiceBatches.map(batch => {
+                      const isRowSelected = (batch.realId === activeSlip.realId || batch.id === activeSlip.id);
+                      return (
+                        <tr 
+                          key={batch.id} 
+                          style={{
+                            background: isRowSelected ? '#fbf8fa' : 'transparent',
+                            outline: isRowSelected ? '2px solid #714b67' : 'none',
+                            outlineOffset: '-2px',
+                            cursor: 'pointer',
+                            transition: 'background 0.15s ease'
+                          }}
+                          onClick={() => setSelectedInvoiceId(batch.realId || batch.id)}
+                        >
+                          {/* Invoice # */}
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span className={`status-dot ${batch.dotColor}`}></span>
+                              <div>
+                                <strong style={{ color: '#0f172a', fontSize: '13.5px' }}>{batch.id}</strong>
+                                <span style={{ 
+                                  marginLeft: '6px', 
+                                  fontSize: '11px', 
+                                  fontWeight: 700, 
+                                  color: batch.status === 'Paid' ? '#059669' : '#64748b' 
+                                }}>
+                                  {batch.badge}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Description */}
+                          <td>
                             <div>
                               <div className="inv-batch-title">{batch.title}</div>
                               <div className="inv-batch-subtitle">{batch.subtitle}</div>
                             </div>
-                          </div>
-                        </td>
+                          </td>
 
-                        {/* Status */}
-                        <td>
-                          <span className={`batch-status-tag ${batch.status.toLowerCase()}`}>
-                            {batch.status}
-                          </span>
-                        </td>
+                          {/* Amount */}
+                          <td style={{ fontWeight: 700, color: '#0f172a' }}>
+                            ₹{batch.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
 
-                        {/* Amount */}
-                        <td style={{ fontWeight: 700, color: '#0f172a' }}>
-                          ₹{batch.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
+                          {/* Status */}
+                          <td>
+                            <span className={`batch-status-tag ${batch.status.toLowerCase()}`}>
+                              {batch.status}
+                            </span>
+                          </td>
 
-                        {/* Due Date */}
-                        <td style={{ color: '#475569', fontWeight: 500 }}>
-                          {batch.dueDate || 'N/A'}
-                        </td>
+                          {/* Due Date */}
+                          <td style={{ color: '#475569', fontWeight: 500 }}>
+                            {formatDate(batch.dueDate)}
+                          </td>
 
-                        {/* Actions */}
-                        <td style={{ textAlign: 'right' }}>
-                          <div className="inv-actions-cell" onClick={(e) => e.stopPropagation()}>
-                            {batch.status !== 'Paid' ? (
-                              <>
-                                <button 
-                                  className="btn-pay-now-link"
-                                  onClick={() => {
-                                    setSelectedInvoice(batch);
-                                    setPaymentAmount(batch.amount);
-                                    setActiveModal('recordPayment');
-                                  }}
-                                >
-                                  Pay
-                                </button>
-                                <span style={{ color: '#cbd5e1' }}>|</span>
-                                <button 
-                                  className="btn-view-slip-link"
-                                  onClick={() => {
-                                    setSelectedInvoice(batch);
-                                    setActiveModal('viewSlip');
-                                  }}
-                                >
-                                  Slip
-                                </button>
-                                <span style={{ color: '#cbd5e1' }}>|</span>
-                                <button 
-                                  className="btn-view-slip-link"
-                                  title="Print this invoice"
-                                  onClick={() => handlePrintSlip(batch)}
-                                >
-                                  <Printer size={13} style={{ display: 'inline', verticalAlign: 'middle' }} />
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button 
-                                  className="btn-view-slip-link"
-                                  style={{ fontWeight: 600, color: '#0f172a' }}
-                                  onClick={() => {
-                                    setSelectedInvoice(batch);
-                                    setActiveModal('viewSlip');
-                                  }}
-                                >
-                                  Receipt
-                                </button>
-                                <span style={{ color: '#cbd5e1' }}>|</span>
-                                <button 
-                                  className="btn-view-slip-link"
-                                  title="Print Receipt"
-                                  onClick={() => handlePrintSlip(batch)}
-                                >
-                                  <Printer size={13} style={{ display: 'inline', verticalAlign: 'middle' }} /> Print
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                          {/* Actions */}
+                          <td style={{ textAlign: 'right' }}>
+                            <div className="inv-actions-cell" onClick={(e) => e.stopPropagation()}>
+                              {batch.status !== 'Paid' ? (
+                                <>
+                                  <button 
+                                    className="btn-pay-now-link"
+                                    onClick={() => {
+                                      setSelectedInvoiceId(batch.realId || batch.id);
+                                      setPaymentAmount(batch.amount);
+                                      setActiveModal('recordPayment');
+                                    }}
+                                  >
+                                    Pay Now
+                                  </button>
+                                  <span style={{ color: '#cbd5e1' }}>|</span>
+                                  <button 
+                                    className="btn-view-slip-link"
+                                    onClick={() => {
+                                      setSelectedInvoiceId(batch.realId || batch.id);
+                                      setActiveModal('viewSlip');
+                                    }}
+                                  >
+                                    Slip
+                                  </button>
+                                  <span style={{ color: '#cbd5e1' }}>|</span>
+                                  <button 
+                                    className="btn-view-slip-link"
+                                    title="Print Invoice"
+                                    onClick={() => handlePrintSlip(batch)}
+                                  >
+                                    <Printer size={13} style={{ display: 'inline', verticalAlign: 'middle' }} />
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button 
+                                    className="btn-view-slip-link"
+                                    style={{ fontWeight: 600, color: '#0f172a' }}
+                                    onClick={() => {
+                                      setSelectedInvoiceId(batch.realId || batch.id);
+                                      setActiveModal('viewSlip');
+                                    }}
+                                  >
+                                    Receipt
+                                  </button>
+                                  <span style={{ color: '#cbd5e1' }}>|</span>
+                                  <button 
+                                    className="btn-view-slip-link"
+                                    title="Print Official Slip"
+                                    onClick={() => handlePrintSlip(batch)}
+                                  >
+                                    <Printer size={13} style={{ display: 'inline', verticalAlign: 'middle' }} /> Print
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -613,18 +667,18 @@ export default function Invoices({ user, onNavigate, onLogout }) {
               {/* Table Summary Footer */}
               <div className="inv-summary-footer-row">
                 <div className="inv-account-details-left">
-                  <div><strong>Selected Account:</strong> {activeSlip.customerName || 'All Accounts'} ({activeSlip.customerEmail || 'Commercial Terms'})</div>
-                  <div><strong>Billing Terms:</strong> Net 30 Commercial SLA • INR Currency Base</div>
+                  <div><strong>Account:</strong> {activeSlip.customerName} {activeSlip.customerEmail ? `(${activeSlip.customerEmail})` : ''}</div>
+                  <div><strong>Billing Policy:</strong> Commercial Net 30 Terms Apply (INR)</div>
                 </div>
 
                 <div className="inv-totals-box-right">
                   <div className="inv-totals-sub-row">
-                    <span>Subtotal (Invoiced volume):</span>
+                    <span>Subtotal (Invoiced items):</span>
                     <span>₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                   {settledCredit > 0 && (
                     <div className="inv-totals-sub-row credit">
-                      <span>Settled Payments:</span>
+                      <span>Settled Credit:</span>
                       <span>-₹{settledCredit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                   )}
@@ -646,12 +700,12 @@ export default function Invoices({ user, onNavigate, onLogout }) {
             <Clock size={18} />
           </div>
           <div>
-            <div className="inv-guardrail-title">AUTOMATED FULFILLMENT & INVOICE RECONCILIATION</div>
+            <div className="inv-guardrail-title">AUTOMATED FULFILLMENT GUARDRAIL</div>
             <div className="inv-guardrail-headline">
-              Invoices remain synchronized with warehouse dispatches and ERP payment logs.
+              Partial invoicing stays reconciled with partial delivery, nothing is billed before it ships.
             </div>
             <div className="inv-guardrail-body">
-              All invoice line batches update automatically when customer proposals are signed and warehouse inventory is provisioned.
+              Warehouse fulfillment node confirms dispatch before triggering automated debit slips. Subsequent shipment batches generate once remaining inventory clears customs.
             </div>
           </div>
         </div>
@@ -662,7 +716,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
             <button 
               className="btn-record-payment"
               onClick={() => {
-                setPaymentAmount(totalOutstanding > 0 ? totalOutstanding : 25000);
+                setPaymentAmount(activeSlip.status !== 'Paid' ? activeSlip.amount : totalOutstanding);
                 setActiveModal('recordPayment');
               }}
             >
@@ -672,10 +726,10 @@ export default function Invoices({ user, onNavigate, onLogout }) {
 
             <button 
               className="btn-inv-outline"
-              onClick={() => handlePrintSlip(selectedInvoice || invoiceBatches[0])}
+              onClick={() => handlePrintSlip(activeSlip)}
             >
               <Printer size={15} />
-              <span>Print Active Invoice</span>
+              <span>Print Active Slip</span>
             </button>
           </div>
 
@@ -683,7 +737,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
             <button 
               className="btn-inv-text-action"
               onClick={() => {
-                setReminderEmail(activeSlip.customerEmail || 'finance@customer.com');
+                setReminderEmail(activeSlip.customerEmail || 'finance@enterprise.com');
                 setActiveModal('sendReminder');
               }}
             >
@@ -709,7 +763,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
             <span style={{ margin: '0 8px', color: '#cbd5e1' }}>|</span>
             <div className="status-badge" style={{ display: 'inline-flex' }}>
               <span className="pulse-dot"></span>
-              <span>Billing Engine Online</span>
+              <span>Systems Operational</span>
             </div>
           </div>
 
@@ -742,7 +796,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
         </div>
       </footer>
 
-      {/* MODAL 1: Issue / Generate New Invoice */}
+      {/* MODAL 1: Issue / Generate New Commercial Invoice */}
       {activeModal === 'generateInvoice' && (
         <div className="modal-overlay" onClick={() => setActiveModal(null)}>
           <div className="modal-content" style={{ maxWidth: '580px' }} onClick={(e) => e.stopPropagation()}>
@@ -893,7 +947,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
 
             <form onSubmit={handleRecordPaymentSubmit}>
               <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
-                <div style={{ fontSize: '12px', color: '#64748b' }}>Account: {activeSlip.customerName || 'Selected Invoice'}</div>
+                <div style={{ fontSize: '12px', color: '#64748b' }}>Account: {activeSlip.customerName} ({activeSlip.id})</div>
                 <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>
                   ₹{Number(paymentAmount || activeSlip.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
@@ -930,6 +984,7 @@ export default function Invoices({ user, onNavigate, onLogout }) {
                 <input 
                   type="text"
                   className="form-input"
+                  placeholder="e.g. TXN-89412"
                   value={paymentReference}
                   onChange={(e) => setPaymentReference(e.target.value)}
                   required
@@ -958,17 +1013,17 @@ export default function Invoices({ user, onNavigate, onLogout }) {
         </div>
       )}
 
-      {/* MODAL 3: View Slip / Official Printable Invoice */}
+      {/* MODAL 3: Official Printable Invoice / Slip */}
       {activeModal === 'viewSlip' && (
         <div className="modal-overlay" onClick={() => setActiveModal(null)}>
           <div className="modal-content print-mode" style={{ maxWidth: '640px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div>
                 <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
-                  Official Commercial Invoice Slip — {activeSlip.id || 'INV-2026-0042'}
+                  Official Commercial Invoice Slip — {activeSlip.id}
                 </h3>
                 <div style={{ fontSize: '12.5px', color: '#64748b' }}>
-                  Billed to {activeSlip.customerName || 'Acme Corp'} • Status: <strong>{activeSlip.status || 'Active'}</strong>
+                  Billed to {activeSlip.customerName} • Status: <strong style={{ color: isPaid ? '#059669' : '#d97706' }}>{activeSlip.status}</strong>
                 </div>
               </div>
               <button className="modal-close-btn" onClick={() => setActiveModal(null)}>
@@ -984,15 +1039,15 @@ export default function Invoices({ user, onNavigate, onLogout }) {
                   <div style={{ fontSize: '12px', color: '#64748b' }}>BKC, Mumbai, Maharashtra 400051 • GSTIN: 27AAAAA0000A1Z5</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>{activeSlip.id || 'INV-2026-0042'}</div>
-                  <div style={{ fontSize: '12px', color: '#64748b' }}>Date: {activeSlip.issueDate ? new Date(activeSlip.issueDate).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN')}</div>
-                  <div style={{ fontSize: '12px', color: '#64748b' }}>Due: {activeSlip.dueDate || 'Net 30'}</div>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>{activeSlip.id}</div>
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>Date: {formatDate(activeSlip.issueDate)}</div>
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>Due: {formatDate(activeSlip.dueDate)}</div>
                 </div>
               </div>
 
               <div style={{ background: '#faf8f9', padding: '10px 14px', borderRadius: '6px', marginBottom: '14px', fontSize: '12.5px' }}>
                 <div><strong>Billed To:</strong> {activeSlip.customerName} {activeSlip.customerEmail ? `(${activeSlip.customerEmail})` : ''}</div>
-                <div style={{ marginTop: '3px', color: '#64748b' }}>Payment Mode: {activeSlip.paymentMethod || 'ACH Wire Transfer'} • Status: <span style={{ color: activeSlip.status === 'Paid' ? '#059669' : '#d97706', fontWeight: 700 }}>{activeSlip.status}</span></div>
+                <div style={{ marginTop: '3px', color: '#64748b' }}>Payment Mode: {activeSlip.paymentMethod || 'ACH Wire Transfer'} • Status: <span style={{ color: isPaid ? '#059669' : '#d97706', fontWeight: 700 }}>{activeSlip.status}</span></div>
               </div>
 
               <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse', marginBottom: '16px' }}>
