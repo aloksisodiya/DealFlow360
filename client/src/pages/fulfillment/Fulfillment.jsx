@@ -364,7 +364,9 @@ export default function Fulfillment({ user, onNavigate, onLogout }) {
     try {
       setActionLoading(true);
       const res = await dispatchOrder(targetOrder.code, targetSplit);
-      showToast(`🚀 ${res.message || `Order ${targetOrder.code} dispatched and stock deducted!`}`);
+      const msg = (res && typeof res === 'object' ? (res.message || res.data?.message || res.result?.message) : null) 
+        || `Order ${targetOrder.code} dispatched and stock deducted!`;
+      showToast(`🚀 ${msg}`);
       setActiveModal(null);
       await loadFulfillmentData();
     } catch (err) {

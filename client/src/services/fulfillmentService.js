@@ -27,16 +27,16 @@ export async function fetchFulfillmentOrders() {
 
 export async function overrideFulfillmentSplit(quoteId, splitAllocations) {
   const res = await api.post('/finance/fulfillment/split-override', { quoteId, splitAllocations });
-  return res.data;
+  return res.data || res.result || res;
 }
 
 export async function consolidateBackorder(quoteId, warehouseId) {
   const res = await api.post('/finance/fulfillment/consolidate-backorder', { quoteId, warehouseId });
-  return res.data;
+  return res.data || res.result || res;
 }
 
 export async function dispatchOrder(quoteId, splitAllocations) {
   const res = await api.post('/finance/fulfillment/dispatch', { quoteId, splitAllocations });
-  return res.data;
+  return res.data || res.result || res;
 }
 

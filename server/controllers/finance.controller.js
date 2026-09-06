@@ -69,7 +69,7 @@ export async function dispatchOrderAction(req, res) {
     }
     const { dispatchFulfillmentOrder } = await import("../services/finance.services.js");
     const result = await dispatchFulfillmentOrder({ quoteId, splitAllocations });
-    return res.json({ success: true, result });
+    return res.json({ success: true, data: result, message: result?.message || `Order ${quoteId} successfully dispatched.` });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
   }
@@ -92,7 +92,7 @@ export async function decideApproval(req, res) {
     const reviewerId = req.auth?.adminId || "FinanceUser";
 
     const result = await decideFinanceApproval(reviewerId, id, action, reason);
-    return res.json({ success: true, result });
+    return res.json({ success: true, data: result, message: `Quotation ${id} decision recorded.` });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
   }
@@ -116,7 +116,7 @@ export async function overrideFulfillmentSplit(req, res) {
       return res.status(400).json({ success: false, message: "quoteId and splitAllocations are required" });
     }
     const result = await manualFulfillmentOverride(quoteId, splitAllocations);
-    return res.json({ success: true, result });
+    return res.json({ success: true, data: result, message: result?.message || "Fulfillment split saved" });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -129,7 +129,7 @@ export async function consolidateBackorder(req, res) {
       return res.status(400).json({ success: false, message: "quoteId and warehouseId are required" });
     }
     const result = await consolidateBackorderDecision(quoteId, warehouseId);
-    return res.json({ success: true, result });
+    return res.json({ success: true, data: result, message: result?.message || "Backorder consolidated" });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
