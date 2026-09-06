@@ -685,29 +685,12 @@ export default function Quotations({ user, onNavigate, onLogout }) {
           onToast={showToast}
         />
 
-        <div style={{ padding: '0 24px 40px', maxWidth: '1400px', margin: '0 auto', width: '100%' }}>
-          <div style={{ margin: '16px 0 10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <button
-              onClick={() => setActiveCustomerPortalToken(null)}
-              className="btn-dash-secondary"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '8px 16px',
-                fontWeight: 700,
-                fontSize: '13px'
-              }}
-            >
-              ← Back to My Quotations
-            </button>
-          </div>
-          <CustomerPortal
-            token={activeCustomerPortalToken}
-            onBack={() => setActiveCustomerPortalToken(null)}
-            onGoToInvoices={() => onNavigate && onNavigate('invoices')}
-          />
-        </div>
+        <CustomerPortal
+          token={activeCustomerPortalToken}
+          backLabel="← Back to My Quotations"
+          onBack={() => setActiveCustomerPortalToken(null)}
+          onGoToInvoices={() => onNavigate && onNavigate('invoices')}
+        />
       </div>
     );
   }

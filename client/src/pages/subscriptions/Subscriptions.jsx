@@ -175,9 +175,9 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
 
   const isCustomerUser = String(user?.role || '').toLowerCase().includes('customer');
 
-  const loadData = async () => {
+  const loadData = async (isSilent = false) => {
     try {
-      setIsLoading(true);
+      if (!isSilent) setIsLoading(true);
       const [subsData, quotesData, prodsData] = await Promise.all([
         fetchSubscriptions({ search: searchQuery || undefined }),
         fetchQuotations().catch(() => []),
@@ -193,10 +193,14 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
       const userHandle = userEmail ? userEmail.split('@')[0] : '';
 
       // Filter quotations
-      const nonDraftQuotes = (quotesData || []).filter(q => {
+      const quotesList = Array.isArray(quotesData) ? quotesData : [];
+      const nonDraftQuotes = quotesList.filter(q => {
+        const rawStage = String(q.stage || q.status || '').toLowerCase();
+        if (rawStage === 'draft') return false;
+
         if (isCustomerUser) {
-          const qEmail = String(q.customer_email || q.customerEmail || q.portal_customer_email || '').toLowerCase().trim();
           const qName = String(q.customer_name || q.client || q.customerName || '').toLowerCase().trim();
+          const qEmail = String(q.customer_email || q.customerEmail || q.portal_customer_email || '').toLowerCase().trim();
 
           const emailMatch = userEmail && (qEmail === userEmail || qEmail.includes(userEmail) || userEmail.includes(qEmail));
           const nameMatch = userName && qName && (qName.includes(userName) || userName.includes(qName));
@@ -276,14 +280,18 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
       setSubscriptions(formatted);
     } catch (err) {
       console.error('Failed to load warranty subscriptions:', err);
-      showToast('Failed to load warranty subscriptions from database');
+      if (!isSilent) showToast('Failed to load warranty subscriptions from database');
     } finally {
-      setIsLoading(false);
+      if (!isSilent) setIsLoading(false);
     }
   };
 
   useEffect(() => {
     loadData();
+    const intervalId = setInterval(() => {
+      loadData(true);
+    }, 3000);
+    return () => clearInterval(intervalId);
   }, [searchQuery]);
 
   // Calculations
@@ -521,10 +529,27 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
                     <strong>Recommended for:</strong> {plan.recommendedFor}
                   </div>
 
-                  <div className="plan-card-footer">
+                  <div className="plan-card-footer" style={{ display: 'flex', gap: '8px' }}>
+                    {isCustomerUser && (
+                      <button
+                        type="button"
+                        className="btn-new-plan"
+                        style={{ flex: 1, height: '36px', fontSize: '12.5px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                        onClick={() => {
+                          setSelectedPlanTier(plan.tier);
+                          setNewCustomerName(user?.name || 'Piyush Shah');
+                          setNewCustomerEmail(user?.email || 'piyush@dealflow360.com');
+                          setIsEnrollModalOpen(true);
+                        }}
+                      >
+                        <ShieldCheck size={14} />
+                        <span>Subscribe Now</span>
+                      </button>
+                    )}
                     <button
                       type="button"
                       className={`btn-plan-action ${isTabActive ? 'active' : ''}`}
+                      style={{ flex: isCustomerUser ? 1 : undefined }}
                       onClick={() => {
                         setActivePlanTab(activePlanTab === plan.tier ? 'all' : plan.tier);
                       }}
@@ -532,11 +557,11 @@ export default function Subscriptions({ user, onNavigate, onLogout }) {
                       {isTabActive ? (
                         <>
                           <Check size={14} />
-                          <span>Showing Enrolled Subscribers ({enrolledList.length})</span>
+                          <span>Showing Enrolled ({enrolledList.length})</span>
                         </>
                       ) : (
                         <>
-                          <span>View {plan.shortName} Subscribers ({enrolledList.length})</span>
+                          <span>View {plan.shortName} ({enrolledList.length})</span>
                           <ChevronRight size={14} />
                         </>
                       )}

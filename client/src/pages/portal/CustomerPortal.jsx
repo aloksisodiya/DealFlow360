@@ -21,7 +21,7 @@ import "./CustomerPortal.css";
  *   - Inventory-aware upsell/cross-sell panel (post-confirm)
  *   - Official Tax Invoice & Purchase Bill download/print
  */
-export default function CustomerPortal({ token, onBack, onGoToInvoices }) {
+export default function CustomerPortal({ token, onBack, onGoToInvoices, backLabel }) {
   const [quotation, setQuotation]       = useState(null);
   const [messages, setMessages]         = useState([]);
   const [loading, setLoading]           = useState(true);
@@ -112,14 +112,14 @@ export default function CustomerPortal({ token, onBack, onGoToInvoices }) {
   }, [messages]);
 
   const handleSendMessage = async (textToSend) => {
-    const text = (typeof textToSend === "string" ? textToSend : msgText).trim();
-    if (!text || sendingMsg) return;
+    const content = (textToSend || msgText).trim();
+    if (!content) return;
     setSendingMsg(true);
     try {
-      await sendPortalMessage(token, text);
-      if (typeof textToSend !== "string") setMsgText("");
-      const msgs = await getPortalMessages(token);
-      setMessages(msgs);
+      const newMsg = await sendPortalMessage(token, content);
+      setMessages((prev) => [...prev, newMsg]);
+      setMsgText("");
+      showToast("Message sent to sales rep!");
     } catch (e) {
       showToast(e.message, "error");
     } finally {
@@ -128,19 +128,18 @@ export default function CustomerPortal({ token, onBack, onGoToInvoices }) {
   };
 
   const handleItemInquiry = (item) => {
-    const prompt = `Regarding item "${item.name}": Could you provide more details about delivery and configuration options?`;
-    setMsgText(prompt);
-    showToast(`Inquiry drafted in chat below!`);
+    const itemPrompt = `Regarding line item "${item.name}" (SKU: ${item.sku || 'N/A'}, Qty: ${item.quantity || 1}) — is it possible to get expedited delivery or bulk pricing for additional units?`;
+    handleSendMessage(itemPrompt);
   };
 
   const handleCounterSubmit = async () => {
-    if (submittingCounter) return;
+    if (submittingCounter || counterSent) return;
     setSubmittingCounter(true);
     try {
       const result = await submitCounterDiscount(token, counterPct, counterNote);
       setCounterSent(true);
-      showToast(result?.message || `Counter proposal of ${counterPct}% submitted!`);
-      // Refresh quotation stage
+      showToast(result?.message || `Counter discount of ${counterPct}% submitted!`);
+      // Reload quote to get updated stage
       const q = await getPortalQuotation(token);
       setQuotation(q);
     } catch (e) {
@@ -150,8 +149,8 @@ export default function CustomerPortal({ token, onBack, onGoToInvoices }) {
     }
   };
 
-  const handleConfirm = async () => {
-    if (confirming) return;
+  const handleConfirmOrder = async () => {
+    if (confirming || confirmed) return;
     setConfirming(true);
     try {
       const result = await confirmPortalOrder(token);
@@ -211,7 +210,7 @@ export default function CustomerPortal({ token, onBack, onGoToInvoices }) {
                 boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
               }}
             >
-              <span>← Back</span>
+              <span>{backLabel || "← Back"}</span>
             </button>
             <div className="portal-logo">DealFlow<span>360</span></div>
           </div>
@@ -247,7 +246,7 @@ export default function CustomerPortal({ token, onBack, onGoToInvoices }) {
                 boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
               }}
             >
-              <span>← Back</span>
+              <span>{backLabel || "← Back"}</span>
             </button>
             <div className="portal-logo">DealFlow<span>360</span></div>
           </div>
@@ -297,9 +296,9 @@ export default function CustomerPortal({ token, onBack, onGoToInvoices }) {
                 boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
                 transition: 'all 0.2s ease'
               }}
-              title="Return to Subscriptions Dashboard"
+              title="Return to Previous Screen"
             >
-              <span>← Back to Subscriptions</span>
+              <span>{backLabel || (onBack ? "← Back to Quotations" : "← Back to Dashboard")}</span>
             </button>
             <div className="portal-brand" onClick={handleBackToSubscriptions} style={{ cursor: 'pointer' }}>
               <span className="portal-brand-dark">DealFlow</span>
