@@ -4,7 +4,11 @@ export async function listProducts({ category, search, tier = "Bronze" } = {}) {
   let query = db("products").where({ is_active: true }).orderBy("created_at", "desc");
 
   if (category && category !== "All") {
-    query = query.where({ category });
+    if (category.toLowerCase().startsWith("subscript")) {
+      query = query.whereRaw("LOWER(category) LIKE 'subscript%'");
+    } else {
+      query = query.whereRaw("LOWER(category) = ?", [category.toLowerCase()]);
+    }
   }
 
   if (search && search.trim()) {
@@ -12,6 +16,7 @@ export async function listProducts({ category, search, tier = "Bronze" } = {}) {
     query = query.where((builder) => {
       builder.whereRaw("LOWER(name) LIKE ?", [term])
         .orWhereRaw("LOWER(sku) LIKE ?", [term])
+        .orWhereRaw("LOWER(category) LIKE ?", [term])
         .orWhereRaw("LOWER(description) LIKE ?", [term]);
     });
   }
@@ -127,7 +132,18 @@ export async function updateProduct(id, updates) {
   if (updates.name) patch.name = updates.name;
   if (updates.sku) patch.sku = updates.sku;
   if (updates.category) patch.category = updates.category;
-  if (updates.price !== undefined) patch.price = Number(updates.price);
+  if (updates.price !== undefined) {
+    const numPrice = Number(updates.price);
+    patch.price = numPrice;
+    if (!updates.tierPricing && !updates.tier_pricing) {
+      patch.tier_pricing = JSON.stringify({
+        Bronze: numPrice,
+        Silver: Math.round(numPrice * 0.95),
+        Gold: Math.round(numPrice * 0.90),
+        Enterprise: Math.round(numPrice * 0.85)
+      });
+    }
+  }
   if (updates.unit) patch.unit = updates.unit;
   if (updates.marginPercent !== undefined) patch.margin_percent = Number(updates.marginPercent);
   if (updates.stockStatus) patch.stock_status = updates.stockStatus;

@@ -30,12 +30,17 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
   };
 
   // Category & Filter State
-  const [activeCategory, setActiveCategory] = useState('All'); // 'All' | 'Hardware' | 'Services' | 'Subscription' | 'Bundles'
+  const [activeCategory, setActiveCategory] = useState('All'); // 'All' | 'Hardware' | 'Services' | 'Subscriptions' | 'Bundles'
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTier, setSelectedTier] = useState('All');
-  const [selectedCurrency, setSelectedCurrency] = useState('USD');
+  const [selectedCurrency, setSelectedCurrency] = useState('INR');
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Inline Price Editing State
+  const [editingPriceId, setEditingPriceId] = useState(null);
+  const [inlinePriceVal, setInlinePriceVal] = useState('');
+  const [isSavingPrice, setIsSavingPrice] = useState(false);
 
   // Products Data loaded from live PostgreSQL database
   const [products, setProducts] = useState([]);
@@ -51,14 +56,17 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
   const [newProdCat, setNewProdCat] = useState('Hardware');
   const [newProdPrice, setNewProdPrice] = useState(500);
   const [newProdUnit, setNewProdUnit] = useState('Each');
-  const [newProdTax, setNewProdTax] = useState('15%');
+  const [newProdTax, setNewProdTax] = useState('18%');
   const [newProdVariants, setNewProdVariants] = useState('Standard');
   const [newProdStock, setNewProdStock] = useState(100);
 
   // Edit Product Form State
   const [editName, setEditName] = useState('');
   const [editPrice, setEditPrice] = useState(0);
-  const [editTax, setEditTax] = useState('15%');
+  const [editSku, setEditSku] = useState('');
+  const [editCat, setEditCat] = useState('Hardware');
+  const [editUnit, setEditUnit] = useState('Each');
+  const [editTax, setEditTax] = useState('18%');
 
   const loadProducts = async (showLoading = true) => {
     try {
@@ -85,16 +93,22 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
     return () => clearInterval(interval);
   }, [activeCategory, searchQuery, selectedTier]);
 
+  // Dynamic Category Counts
+  const countHardware = products.filter(p => String(p.category || '').toLowerCase() === 'hardware').length;
+  const countServices = products.filter(p => String(p.category || '').toLowerCase().includes('service')).length;
+  const countSubscriptions = products.filter(p => String(p.category || '').toLowerCase().includes('subscript')).length;
+  const countBundles = products.filter(p => String(p.category || '').toLowerCase().includes('bundle')).length;
+
   // Filter calculation
   const filteredProducts = products;
 
   const handleExportCatalog = () => {
-    const headers = ['Product Name', 'SKU', 'Category', 'Price', 'Unit', 'Stock Status'];
+    const headers = ['Product Name', 'SKU', 'Category', 'Price (INR)', 'Unit', 'Stock Status'];
     const rows = products.map(p => [
       p.name,
       p.sku,
       p.category,
-      p.priceFormatted,
+      p.price,
       p.unit,
       p.stockStatus
     ]);
@@ -109,22 +123,53 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
     showToast('Product catalog exported successfully!');
   };
 
+  const startEditingPrice = (p) => {
+    setEditingPriceId(p.id);
+    setInlinePriceVal(String(p.price || p.basePrice || 0));
+  };
+
+  const handleSaveInlinePrice = async (p) => {
+    const num = Number(inlinePriceVal);
+    if (isNaN(num) || num < 0) {
+      showToast('Please enter a valid positive price.');
+      return;
+    }
+    try {
+      setIsSavingPrice(true);
+      await updateProduct(p.id, { price: num });
+      showToast(`Updated price of "${p.name}" to ₹${num.toLocaleString('en-IN')}!`);
+      setEditingPriceId(null);
+      await loadProducts(false);
+    } catch (err) {
+      showToast(err.message || 'Failed to update price in database');
+    } finally {
+      setIsSavingPrice(false);
+    }
+  };
+
   const handleOpenEdit = (p) => {
     setSelectedProduct(p);
     setEditName(p.name);
     setEditPrice(p.price);
-    setEditTax('15%');
+    setEditSku(p.sku);
+    setEditCat(p.category || 'Hardware');
+    setEditUnit(p.unit || 'Each');
+    setEditTax('18%');
     setActiveModal('editProduct');
   };
 
   const handleSaveEditProduct = async (e) => {
     e.preventDefault();
     try {
+      const numPrice = Number(editPrice);
       await updateProduct(selectedProduct.id, {
         name: editName,
-        price: Number(editPrice),
+        sku: editSku,
+        category: editCat,
+        unit: editUnit,
+        price: numPrice,
       });
-      showToast(`Product ${editName} updated successfully in database!`);
+      showToast(`Product "${editName}" updated with price ₹${numPrice.toLocaleString('en-IN')}!`);
       setActiveModal(null);
       await loadProducts();
     } catch (err) {
@@ -140,16 +185,17 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
     }
 
     try {
+      const numPrice = Number(newProdPrice);
       await createProduct({
         name: newProdName,
         sku: newProdSku.toUpperCase(),
         category: newProdCat,
-        price: Number(newProdPrice),
+        price: numPrice,
         unit: newProdUnit,
         stockQty: Number(newProdStock || 100),
         variants: [newProdVariants],
       });
-      showToast(`Product "${newProdName}" added with ${newProdStock || 100} units warehouse stock!`);
+      showToast(`Product "${newProdName}" added with price ₹${numPrice.toLocaleString('en-IN')} and ${newProdStock || 100} units stock!`);
       setActiveModal(null);
       setNewProdName('');
       setNewProdSku('');
@@ -303,6 +349,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
               onClick={() => setActiveCategory('Hardware')}
             >
               <span>Hardware</span>
+              <span className="tab-badge-num">{countHardware}</span>
             </button>
 
             <button 
@@ -310,6 +357,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
               onClick={() => setActiveCategory('Services')}
             >
               <span>Services</span>
+              <span className="tab-badge-num">{countServices}</span>
             </button>
 
             <button 
@@ -317,6 +365,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
               onClick={() => setActiveCategory('Subscriptions')}
             >
               <span>Subscriptions</span>
+              <span className="tab-badge-num">{countSubscriptions}</span>
             </button>
 
             <button 
@@ -324,6 +373,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
               onClick={() => setActiveCategory('Bundles')}
             >
               <span>Bundles</span>
+              <span className="tab-badge-num">{countBundles}</span>
             </button>
           </div>
 
@@ -333,7 +383,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
               <input 
                 type="text" 
                 className="catalog-search-input"
-                placeholder="Filter rows..."
+                placeholder="Search name, SKU, category..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -366,10 +416,10 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
         <div className="catalog-table-card">
           <div className="catalog-table-header">
             <div>
-              <strong>Products</strong> Showing {filteredProducts.length} of {products.length} items
+              <strong>Products Catalog</strong> — Showing {filteredProducts.length} of {products.length} items (Click any price to change)
             </div>
             <div>
-              Sorted by: <strong>Default Hierarchy</strong>
+              Currency: <strong>INR (₹)</strong>
             </div>
           </div>
 
@@ -380,7 +430,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
                   <th>PRODUCT NAME</th>
                   <th>CATEGORY</th>
                   <th>VARIANTS</th>
-                  <th>PRICE</th>
+                  <th>UNIT PRICE (₹ INR)</th>
                   <th>UNIT</th>
                   <th>WAREHOUSE STOCK</th>
                   <th>STATUS</th>
@@ -397,8 +447,8 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
                     {/* Product Name */}
                     <td>
                       <div className="product-cell">
-                        <div className={`product-avatar ${prod.avatarColor}`}>
-                          {prod.avatar}
+                        <div className={`product-avatar ${prod.avatarColor || 'plum'}`}>
+                          {prod.avatar || prod.name.slice(0, 2).toUpperCase()}
                         </div>
                         <div>
                           <div className="product-name-bold">{prod.name}</div>
@@ -408,28 +458,95 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
                     </td>
 
                     {/* Category */}
-                    <td style={{ color: '#475569', fontWeight: 500 }}>
-                      {prod.category}
+                    <td>
+                      <span className={`cat-pill-badge ${prod.category === 'Subscriptions' ? 'sub' : prod.category === 'Services' ? 'srv' : 'hdw'}`}>
+                        {prod.category}
+                      </span>
                     </td>
 
                     {/* Variants */}
                     <td>
-                      {prod.variants !== '—' ? (
+                      {Array.isArray(prod.variants) && prod.variants.length > 0 && prod.variants[0] !== '—' ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                          {prod.variants.slice(0, 2).map((v, idx) => (
+                            <span key={idx} className="variant-pill">{v}</span>
+                          ))}
+                          {prod.variants.length > 2 && (
+                            <span className="variant-pill">+{prod.variants.length - 2}</span>
+                          )}
+                        </div>
+                      ) : prod.variants && prod.variants !== '—' ? (
                         <span className="variant-pill">{prod.variants}</span>
                       ) : (
                         <span style={{ color: '#94a3b8' }}>—</span>
                       )}
                     </td>
 
-                    {/* Price */}
-                    <td style={{ fontWeight: 700, color: '#0f172a' }}>
-                      {prod.priceFormatted}
+                    {/* Price with Inline Edit Mode */}
+                    <td onClick={(e) => e.stopPropagation()}>
+                      {editingPriceId === prod.id ? (
+                        <div className="price-inline-edit-box">
+                          <span className="currency-prefix">₹</span>
+                          <input 
+                            type="number"
+                            min="0"
+                            step="any"
+                            className="price-inline-input"
+                            value={inlinePriceVal}
+                            onChange={(e) => setInlinePriceVal(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveInlinePrice(prod);
+                              if (e.key === 'Escape') setEditingPriceId(null);
+                            }}
+                            autoFocus
+                          />
+                          <button 
+                            type="button"
+                            className="btn-price-inline-save"
+                            title="Save Price"
+                            disabled={isSavingPrice}
+                            onClick={() => handleSaveInlinePrice(prod)}
+                          >
+                            <Check size={13} />
+                          </button>
+                          <button 
+                            type="button"
+                            className="btn-price-inline-cancel"
+                            title="Cancel"
+                            onClick={() => setEditingPriceId(null)}
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div 
+                          className="price-display-wrap"
+                          title="Click to edit price directly"
+                          onClick={() => startEditingPrice(prod)}
+                        >
+                          <span className="price-bold-text">
+                            {prod.priceFormatted || `₹${Number(prod.price || 0).toLocaleString('en-IN')}`}
+                          </span>
+                          <button 
+                            type="button" 
+                            className="btn-edit-price-pill"
+                            title="Edit price"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startEditingPrice(prod);
+                            }}
+                          >
+                            <Edit3 size={11} />
+                            <span>Edit</span>
+                          </button>
+                        </div>
+                      )}
                     </td>
 
                     {/* Unit */}
                     <td>
-                      {prod.unit === 'Recurring' ? (
-                        <strong style={{ color: '#7e22ce' }}>Recurring</strong>
+                      {prod.unit === 'Recurring' || prod.category === 'Subscriptions' ? (
+                        <strong style={{ color: '#714b67', fontSize: '12px' }}>{prod.unit || 'per unit'}</strong>
                       ) : (
                         <span>{prod.unit}</span>
                       )}
@@ -469,11 +586,12 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
                     <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                         <button 
-                          className="cat-action-btn"
-                          title="Edit Product"
+                          className="btn-quick-price-action"
+                          title="Edit Price & Specs"
                           onClick={() => handleOpenEdit(prod)}
                         >
-                          <Edit3 size={15} />
+                          <Edit3 size={13} />
+                          <span>Edit</span>
                         </button>
 
                         <div style={{ position: 'relative' }}>
@@ -501,19 +619,19 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
                                 style={{ width: '100%', padding: '8px 14px', textAlign: 'left', background: 'none', border: 'none', fontSize: '12.5px', color: '#334155', cursor: 'pointer' }}
                                 onClick={() => {
                                   setOpenActionMenuId(null);
-                                  showToast(`Cloned price spec for ${prod.name}`);
+                                  startEditingPrice(prod);
                                 }}
                               >
-                                Duplicate SKU
+                                Edit Price Inline
                               </button>
                               <button 
-                                style={{ width: '100%', padding: '8px 14px', textAlign: 'left', background: 'none', border: 'none', fontSize: '12.5px', color: '#e11d48', cursor: 'pointer' }}
+                                style={{ width: '100%', padding: '8px 14px', textAlign: 'left', background: 'none', border: 'none', fontSize: '12.5px', color: '#334155', cursor: 'pointer' }}
                                 onClick={() => {
                                   setOpenActionMenuId(null);
-                                  showToast(`Archived ${prod.sku}`);
+                                  handleOpenEdit(prod);
                                 }}
                               >
-                                Archive Product
+                                Edit Full Specs & Price
                               </button>
                             </div>
                           )}
@@ -543,14 +661,14 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
         {/* Informational Callout Tip */}
         <div className="catalog-tip-card">
           <div className="catalog-tip-left">
-            <div className="catalog-tip-icon">i</div>
+            <div className="catalog-tip-icon">₹</div>
             <div className="catalog-tip-text">
-              Click a product row to open general info, variants and tier/currency price lists.
+              <strong>Price Management Tip:</strong> Click the <strong>Edit</strong> button on any price cell to change unit prices inline, or click a product row to manage pricing tiers &amp; CPQ matrix in real-time.
             </div>
           </div>
 
           <div className="catalog-tip-badge">
-            Shortcut: Enter ↵ or Space to Expand
+            INR (₹) Base Currency Sync
           </div>
         </div>
 
@@ -565,33 +683,21 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
             <span style={{ margin: '0 8px', color: '#cbd5e1' }}>|</span>
             <span>DealFlow360 v4.12 Enterprise</span>
             <span style={{ margin: '0 8px', color: '#cbd5e1' }}>•</span>
-            <span>© 2025 DealFlow360 Technologies, Inc. All rights reserved.</span>
+            <span>© 2026 DealFlow360 Technologies, Inc. All rights reserved.</span>
           </div>
 
           <div className="footer-links">
             <button 
               className="footer-link"
-              onClick={() => { setFooterModalType('privacy'); setActiveModal('footerModal'); }}
-            >
-              Privacy Policy
-            </button>
-            <button 
-              className="footer-link"
-              onClick={() => { setFooterModalType('terms'); setActiveModal('footerModal'); }}
+              onClick={() => showToast('Terms of Service')}
             >
               Terms of Service
             </button>
             <button 
               className="footer-link"
-              onClick={() => { setFooterModalType('security'); setActiveModal('footerModal'); }}
+              onClick={() => showToast('Privacy Policy')}
             >
-              Security & Compliance
-            </button>
-            <button 
-              className="footer-link"
-              onClick={() => { setFooterModalType('audit'); setActiveModal('footerModal'); }}
-            >
-              Audit Logs
+              Privacy Policy
             </button>
           </div>
         </div>
@@ -615,7 +721,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
 
             <form onSubmit={handleCreateProduct}>
               <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label className="form-label">Product Name</label>
+                <label className="form-label">Product Name *</label>
                 <input 
                   type="text"
                   className="form-input"
@@ -628,7 +734,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                 <div className="form-group">
-                  <label className="form-label">SKU Identifier</label>
+                  <label className="form-label">SKU Identifier *</label>
                   <input 
                     type="text"
                     className="form-input"
@@ -647,7 +753,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
                   >
                     <option value="Hardware">Hardware</option>
                     <option value="Services">Services</option>
-                    <option value="Subscription">Subscription</option>
+                    <option value="Subscriptions">Subscriptions</option>
                     <option value="Bundles">Bundles</option>
                   </select>
                 </div>
@@ -655,7 +761,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px', marginBottom: '16px' }}>
                 <div className="form-group">
-                  <label className="form-label">Base Price (₹ INR)</label>
+                  <label className="form-label">Base Price (₹ INR) *</label>
                   <input 
                     type="number"
                     min="1"
@@ -666,7 +772,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Initial Stock (Units)</label>
+                  <label className="form-label">Initial Stock</label>
                   <input 
                     type="number"
                     min="0"
@@ -684,8 +790,10 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
                     onChange={(e) => setNewProdUnit(e.target.value)}
                   >
                     <option value="Each">Each</option>
-                    <option value="Recurring">Recurring</option>
-                    <option value="Hour">Hour</option>
+                    <option value="per unit">per unit</option>
+                    <option value="per month">per month</option>
+                    <option value="per year">per year</option>
+                    <option value="flat fee">flat fee</option>
                   </select>
                 </div>
                 <div className="form-group">
@@ -698,7 +806,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
                     <option value="18%">18% (GST)</option>
                     <option value="12%">12% (GST)</option>
                     <option value="5%">5% (GST)</option>
-                    <option value="0% (Exempt)">0% (Exempt)</option>
+                    <option value="0%">0% Exempt</option>
                   </select>
                 </div>
               </div>
@@ -748,13 +856,13 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
               </div>
 
               <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '12px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>Enterprise Volume Tier (10% Floor)</div>
-                <div style={{ fontSize: '12px', color: '#64748b' }}>Auto-applied for quotes exceeding ₹10,00,000 contract value</div>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>Enterprise Volume Tier (15% Wholesale Floor)</div>
+                <div style={{ fontSize: '12px', color: '#64748b' }}>Auto-applied for enterprise bulk deals</div>
               </div>
 
               <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>Partner Reseller Tier (15% Wholesale)</div>
-                <div style={{ fontSize: '12px', color: '#64748b' }}>Wholesale discounting matrix for certified channel partners</div>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>Gold &amp; Silver Tiers</div>
+                <div style={{ fontSize: '12px', color: '#64748b' }}>Automatic 5% and 10% loyalty margins calculated on base price</div>
               </div>
             </div>
 
@@ -770,15 +878,15 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
         </div>
       )}
 
-      {/* MODAL 3: Edit Product Specs */}
+      {/* MODAL 3: Edit Product Specs & Price */}
       {activeModal === 'editProduct' && selectedProduct && (
         <div className="modal-overlay" onClick={() => setActiveModal(null)}>
-          <div className="modal-content" style={{ maxWidth: '560px' }} onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" style={{ maxWidth: '580px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Edit3 size={18} color="#714b67" />
                 <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
-                  Edit Product Specs — {selectedProduct.sku}
+                  Edit Product &amp; Price — {selectedProduct.sku}
                 </h3>
               </div>
               <button className="modal-close-btn" onClick={() => setActiveModal(null)}>
@@ -788,7 +896,7 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
 
             <form onSubmit={handleSaveEditProduct}>
               <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label className="form-label">Product Name</label>
+                <label className="form-label">Product Name *</label>
                 <input 
                   type="text"
                   className="form-input"
@@ -800,15 +908,66 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                 <div className="form-group">
-                  <label className="form-label">List Price (₹ INR)</label>
+                  <label className="form-label">SKU Code</label>
                   <input 
-                    type="number"
+                    type="text"
                     className="form-input"
-                    value={editPrice}
-                    onChange={(e) => setEditPrice(e.target.value)}
+                    value={editSku}
+                    onChange={(e) => setEditSku(e.target.value)}
                     required
                   />
                 </div>
+
+                <div className="form-group">
+                  <label className="form-label">Category</label>
+                  <select 
+                    className="form-input"
+                    value={editCat}
+                    onChange={(e) => setEditCat(e.target.value)}
+                  >
+                    <option value="Hardware">Hardware</option>
+                    <option value="Services">Services</option>
+                    <option value="Subscriptions">Subscriptions</option>
+                    <option value="Bundles">Bundles</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 700, color: '#714b67' }}>
+                    Unit Price (₹ INR) *
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, color: '#714b67', fontSize: '14px' }}>₹</span>
+                    <input 
+                      type="number"
+                      min="0"
+                      step="any"
+                      className="form-input"
+                      style={{ paddingLeft: '26px', fontWeight: 700, fontSize: '15px' }}
+                      value={editPrice}
+                      onChange={(e) => setEditPrice(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Unit</label>
+                  <select 
+                    className="form-input"
+                    value={editUnit}
+                    onChange={(e) => setEditUnit(e.target.value)}
+                  >
+                    <option value="Each">Each</option>
+                    <option value="per unit">per unit</option>
+                    <option value="per month">per month</option>
+                    <option value="per year">per year</option>
+                    <option value="flat fee">flat fee</option>
+                  </select>
+                </div>
+
                 <div className="form-group">
                   <label className="form-label">Tax Rate</label>
                   <select 
@@ -824,10 +983,35 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
                 </div>
               </div>
 
-              <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '18px', fontSize: '12.5px', color: '#475569' }}>
-                <div><strong>Category:</strong> {selectedProduct.category}</div>
-                <div style={{ marginTop: '4px' }}><strong>Variants Configured:</strong> {selectedProduct.variants}</div>
-                <div style={{ marginTop: '4px' }}><strong>Stock Availability:</strong> {selectedProduct.stockAvailable} units in warehouse hub</div>
+              {/* Real-time Tier Pricing Matrix Preview */}
+              <div style={{
+                background: '#faf5f8',
+                border: '1px solid #dfc2d6',
+                borderRadius: '8px',
+                padding: '12px 14px',
+                marginBottom: '16px'
+              }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#714b67', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Auto-Calculated CPQ Tier Pricing:
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', textAlign: 'center' }}>
+                  <div style={{ background: '#ffffff', padding: '6px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: '10px', color: '#64748b' }}>Standard</div>
+                    <strong style={{ fontSize: '12.5px', color: '#0f172a' }}>₹{Number(editPrice || 0).toLocaleString('en-IN')}</strong>
+                  </div>
+                  <div style={{ background: '#ffffff', padding: '6px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: '10px', color: '#64748b' }}>Silver (-5%)</div>
+                    <strong style={{ fontSize: '12.5px', color: '#0f172a' }}>₹{Math.round(Number(editPrice || 0) * 0.95).toLocaleString('en-IN')}</strong>
+                  </div>
+                  <div style={{ background: '#ffffff', padding: '6px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: '10px', color: '#64748b' }}>Gold (-10%)</div>
+                    <strong style={{ fontSize: '12.5px', color: '#0f172a' }}>₹{Math.round(Number(editPrice || 0) * 0.90).toLocaleString('en-IN')}</strong>
+                  </div>
+                  <div style={{ background: '#ffffff', padding: '6px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: '10px', color: '#64748b' }}>Enterprise (-15%)</div>
+                    <strong style={{ fontSize: '12.5px', color: '#059669' }}>₹{Math.round(Number(editPrice || 0) * 0.85).toLocaleString('en-IN')}</strong>
+                  </div>
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '10px' }}>
@@ -844,34 +1028,10 @@ export default function ProductCatalog({ user, onNavigate, onLogout }) {
                   className="btn-new-product"
                   style={{ flex: 1, justifyContent: 'center' }}
                 >
-                  Save Changes
+                  Save &amp; Update Price in DB
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* FOOTER MODAL */}
-      {activeModal === 'footerModal' && (
-        <div className="modal-overlay" onClick={() => setActiveModal(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
-                {footerModalType === 'privacy' && 'Privacy Policy'}
-                {footerModalType === 'terms' && 'Terms of Service'}
-                {footerModalType === 'security' && 'Security & Compliance'}
-                {footerModalType === 'audit' && 'System Audit Logs'}
-              </h3>
-              <button className="modal-close-btn" onClick={() => setActiveModal(null)}>
-                <X size={18} />
-              </button>
-            </div>
-            <div style={{ fontSize: '14px', color: '#475569', lineHeight: 1.65 }}>
-              <p style={{ marginBottom: '12px' }}>
-                DealFlow360 guarantees enterprise-grade CPQ product catalog synchronization, dynamic currency valuation, and automated multi-tier discounting.
-              </p>
-            </div>
           </div>
         </div>
       )}

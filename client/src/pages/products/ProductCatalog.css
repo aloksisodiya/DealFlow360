@@ -547,6 +547,168 @@
   font-family: monospace;
 }
 
+/* Category Pill Badges */
+.cat-pill-badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.cat-pill-badge.sub {
+  background-color: #faf5f8;
+  color: #714b67;
+  border: 1px solid #dfc2d6;
+}
+
+.cat-pill-badge.srv {
+  background-color: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.cat-pill-badge.hdw {
+  background-color: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+/* Price Cell & Inline Editing */
+.price-display-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.price-display-wrap:hover {
+  background-color: #f1f5f9;
+}
+
+.price-bold-text {
+  font-weight: 800;
+  font-size: 13.5px;
+  color: #0f172a;
+}
+
+.btn-edit-price-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #64748b;
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-edit-price-pill:hover {
+  border-color: #714b67;
+  color: #714b67;
+  background-color: #faf5f8;
+}
+
+/* Inline Edit Box */
+.price-inline-edit-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background-color: #ffffff;
+  border: 1.5px solid #714b67;
+  border-radius: 6px;
+  padding: 2px 4px;
+  box-shadow: 0 2px 8px rgba(113, 75, 103, 0.15);
+}
+
+.currency-prefix {
+  font-weight: 800;
+  color: #714b67;
+  font-size: 13px;
+  padding-left: 4px;
+}
+
+.price-inline-input {
+  width: 90px;
+  height: 26px;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+  font-family: var(--font-main);
+  background: transparent;
+}
+
+.btn-price-inline-save {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  background-color: #16a34a;
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-price-inline-save:hover {
+  background-color: #15803d;
+}
+
+.btn-price-inline-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  background-color: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-price-inline-cancel:hover {
+  background-color: #fee2e2;
+  color: #ef4444;
+  border-color: #fca5a5;
+}
+
+/* Quick Action Button in Actions Column */
+.btn-quick-price-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: var(--font-main);
+}
+
+.btn-quick-price-action:hover {
+  border-color: #714b67;
+  color: #714b67;
+  background-color: #faf5f8;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .catalog-main {
@@ -562,3 +724,4 @@
     min-width: 800px;
   }
 }
+
