@@ -43,6 +43,7 @@ export const createQuotation = async (ownerId, input) => {
       id: newId,
       customer_name: input.customerName || input.customer_name,
       customer_email: input.customerEmail || input.customer_email || null,
+      portal_customer_email: input.customerEmail || input.customer_email || null,
       customer_tier: customerTier,
       base_amount: baseAmount,
       total_amount: totalAmount,
@@ -295,6 +296,7 @@ export const updateQuotation = async (ownerId, quoteId, input) => {
     .update({
       customer_name: input.customerName || input.customer_name || quote.customer_name,
       customer_email: input.customerEmail !== undefined ? (input.customerEmail || null) : quote.customer_email,
+      portal_customer_email: input.customerEmail !== undefined ? (input.customerEmail || null) : (quote.portal_customer_email || quote.customer_email || null),
       customer_tier: customerTier,
       base_amount: baseAmount,
       total_amount: totalAmount,

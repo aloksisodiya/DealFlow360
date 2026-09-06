@@ -221,7 +221,8 @@ async function main() {
     quotationList.push({
       id: qId,
       customer_name: comp.name,
-      _customer_email: comp.email,
+      customer_email: comp.email,
+      portal_customer_email: comp.email,
       customer_tier: comp.tier,
       base_amount: baseAmount,
       discount_percent: discountPct,
@@ -235,8 +236,8 @@ async function main() {
       assigned_to: rep.name,
       owner_id: adminIds[rep.email] || null,
       portal_token: token,
-      portal_customer_email: comp.email,
       notes: `${p1.name} (${qty1}x) + ${p2.name} (${qty2}x) Enterprise Rollout`,
+      items: JSON.stringify(lineItems),
       upsell_items: JSON.stringify(lineItems),
       negotiation_request: negReq,
       created_at: new Date(Date.now() - (55 - i) * 12 * 3600000)
@@ -244,8 +245,7 @@ async function main() {
   }
 
   for (const q of quotationList) {
-    const { _customer_email, ...quotationRow } = q;
-    await db("quotations").insert(quotationRow).onConflict("id").merge();
+    await db("quotations").insert(q).onConflict("id").merge();
   }
 
   // 5. Generate 45 Invoices
