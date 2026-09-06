@@ -7,19 +7,23 @@ import {
   Check, 
   X, 
   ArrowRight, 
-  Send,
-  Mail,
-  ExternalLink,
-  Loader2,
-  Copy,
-  MessageSquare,
-  CheckCircle2,
-  TrendingDown,
-  AlertTriangle,
-  ArrowUpRight,
-  Edit3
+  Send, 
+  Mail, 
+  ExternalLink, 
+  Loader2, 
+  Copy, 
+  MessageSquare, 
+  CheckCircle2, 
+  TrendingDown, 
+  AlertTriangle, 
+  ArrowUpRight, 
+  Edit3,
+  FileCheck,
+  FileText,
+  Layers
 } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
+import CustomerPortal from '../portal/CustomerPortal';
 import { normalizeRole } from '../../utils/rbac';
 import { fetchProducts } from '../../services/productService';
 import { 
@@ -63,6 +67,11 @@ export default function Quotations({ user, onNavigate, onLogout }) {
   // Live Quotations Data from PostgreSQL database
   const [quotes, setQuotes] = useState([]);
 
+  // Customer portal integration state
+  const isCustomerUser = normalizeRole(user?.role) === 'customer';
+  const [activeCustomerPortalToken, setActiveCustomerPortalToken] = useState(null);
+  const [openingNegotiationQuoteId, setOpeningNegotiationQuoteId] = useState(null);
+
   // Form State for New Quotation
   const [availableProducts, setAvailableProducts] = useState(DEFAULT_PRODUCTS);
   const [quoteItems, setQuoteItems] = useState([]); // Multi-product line items
@@ -101,6 +110,36 @@ export default function Quotations({ user, onNavigate, onLogout }) {
     }, 4000);
   };
 
+  const handleOpenCustomerNegotiation = async (quote) => {
+    if (!quote) return;
+    if (quote.portal_token) {
+      setActiveCustomerPortalToken(quote.portal_token);
+      return;
+    }
+    setOpeningNegotiationQuoteId(quote.id);
+    try {
+      const customerEmail = (user?.email || quote.customer_email || quote.portal_customer_email || 'customer@dealflow360.com').trim();
+      const res = await sendPortalLink(quote.id, customerEmail);
+      if (res?.token) {
+        setActiveCustomerPortalToken(res.token);
+      } else if (res?.portalUrl) {
+        const tokenFromUrl = res.portalUrl.split('/portal/')[1];
+        if (tokenFromUrl) {
+          setActiveCustomerPortalToken(tokenFromUrl);
+        } else {
+          showToast('Quotation negotiation portal opened.');
+        }
+      } else {
+        showToast('Negotiation portal initialized.');
+      }
+      await loadQuotations(true);
+    } catch (err) {
+      showToast(err.message || 'Failed to open negotiation screen');
+    } finally {
+      setOpeningNegotiationQuoteId(null);
+    }
+  };
+
   const normalizeQuote = (q) => {
     if (!q) return null;
     const rawStage = String(q.stage || q.status || 'draft').toLowerCase().replace(/[\s_-]+/g, '');
@@ -115,12 +154,13 @@ export default function Quotations({ user, onNavigate, onLogout }) {
     let stage = 'draft';
     if (hasNegotiationReq || stageMatchesNegotiation) {
       stage = 'negotiation';
+    } else if (rawStage.includes('confirmed')) {
+      stage = 'confirmed';
     } else if (rawStage.includes('pending')) {
       stage = 'pending';
     } else if (
       rawApprovalStatus.includes('approved') ||
-      rawStage.includes('approved') ||
-      rawStage.includes('confirmed')
+      rawStage.includes('approved')
     ) {
       stage = 'approved';
     }
@@ -624,6 +664,54 @@ export default function Quotations({ user, onNavigate, onLogout }) {
     : 5;
   const exceedsAuthority = repDiscountPct > selectedMaxAllowed;
 
+  // Dedicated Customer Portal View when customer opens active negotiation
+  if (isCustomerUser && activeCustomerPortalToken) {
+    return (
+      <div className="quotations-container">
+        {toastMessage && (
+          <div className="toast-container">
+            <div className="toast">
+              <Check size={20} color="#e9d5e3" />
+              <span>{toastMessage}</span>
+            </div>
+          </div>
+        )}
+
+        <Navbar 
+          activePage="quotations" 
+          user={user} 
+          onNavigate={onNavigate} 
+          onLogout={onLogout}
+          onToast={showToast}
+        />
+
+        <div style={{ padding: '0 24px 40px', maxWidth: '1400px', margin: '0 auto', width: '100%' }}>
+          <div style={{ margin: '16px 0 10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              onClick={() => setActiveCustomerPortalToken(null)}
+              className="btn-dash-secondary"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 16px',
+                fontWeight: 700,
+                fontSize: '13px'
+              }}
+            >
+              ← Back to My Quotations
+            </button>
+          </div>
+          <CustomerPortal
+            token={activeCustomerPortalToken}
+            onBack={() => setActiveCustomerPortalToken(null)}
+            onGoToInvoices={() => onNavigate && onNavigate('invoices')}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="quotations-container">
       {/* Toast Notification */}
@@ -648,471 +736,825 @@ export default function Quotations({ user, onNavigate, onLogout }) {
       {/* Main Quotations Area */}
       <main className="quote-main">
         
-        {/* Page Subheader & Controls Row */}
-        <div className="quote-header-row">
-          <div className="quote-title-group">
-            <div className="quote-title-wrapper">
-              <h1 className="quote-title">
-                Quotations {viewMode === 'board' ? '(List)' : '(Table)'}
-              </h1>
-              <span className="pipeline-live-badge">
-                <span className="pulse-dot"></span>
-                <span>Pipeline Live</span>
-              </span>
+        {isCustomerUser ? (
+          /* ── Customer Quotations & Proposals View ── */
+          <div className="customer-proposals-section">
+            <div className="quote-header-row">
+              <div className="quote-title-group">
+                <div className="quote-title-wrapper">
+                  <h1 className="quote-title">My Quotations & Proposals</h1>
+                  <span className="pipeline-live-badge">
+                    <span className="pulse-dot"></span>
+                    <span>Live Portal</span>
+                  </span>
+                </div>
+                <p className="quote-subtitle">
+                  Review your personalized quotes, negotiate custom pricing or warranty items directly with your sales rep, and approve orders into invoices.
+                </p>
+              </div>
+
+              <div className="quote-controls-group">
+                <div className="quote-search-wrapper">
+                  <Search size={15} className="quote-search-icon" />
+                  <input
+                    type="text"
+                    className="quote-search-input"
+                    placeholder="Search proposals, items, or IDs..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+
+                <div className="view-switcher-group">
+                  <button
+                    className={`btn-view-toggle ${viewMode === 'board' ? 'active' : ''}`}
+                    onClick={() => setViewMode('board')}
+                  >
+                    <LayoutGrid size={14} />
+                    <span>Cards</span>
+                  </button>
+                  <button
+                    className={`btn-view-toggle ${viewMode === 'table' ? 'active' : ''}`}
+                    onClick={() => setViewMode('table')}
+                  >
+                    <List size={14} />
+                    <span>Table</span>
+                  </button>
+                </div>
+              </div>
             </div>
-            <p className="quote-subtitle">
-              Every quotation in the system, one row per quotation, click a row to open it
-            </p>
-          </div>
 
-          {/* Search, View Switcher & New Quote Button */}
-          <div className="quote-controls-group">
-            <div className="quote-search-wrapper">
-              <Search size={15} className="quote-search-icon" />
-              <input
-                type="text"
-                className="quote-search-input"
-                placeholder="Search quotations or clients..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-
-            <div className="view-switcher-group">
-              <button
-                className={`btn-view-toggle ${viewMode === 'board' ? 'active' : ''}`}
-                onClick={() => setViewMode('board')}
-              >
-                <LayoutGrid size={14} />
-                <span>Board</span>
-              </button>
-              <button
-                className={`btn-view-toggle ${viewMode === 'table' ? 'active' : ''}`}
-                onClick={() => setViewMode('table')}
-              >
-                <List size={14} />
-                <span>Switch to Table View</span>
-              </button>
-            </div>
-
-            {normalizeRole(user?.role) !== 'customer' && (
-              <button
-                className="btn-new-quote"
-                onClick={() => setIsNewQuoteOpen(true)}
-              >
-                <Plus size={16} />
-                <span>New Quotation</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* 5 KPI Metric Summary Pill Cards */}
-        {(() => {
-          const draftSum = draftQuotes.reduce((a, b) => a + (b.amount || 0), 0);
-          const pendingSum = pendingQuotes.reduce((a, b) => a + (b.amount || 0), 0);
-          const approvedSum = approvedQuotes.reduce((a, b) => a + (b.amount || 0), 0);
-          const negotiationSum = negotiationQuotes.reduce((a, b) => a + (b.amount || 0), 0);
-          const confirmedSum = filteredQuotes.filter(q => q.stage === 'confirmed').reduce((a, b) => a + (b.amount || 0), 0);
-
-          return (
+            {/* Customer KPI Metric Cards */}
             <div className="quote-metrics-bar">
               <div className="metric-pill-card">
                 <div className="metric-pill-info">
-                  <span className="metric-pill-label">Draft Total</span>
-                  <span className="metric-pill-value gray">₹{draftSum.toLocaleString('en-IN')}</span>
+                  <span className="metric-pill-label">Total Proposals</span>
+                  <span className="metric-pill-value gray">{filteredQuotes.length}</span>
                 </div>
                 <span className="metric-dot gray"></span>
               </div>
 
               <div className="metric-pill-card">
                 <div className="metric-pill-info">
-                  <span className="metric-pill-label">Pending Value</span>
-                  <span className="metric-pill-value amber">₹{pendingSum.toLocaleString('en-IN')}</span>
-                </div>
-                <span className="metric-dot amber"></span>
-              </div>
-
-              <div className="metric-pill-card">
-                <div className="metric-pill-info">
-                  <span className="metric-pill-label">Approved Value</span>
-                  <span className="metric-pill-value blue">₹{approvedSum.toLocaleString('en-IN')}</span>
-                </div>
-                <span className="metric-dot blue"></span>
-              </div>
-
-              <div className="metric-pill-card">
-                <div className="metric-pill-info">
-                  <span className="metric-pill-label">In Negotiation</span>
-                  <span className="metric-pill-value purple">₹{negotiationSum.toLocaleString('en-IN')}</span>
+                  <span className="metric-pill-label">In Review / Negotiation</span>
+                  <span className="metric-pill-value purple">
+                    {filteredQuotes.filter(q => q.stage === 'negotiation' || q.stage === 'pending').length}
+                  </span>
                 </div>
                 <span className="metric-dot purple"></span>
               </div>
 
               <div className="metric-pill-card">
                 <div className="metric-pill-info">
-                  <span className="metric-pill-label">Confirmed Value</span>
-                  <span className="metric-pill-value green">₹{confirmedSum.toLocaleString('en-IN')}</span>
+                  <span className="metric-pill-label">Approved & Ready</span>
+                  <span className="metric-pill-value blue">
+                    {filteredQuotes.filter(q => q.stage === 'approved').length}
+                  </span>
+                </div>
+                <span className="metric-dot blue"></span>
+              </div>
+
+              <div className="metric-pill-card">
+                <div className="metric-pill-info">
+                  <span className="metric-pill-label">Confirmed & Invoiced</span>
+                  <span className="metric-pill-value green">
+                    {filteredQuotes.filter(q => q.stage === 'confirmed').length}
+                  </span>
                 </div>
                 <span className="metric-dot green"></span>
               </div>
             </div>
-          );
-        })()}
 
-        {/* KANBAN BOARD VIEW */}
-        {viewMode === 'board' && (
-          <div className="kanban-board-grid">
-            
-            {/* Column 1: Draft */}
-            <div className="kanban-column">
-              <div className="kanban-column-header">
-                <div className="kanban-col-title">
-                  <span className="col-status-dot draft"></span>
-                  <span>Draft</span>
-                  <span className="col-badge-count">{draftQuotes.length}</span>
-                </div>
-                <button 
-                  className="btn-col-add" 
-                  title="Add Draft"
-                  onClick={() => handleOpenNewQuote('draft')}
-                >
-                  +
-                </button>
+            {/* Content: Cards or Table */}
+            {filteredQuotes.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', marginTop: '20px' }}>
+                <FileText size={48} color="#94a3b8" style={{ margin: '0 auto 16px' }} />
+                <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>No Quotations Found</h3>
+                <p style={{ color: '#64748b', fontSize: '14px', maxWidth: '460px', margin: '0 auto 20px' }}>
+                  You do not have any active quotations or proposals at the moment. Please contact your dedicated sales representative or browse our products catalog.
+                </p>
               </div>
+            ) : viewMode === 'board' ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px', marginTop: '20px' }}>
+                {filteredQuotes.map((quote) => {
+                  const isConfirmed = quote.stage === 'confirmed';
+                  const isNegotiation = quote.stage === 'negotiation';
+                  const isApproved = quote.stage === 'approved';
 
-              <div className="kanban-cards-list">
-                {draftQuotes.map(quote => (
-                  <div 
-                    key={quote.id} 
-                    className="kanban-deal-card"
-                    onClick={() => handleSelectQuote(quote)}
-                  >
-                    <div className="card-top-row">
-                      <span className="card-quote-code">{quote.id}</span>
-                      <span className="card-amount">₹{quote.amount.toLocaleString('en-IN')}</span>
-                    </div>
-
-                    <div className="card-company-name">{quote.client}</div>
-                    <div className="card-desc">{quote.desc}</div>
-
-                    <div style={{ marginTop: '8px', marginBottom: '8px', display: 'flex', justifyContent: 'flex-end' }}>
-                      <button
-                        type="button"
-                        className="btn-dash-secondary"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenEditDraft(quote);
-                        }}
-                        style={{
-                          height: '26px',
-                          padding: '0 8px',
-                          fontSize: '11.5px',
-                          fontWeight: 700,
-                          gap: '4px',
-                          borderRadius: '4px',
-                          background: '#faf5f8',
-                          borderColor: '#e9d5e3',
-                          color: '#714b67'
-                        }}
-                      >
-                        <Edit3 size={11} />
-                        <span>Edit Draft</span>
-                      </button>
-                    </div>
-
-                    <div className="card-bottom-row">
-                      <span>● {quote.created}</span>
-                      <div className="card-owner-badge">
-                        <span className={`owner-avatar-mini ${quote.ownerClass}`}>{quote.ownerInitials}</span>
-                        <span className="owner-name">{quote.owner}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <button 
-                className="btn-add-draft-column"
-                onClick={() => handleOpenNewQuote('draft')}
-              >
-                <Plus size={14} />
-                <span>Add Draft</span>
-              </button>
-            </div>
-
-            {/* Column 2: Pending Approval */}
-            <div className="kanban-column">
-              <div className="kanban-column-header">
-                <div className="kanban-col-title">
-                  <span className="col-status-dot pending"></span>
-                  <span>Pending Approval</span>
-                  <span className="col-badge-count">{pendingQuotes.length}</span>
-                </div>
-                <button 
-                  className="btn-col-add" 
-                  title="Add Pending Quote"
-                  onClick={() => handleOpenNewQuote('pending')}
-                >
-                  +
-                </button>
-              </div>
-
-              <div className="kanban-cards-list">
-                {pendingQuotes.map(quote => (
-                  <div 
-                    key={quote.id} 
-                    className="kanban-deal-card pending-stripe"
-                    onClick={() => handleSelectQuote(quote)}
-                  >
-                    <div className="card-top-row">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span className="card-quote-code">{quote.id}</span>
-                        {quote.badge && <span className="card-tag-vp">{quote.badge}</span>}
-                      </div>
-                      <span className="card-amount">₹{quote.amount.toLocaleString('en-IN')}</span>
-                    </div>
-
-                    <div className="card-company-name">{quote.client}</div>
-
-                    {quote.alert && (
-                      <div className="card-alert-box amber">
-                        ⚠️ {quote.alert}
-                      </div>
-                    )}
-
-                    <div className="card-bottom-row">
-                      <span>● {quote.created}</span>
-                      <div className="card-owner-badge">
-                        <span className={`owner-avatar-mini ${quote.ownerClass}`}>{quote.ownerInitials}</span>
-                        <span className="owner-name">{quote.owner}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="column-drop-zone">
-                Drag pending quotes here
-              </div>
-            </div>
-
-            {/* Column 3: Approved */}
-            <div className="kanban-column">
-              <div className="kanban-column-header">
-                <div className="kanban-col-title">
-                  <span className="col-status-dot approved"></span>
-                  <span>Approved</span>
-                  <span className="col-badge-count">{approvedQuotes.length}</span>
-                </div>
-                <button 
-                  className="btn-col-add" 
-                  title="Add Approved Quote"
-                  onClick={() => handleOpenNewQuote('approved')}
-                >
-                  +
-                </button>
-              </div>
-
-              <div className="kanban-cards-list">
-                {approvedQuotes.map(quote => (
-                  <div 
-                    key={quote.id} 
-                    className="kanban-deal-card approved-stripe"
-                    onClick={() => handleSelectQuote(quote)}
-                  >
-                    <div className="card-top-row">
-                      <span className="card-quote-code">{quote.id}</span>
-                      <span className="card-amount">₹{quote.amount.toLocaleString('en-IN')}</span>
-                    </div>
-
-                    <div className="card-company-name">{quote.client}</div>
-                    <div className="card-desc">{quote.desc}</div>
-
-                    {quote.alert && (
-                      <div className="card-alert-box green">
-                        ✓ {quote.alert}
-                      </div>
-                    )}
-
-                    <div className="card-bottom-row">
-                      <span>{quote.created}</span>
-                      <div className="card-owner-badge">
-                        <span className={`owner-avatar-mini ${quote.ownerClass}`}>{quote.ownerInitials}</span>
-                        <span className="owner-name">{quote.owner}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="column-drop-zone">
-                Awaiting client transmission
-              </div>
-            </div>
-
-            {/* Column 4: Negotiation */}
-            <div className="kanban-column">
-              <div className="kanban-column-header">
-                <div className="kanban-col-title">
-                  <span className="col-status-dot negotiation"></span>
-                  <span>Negotiation</span>
-                  <span className="col-badge-count">{negotiationQuotes.length}</span>
-                </div>
-                <button 
-                  className="btn-col-add" 
-                  title="Add Negotiation Quote"
-                  onClick={() => handleOpenNewQuote('negotiation')}
-                >
-                  +
-                </button>
-              </div>
-
-              <div className="kanban-cards-list">
-                {negotiationQuotes.map(quote => (
-                  <div 
-                    key={quote.id} 
-                    className="kanban-deal-card negotiation-stripe"
-                    onClick={() => handleSelectQuote(quote)}
-                  >
-                    <div className="card-top-row">
-                      <span className="card-quote-code">{quote.id}</span>
-                      <span className="card-amount">₹{quote.amount.toLocaleString('en-IN')}</span>
-                    </div>
-
-                    <div className="card-company-name">{quote.client}</div>
-                    <div className="card-desc">{quote.desc}</div>
-
-                    {quote.demandedPrice ? (
-                      <div className="card-alert-box purple" style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <strong style={{ fontSize: '12px' }}>Demanded: ₹{quote.demandedPrice.toLocaleString('en-IN')}</strong>
-                          <span style={{ fontSize: '10.5px', background: '#714b67', color: '#fff', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
-                            {quote.demandedPercent ? `${quote.demandedPercent}% off` : 'Counter Offer'}
-                          </span>
+                  return (
+                    <div
+                      key={quote.id}
+                      style={{
+                        background: '#ffffff',
+                        border: isConfirmed ? '1.5px solid #bbf7d0' : isNegotiation ? '1.5px solid #e9d5e3' : '1px solid #e2e8f0',
+                        borderRadius: '12px',
+                        padding: '20px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                        position: 'relative'
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                          <div>
+                            <span style={{ fontSize: '12px', fontWeight: 800, color: '#714b67', letterSpacing: '0.5px' }}>{quote.id}</span>
+                            <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>{quote.desc || 'Enterprise Package'}</h3>
+                          </div>
+                          <div>
+                            {isConfirmed ? (
+                              <span style={{ fontSize: '11px', fontWeight: 700, background: '#dcfce7', color: '#15803d', padding: '3px 8px', borderRadius: '6px', border: '1px solid #bbf7d0' }}>
+                                ✓ Invoiced
+                              </span>
+                            ) : isNegotiation ? (
+                              <span style={{ fontSize: '11px', fontWeight: 700, background: '#faf5f8', color: '#714b67', padding: '3px 8px', borderRadius: '6px', border: '1px solid #e9d5e3' }}>
+                                💬 In Negotiation
+                              </span>
+                            ) : isApproved ? (
+                              <span style={{ fontSize: '11px', fontWeight: 700, background: '#dbeafe', color: '#1e40af', padding: '3px 8px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
+                                ✓ Approved
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '11px', fontWeight: 700, background: '#fef3c7', color: '#92400e', padding: '3px 8px', borderRadius: '6px', border: '1px solid #fde68a' }}>
+                                ⏳ Pending Review
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div style={{ fontSize: '11px', color: '#54324c' }}>
-                          List: ₹{quote.baseAmount.toLocaleString('en-IN')} • Save: ₹{Math.max(0, quote.baseAmount - quote.demandedPrice).toLocaleString('en-IN')}
+
+                        {/* Product Items snippet if available */}
+                        {quote.productItems && quote.productItems.length > 0 && (
+                          <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', marginBottom: '14px', border: '1px solid #f1f5f9' }}>
+                            <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#64748b', marginBottom: '6px' }}>
+                              INCLUDED ITEMS ({quote.productItems.length}):
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              {quote.productItems.slice(0, 3).map((item, idx) => (
+                                <div key={idx} style={{ fontSize: '12px', color: '#334155', display: 'flex', justifyContent: 'space-between' }}>
+                                  <span>• {item.name || item.product_name} {item.quantity > 1 ? `(${item.quantity}x)` : ''}</span>
+                                  <strong style={{ color: '#0f172a' }}>₹{Number(item.totalPrice || ((item.unitPrice || 0) * (item.quantity || 1))).toLocaleString('en-IN')}</strong>
+                                </div>
+                              ))}
+                              {quote.productItems.length > 3 && (
+                                <span style={{ fontSize: '11px', color: '#94a3b8' }}>+ {quote.productItems.length - 3} more items</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Rep details */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', fontSize: '12.5px', color: '#64748b' }}>
+                          <span className={`owner-avatar-mini ${quote.ownerClass}`}>{quote.ownerInitials}</span>
+                          <span>Assigned Rep: <strong style={{ color: '#0f172a' }}>{quote.owner}</strong> ({quote.ownerRole})</span>
+                        </div>
+
+                        {/* Price Details */}
+                        <div style={{ background: '#faf5f8', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e9d5e3', marginBottom: '16px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                            <span style={{ fontSize: '12px', color: '#64748b' }}>Gross List Value:</span>
+                            <span style={{ fontSize: '13px', textDecoration: quote.discountPercent > 0 ? 'line-through' : 'none', color: '#64748b' }}>
+                              ₹{quote.baseAmount.toLocaleString('en-IN')}
+                            </span>
+                          </div>
+                          {quote.discountPercent > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', color: '#15803d', fontSize: '12px', fontWeight: 600 }}>
+                              <span>Discount Applied ({quote.discountPercent}%):</span>
+                              <span>-₹{Math.max(0, quote.baseAmount - quote.amount).toLocaleString('en-IN')}</span>
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e9d5e3', paddingTop: '6px', marginTop: '4px' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: '#714b67' }}>Net Payable Total:</span>
+                            <span style={{ fontSize: '18px', fontWeight: 800, color: '#059669' }}>₹{quote.amount.toLocaleString('en-IN')}</span>
+                          </div>
                         </div>
                       </div>
-                    ) : quote.alert && (
-                      <div className="card-alert-box purple">
-                        {quote.alert}
-                      </div>
-                    )}
 
-                    <div className="card-bottom-row">
-                      <span>● {quote.created}</span>
-                      <div className="card-owner-badge">
-                        <span className={`owner-avatar-mini ${quote.ownerClass}`}>{quote.ownerInitials}</span>
-                        <span className="owner-name">{quote.owner}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="column-drop-zone">
-                Active negotiation thread
-              </div>
-            </div>
-
-          </div>
-        )}
-
-        {/* TABLE VIEW */}
-        {viewMode === 'table' && (
-          <div className="quote-table-card">
-            <table className="quote-table">
-              <thead>
-                <tr>
-                  <th>Quote ID</th>
-                  <th>Client Name</th>
-                  <th>Description</th>
-                  <th>Stage</th>
-                  <th>Amount</th>
-                  <th>Owner</th>
-                  <th>Timeline</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredQuotes.map(quote => (
-                  <tr key={quote.id} onClick={() => handleSelectQuote(quote)}>
-                    <td style={{ fontWeight: 700, color: '#714b67' }}>{quote.id}</td>
-                    <td style={{ fontWeight: 700 }}>{quote.client}</td>
-                    <td style={{ maxWidth: '300px', fontSize: '12.5px', color: '#64748b' }}>{quote.desc}</td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span className={`status-tag ${quote.stage === 'approved' ? 'approved' : quote.stage === 'pending' ? 'pending' : 'sync'}`}>
-                          {quote.stage.toUpperCase()}
-                        </span>
-                        {quote.stage === 'draft' && (
+                      {/* Action buttons */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {isConfirmed ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => onNavigate && onNavigate('invoices')}
+                              style={{
+                                width: '100%',
+                                height: '42px',
+                                background: '#15803d',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: '8px',
+                                fontSize: '13.5px',
+                                fontWeight: 700,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 6px rgba(21, 128, 61, 0.25)'
+                              }}
+                            >
+                              <FileCheck size={16} />
+                              <span>View in Invoices ➔</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenCustomerNegotiation(quote)}
+                              className="btn-dash-secondary"
+                              style={{ width: '100%', height: '36px', fontSize: '12.5px', justifyContent: 'center' }}
+                            >
+                              Review Negotiation Details
+                            </button>
+                          </>
+                        ) : (
                           <button
                             type="button"
+                            onClick={() => handleOpenCustomerNegotiation(quote)}
+                            disabled={openingNegotiationQuoteId === quote.id}
+                            style={{
+                              width: '100%',
+                              height: '42px',
+                              background: '#714b67',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: '8px',
+                              fontSize: '13.5px',
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '8px',
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 6px rgba(113, 75, 103, 0.25)'
+                            }}
+                          >
+                            {openingNegotiationQuoteId === quote.id ? (
+                              <>
+                                <Loader2 size={16} className="animate-spin" />
+                                <span>Opening Negotiation Screen...</span>
+                              </>
+                            ) : (
+                              <>
+                                <MessageSquare size={16} />
+                                <span>Review Proposal & Negotiate ➔</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* Table View for Customers */
+              <div className="quote-table-card" style={{ marginTop: '20px' }}>
+                <table className="quote-table">
+                  <thead>
+                    <tr>
+                      <th>Quote ID</th>
+                      <th>Description</th>
+                      <th>Dedicated Rep</th>
+                      <th>Status</th>
+                      <th>List Price</th>
+                      <th>Net Payable</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredQuotes.map((quote) => (
+                      <tr key={quote.id}>
+                        <td style={{ fontWeight: 800, color: '#714b67' }}>{quote.id}</td>
+                        <td style={{ fontWeight: 600, color: '#0f172a' }}>{quote.desc || 'Custom Package'}</td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span className={`owner-avatar-mini ${quote.ownerClass}`}>{quote.ownerInitials}</span>
+                            <span>{quote.owner}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`status-tag ${quote.stage === 'confirmed' ? 'approved' : quote.stage === 'negotiation' ? 'sync' : 'pending'}`}>
+                            {quote.stage.toUpperCase()}
+                          </span>
+                        </td>
+                        <td style={{ color: '#64748b', textDecoration: quote.discountPercent > 0 ? 'line-through' : 'none' }}>
+                          ₹{quote.baseAmount.toLocaleString('en-IN')}
+                        </td>
+                        <td style={{ fontWeight: 800, color: '#059669', fontSize: '14px' }}>
+                          ₹{quote.amount.toLocaleString('en-IN')}
+                        </td>
+                        <td>
+                          {quote.stage === 'confirmed' ? (
+                            <button
+                              type="button"
+                              onClick={() => onNavigate && onNavigate('invoices')}
+                              style={{
+                                background: '#dcfce7',
+                                border: '1px solid #bbf7d0',
+                                color: '#15803d',
+                                padding: '4px 10px',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Invoices ➔
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenCustomerNegotiation(quote)}
+                              style={{
+                                background: '#714b67',
+                                color: '#ffffff',
+                                border: 'none',
+                                padding: '5px 12px',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Negotiate ➔
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* ── Sales Rep / Manager / Admin CPQ Pipeline View ── */
+          <>
+            {/* Page Subheader & Controls Row */}
+            <div className="quote-header-row">
+              <div className="quote-title-group">
+                <div className="quote-title-wrapper">
+                  <h1 className="quote-title">
+                    Quotations {viewMode === 'board' ? '(List)' : '(Table)'}
+                  </h1>
+                  <span className="pipeline-live-badge">
+                    <span className="pulse-dot"></span>
+                    <span>Pipeline Live</span>
+                  </span>
+                </div>
+                <p className="quote-subtitle">
+                  Every quotation in the system, one row per quotation, click a row to open it
+                </p>
+              </div>
+
+              {/* Search, View Switcher & New Quote Button */}
+              <div className="quote-controls-group">
+                <div className="quote-search-wrapper">
+                  <Search size={15} className="quote-search-icon" />
+                  <input
+                    type="text"
+                    className="quote-search-input"
+                    placeholder="Search quotations or clients..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+
+                <div className="view-switcher-group">
+                  <button
+                    className={`btn-view-toggle ${viewMode === 'board' ? 'active' : ''}`}
+                    onClick={() => setViewMode('board')}
+                  >
+                    <LayoutGrid size={14} />
+                    <span>Board</span>
+                  </button>
+                  <button
+                    className={`btn-view-toggle ${viewMode === 'table' ? 'active' : ''}`}
+                    onClick={() => setViewMode('table')}
+                  >
+                    <List size={14} />
+                    <span>Switch to Table View</span>
+                  </button>
+                </div>
+
+                <button
+                  className="btn-new-quote"
+                  onClick={() => setIsNewQuoteOpen(true)}
+                >
+                  <Plus size={16} />
+                  <span>New Quotation</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 5 KPI Metric Summary Pill Cards */}
+            {(() => {
+              const draftSum = draftQuotes.reduce((a, b) => a + (b.amount || 0), 0);
+              const pendingSum = pendingQuotes.reduce((a, b) => a + (b.amount || 0), 0);
+              const approvedSum = approvedQuotes.reduce((a, b) => a + (b.amount || 0), 0);
+              const negotiationSum = negotiationQuotes.reduce((a, b) => a + (b.amount || 0), 0);
+              const confirmedSum = filteredQuotes.filter(q => q.stage === 'confirmed').reduce((a, b) => a + (b.amount || 0), 0);
+
+              return (
+                <div className="quote-metrics-bar">
+                  <div className="metric-pill-card">
+                    <div className="metric-pill-info">
+                      <span className="metric-pill-label">Draft Total</span>
+                      <span className="metric-pill-value gray">₹{draftSum.toLocaleString('en-IN')}</span>
+                    </div>
+                    <span className="metric-dot gray"></span>
+                  </div>
+
+                  <div className="metric-pill-card">
+                    <div className="metric-pill-info">
+                      <span className="metric-pill-label">Pending Value</span>
+                      <span className="metric-pill-value amber">₹{pendingSum.toLocaleString('en-IN')}</span>
+                    </div>
+                    <span className="metric-dot amber"></span>
+                  </div>
+
+                  <div className="metric-pill-card">
+                    <div className="metric-pill-info">
+                      <span className="metric-pill-label">Approved Value</span>
+                      <span className="metric-pill-value blue">₹{approvedSum.toLocaleString('en-IN')}</span>
+                    </div>
+                    <span className="metric-dot blue"></span>
+                  </div>
+
+                  <div className="metric-pill-card">
+                    <div className="metric-pill-info">
+                      <span className="metric-pill-label">In Negotiation</span>
+                      <span className="metric-pill-value purple">₹{negotiationSum.toLocaleString('en-IN')}</span>
+                    </div>
+                    <span className="metric-dot purple"></span>
+                  </div>
+
+                  <div className="metric-pill-card">
+                    <div className="metric-pill-info">
+                      <span className="metric-pill-label">Confirmed Value</span>
+                      <span className="metric-pill-value green">₹{confirmedSum.toLocaleString('en-IN')}</span>
+                    </div>
+                    <span className="metric-dot green"></span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* KANBAN BOARD VIEW */}
+            {viewMode === 'board' && (
+              <div className="kanban-board-grid">
+                
+                {/* Column 1: Draft */}
+                <div className="kanban-column">
+                  <div className="kanban-column-header">
+                    <div className="kanban-col-title">
+                      <span className="col-status-dot draft"></span>
+                      <span>Draft</span>
+                      <span className="col-badge-count">{draftQuotes.length}</span>
+                    </div>
+                    <button 
+                      className="btn-col-add" 
+                      title="Add Draft"
+                      onClick={() => handleOpenNewQuote('draft')}
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  <div className="kanban-cards-list">
+                    {draftQuotes.map(quote => (
+                      <div 
+                        key={quote.id} 
+                        className="kanban-deal-card"
+                        onClick={() => handleSelectQuote(quote)}
+                      >
+                        <div className="card-top-row">
+                          <span className="card-quote-code">{quote.id}</span>
+                          <span className="card-amount">₹{quote.amount.toLocaleString('en-IN')}</span>
+                        </div>
+
+                        <div className="card-company-name">{quote.client}</div>
+                        <div className="card-desc">{quote.desc}</div>
+
+                        <div style={{ marginTop: '8px', marginBottom: '8px', display: 'flex', justifyContent: 'flex-end' }}>
+                          <button
+                            type="button"
+                            className="btn-dash-secondary"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleOpenEditDraft(quote);
                             }}
-                            title="Edit Draft"
                             style={{
-                              background: '#faf5f8',
-                              border: '1px solid #e9d5e3',
-                              color: '#714b67',
-                              borderRadius: '4px',
-                              padding: '2px 8px',
-                              fontSize: '11px',
+                              height: '26px',
+                              padding: '0 8px',
+                              fontSize: '11.5px',
                               fontWeight: 700,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '3px'
+                              gap: '4px',
+                              borderRadius: '4px',
+                              background: '#faf5f8',
+                              borderColor: '#e9d5e3',
+                              color: '#714b67'
                             }}
                           >
-                            <Edit3 size={10} />
-                            <span>Edit</span>
+                            <Edit3 size={11} />
+                            <span>Edit Draft</span>
                           </button>
+                        </div>
+
+                        <div className="card-bottom-row">
+                          <span>● {quote.created}</span>
+                          <div className="card-owner-badge">
+                            <span className={`owner-avatar-mini ${quote.ownerClass}`}>{quote.ownerInitials}</span>
+                            <span className="owner-name">{quote.owner}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button 
+                    className="btn-add-draft-column"
+                    onClick={() => handleOpenNewQuote('draft')}
+                  >
+                    <Plus size={14} />
+                    <span>Add Draft</span>
+                  </button>
+                </div>
+
+                {/* Column 2: Pending Approval */}
+                <div className="kanban-column">
+                  <div className="kanban-column-header">
+                    <div className="kanban-col-title">
+                      <span className="col-status-dot pending"></span>
+                      <span>Pending Approval</span>
+                      <span className="col-badge-count">{pendingQuotes.length}</span>
+                    </div>
+                    <button 
+                      className="btn-col-add" 
+                      title="Add Pending Quote"
+                      onClick={() => handleOpenNewQuote('pending')}
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  <div className="kanban-cards-list">
+                    {pendingQuotes.map(quote => (
+                      <div 
+                        key={quote.id} 
+                        className="kanban-deal-card pending-stripe"
+                        onClick={() => handleSelectQuote(quote)}
+                      >
+                        <div className="card-top-row">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span className="card-quote-code">{quote.id}</span>
+                            {quote.badge && <span className="card-tag-vp">{quote.badge}</span>}
+                          </div>
+                          <span className="card-amount">₹{quote.amount.toLocaleString('en-IN')}</span>
+                        </div>
+
+                        <div className="card-company-name">{quote.client}</div>
+
+                        {quote.alert && (
+                          <div className="card-alert-box amber">
+                            ⚠️ {quote.alert}
+                          </div>
                         )}
+
+                        <div className="card-bottom-row">
+                          <span>● {quote.created}</span>
+                          <div className="card-owner-badge">
+                            <span className={`owner-avatar-mini ${quote.ownerClass}`}>{quote.ownerInitials}</span>
+                            <span className="owner-name">{quote.owner}</span>
+                          </div>
+                        </div>
                       </div>
-                    </td>
-                    <td style={{ fontWeight: 800, color: '#0f172a' }}>₹{quote.amount.toLocaleString('en-IN')}</td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span className={`owner-avatar-mini ${quote.ownerClass}`}>{quote.ownerInitials}</span>
-                        <span>{quote.owner}</span>
+                    ))}
+                  </div>
+
+                  <div className="column-drop-zone">
+                    Drag pending quotes here
+                  </div>
+                </div>
+
+                {/* Column 3: Approved */}
+                <div className="kanban-column">
+                  <div className="kanban-column-header">
+                    <div className="kanban-col-title">
+                      <span className="col-status-dot approved"></span>
+                      <span>Approved</span>
+                      <span className="col-badge-count">{approvedQuotes.length}</span>
+                    </div>
+                    <button 
+                      className="btn-col-add" 
+                      title="Add Approved Quote"
+                      onClick={() => handleOpenNewQuote('approved')}
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  <div className="kanban-cards-list">
+                    {approvedQuotes.map(quote => (
+                      <div 
+                        key={quote.id} 
+                        className="kanban-deal-card approved-stripe"
+                        onClick={() => handleSelectQuote(quote)}
+                      >
+                        <div className="card-top-row">
+                          <span className="card-quote-code">{quote.id}</span>
+                          <span className="card-amount">₹{quote.amount.toLocaleString('en-IN')}</span>
+                        </div>
+
+                        <div className="card-company-name">{quote.client}</div>
+                        <div className="card-desc">{quote.desc}</div>
+
+                        {quote.alert && (
+                          <div className="card-alert-box green">
+                            ✓ {quote.alert}
+                          </div>
+                        )}
+
+                        <div className="card-bottom-row">
+                          <span>{quote.created}</span>
+                          <div className="card-owner-badge">
+                            <span className={`owner-avatar-mini ${quote.ownerClass}`}>{quote.ownerInitials}</span>
+                            <span className="owner-name">{quote.owner}</span>
+                          </div>
+                        </div>
                       </div>
-                    </td>
-                    <td style={{ fontSize: '12.5px', color: '#64748b' }}>{quote.created}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    ))}
+                  </div>
+
+                  <div className="column-drop-zone">
+                    Awaiting client transmission
+                  </div>
+                </div>
+
+                {/* Column 4: Negotiation */}
+                <div className="kanban-column">
+                  <div className="kanban-column-header">
+                    <div className="kanban-col-title">
+                      <span className="col-status-dot negotiation"></span>
+                      <span>Negotiation</span>
+                      <span className="col-badge-count">{negotiationQuotes.length}</span>
+                    </div>
+                    <button 
+                      className="btn-col-add" 
+                      title="Add Negotiation Quote"
+                      onClick={() => handleOpenNewQuote('negotiation')}
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  <div className="kanban-cards-list">
+                    {negotiationQuotes.map(quote => (
+                      <div 
+                        key={quote.id} 
+                        className="kanban-deal-card negotiation-stripe"
+                        onClick={() => handleSelectQuote(quote)}
+                      >
+                        <div className="card-top-row">
+                          <span className="card-quote-code">{quote.id}</span>
+                          <span className="card-amount">₹{quote.amount.toLocaleString('en-IN')}</span>
+                        </div>
+
+                        <div className="card-company-name">{quote.client}</div>
+                        <div className="card-desc">{quote.desc}</div>
+
+                        {quote.demandedPrice ? (
+                          <div className="card-alert-box purple" style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <strong style={{ fontSize: '12px' }}>Demanded: ₹{quote.demandedPrice.toLocaleString('en-IN')}</strong>
+                              <span style={{ fontSize: '10.5px', background: '#714b67', color: '#fff', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                                {quote.demandedPercent ? `${quote.demandedPercent}% off` : 'Counter Offer'}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#54324c' }}>
+                              List: ₹{quote.baseAmount.toLocaleString('en-IN')} • Save: ₹{Math.max(0, quote.baseAmount - quote.demandedPrice).toLocaleString('en-IN')}
+                            </div>
+                          </div>
+                        ) : quote.alert && (
+                          <div className="card-alert-box purple">
+                            {quote.alert}
+                          </div>
+                        )}
+
+                        <div className="card-bottom-row">
+                          <span>● {quote.created}</span>
+                          <div className="card-owner-badge">
+                            <span className={`owner-avatar-mini ${quote.ownerClass}`}>{quote.ownerInitials}</span>
+                            <span className="owner-name">{quote.owner}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="column-drop-zone">
+                    Active negotiation thread
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* TABLE VIEW */}
+            {viewMode === 'table' && (
+              <div className="quote-table-card">
+                <table className="quote-table">
+                  <thead>
+                    <tr>
+                      <th>Quote ID</th>
+                      <th>Client Name</th>
+                      <th>Description</th>
+                      <th>Stage</th>
+                      <th>Amount</th>
+                      <th>Owner</th>
+                      <th>Timeline</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredQuotes.map(quote => (
+                      <tr key={quote.id} onClick={() => handleSelectQuote(quote)}>
+                        <td style={{ fontWeight: 700, color: '#714b67' }}>{quote.id}</td>
+                        <td style={{ fontWeight: 700 }}>{quote.client}</td>
+                        <td style={{ maxWidth: '300px', fontSize: '12.5px', color: '#64748b' }}>{quote.desc}</td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span className={`status-tag ${quote.stage === 'approved' ? 'approved' : quote.stage === 'pending' ? 'pending' : 'sync'}`}>
+                              {quote.stage.toUpperCase()}
+                            </span>
+                            {quote.stage === 'draft' && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenEditDraft(quote);
+                                }}
+                                title="Edit Draft"
+                                style={{
+                                  background: '#faf5f8',
+                                  border: '1px solid #e9d5e3',
+                                  color: '#714b67',
+                                  borderRadius: '4px',
+                                  padding: '2px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px'
+                                }}
+                              >
+                                <Edit3 size={10} />
+                                <span>Edit</span>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ fontWeight: 800, color: '#0f172a' }}>₹{quote.amount.toLocaleString('en-IN')}</td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span className={`owner-avatar-mini ${quote.ownerClass}`}>{quote.ownerInitials}</span>
+                            <span>{quote.owner}</span>
+                          </div>
+                        </td>
+                        <td style={{ fontSize: '12.5px', color: '#64748b' }}>{quote.created}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Bottom Pipeline Summary Bar */}
+            <div className="quote-bottom-summary-bar">
+              <div className="bottom-actions-left">
+                <button 
+                  className="btn-new-quote"
+                  onClick={() => handleOpenNewQuote('draft')}
+                >
+                  <Plus size={16} />
+                  <span>New Quotation</span>
+                </button>
+
+                <button 
+                  className="btn-dash-secondary"
+                  onClick={() => setViewMode(viewMode === 'board' ? 'table' : 'board')}
+                >
+                  {viewMode === 'board' ? <List size={15} /> : <LayoutGrid size={15} />}
+                  <span>{viewMode === 'board' ? 'Switch to Table View' : 'Switch to Board View'}</span>
+                </button>
+              </div>
+
+              <div className="bottom-pipeline-stat">
+                Showing <strong>{filteredQuotes.length} total quotations</strong>  •  Total Pipeline: <strong>₹{filteredQuotes.reduce((acc, q) => acc + (q.amount || 0), 0).toLocaleString('en-IN')}</strong>
+              </div>
+            </div>
+          </>
         )}
-
-        {/* Bottom Pipeline Summary Bar */}
-        <div className="quote-bottom-summary-bar">
-          <div className="bottom-actions-left">
-            <button 
-              className="btn-new-quote"
-              onClick={() => handleOpenNewQuote('draft')}
-            >
-              <Plus size={16} />
-              <span>New Quotation</span>
-            </button>
-
-            <button 
-              className="btn-dash-secondary"
-              onClick={() => setViewMode(viewMode === 'board' ? 'table' : 'board')}
-            >
-              {viewMode === 'board' ? <List size={15} /> : <LayoutGrid size={15} />}
-              <span>{viewMode === 'board' ? 'Switch to Table View' : 'Switch to Board View'}</span>
-            </button>
-          </div>
-
-          <div className="bottom-pipeline-stat">
-            Showing <strong>{filteredQuotes.length} total quotations</strong>  •  Total Pipeline: <strong>₹{filteredQuotes.reduce((acc, q) => acc + (q.amount || 0), 0).toLocaleString('en-IN')}</strong>
-          </div>
-        </div>
 
       </main>
 

@@ -21,7 +21,7 @@ import "./CustomerPortal.css";
  *   - Inventory-aware upsell/cross-sell panel (post-confirm)
  *   - Official Tax Invoice & Purchase Bill download/print
  */
-export default function CustomerPortal({ token }) {
+export default function CustomerPortal({ token, onBack, onGoToInvoices }) {
   const [quotation, setQuotation]       = useState(null);
   const [messages, setMessages]         = useState([]);
   const [loading, setLoading]           = useState(true);
@@ -181,7 +181,11 @@ export default function CustomerPortal({ token }) {
   };
 
   const handleBackToSubscriptions = () => {
-    window.location.href = window.location.origin;
+    if (onBack) {
+      onBack();
+    } else {
+      window.location.href = window.location.origin;
+    }
   };
 
   if (loading) {
@@ -207,7 +211,7 @@ export default function CustomerPortal({ token }) {
                 boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
               }}
             >
-              <span>← Back to Subscriptions</span>
+              <span>← Back</span>
             </button>
             <div className="portal-logo">DealFlow<span>360</span></div>
           </div>
@@ -243,7 +247,7 @@ export default function CustomerPortal({ token }) {
                 boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
               }}
             >
-              <span>← Back to Subscriptions</span>
+              <span>← Back</span>
             </button>
             <div className="portal-logo">DealFlow<span>360</span></div>
           </div>
@@ -634,6 +638,30 @@ export default function CustomerPortal({ token }) {
                   <FileText size={16} />
                   <span>📄 Download / Print Official Tax Invoice</span>
                 </button>
+
+                {onGoToInvoices && (
+                  <button 
+                    type="button"
+                    className="portal-download-invoice-btn"
+                    onClick={onGoToInvoices}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      background: '#15803d',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '10px 18px',
+                      fontSize: '13.5px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(21, 128, 61, 0.25)'
+                    }}
+                  >
+                    <span>View In Invoices ➔</span>
+                  </button>
+                )}
               </div>
             </div>
           ) : (
